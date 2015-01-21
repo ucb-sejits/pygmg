@@ -8,6 +8,7 @@ import math
 from hpgmg import Coord, CoordStride
 from collections import namedtuple
 from hpgmg.finite_volume.operators.stencil_27_pt import stencil_get_radius
+from hpgmg.finite_volume.shape import Shape, Section
 
 BC_PERIODIC = 0
 BC_DIRICHLET = 1
@@ -65,8 +66,12 @@ class BoundaryCondition(object):
 
 
 class Level(object):
+    """
+    a collections of boxes
+    """
     def __init__(self, boxes_in_i, box_dim, box_ghosts, box_vectors, domain_boundary_condition, my_rank, num_ranks):
-        total_boxes = boxes_in_i ** 3
+        self.shape = Shape(boxes_in_i, boxes_in_i, boxes_in_i)
+        self.total_boxes = self.shape.volume()
 
         if my_rank == 0:
             print("\nattempting to create a %d^3 level (with {} BC)".format(
@@ -83,7 +88,6 @@ class Level(object):
         self.box_ghost_zone = box_ghosts
         self.box_vectors = box_vectors
         self.boxes_in = Coord(boxes_in_i, boxes_in_i, boxes_in_i)
-        self.dim = Coord(box_dim * self.boxes_in.i, box_dim * self.boxes_in.j, box_dim * self.boxes_in.k)
         self.my_rank = my_rank
         self.num_ranks = num_ranks
         self.boundary_conditions = domain_boundary_condition
@@ -94,11 +98,24 @@ class Level(object):
         self.tag = math.log2(self.dim.i)
 
         try:
-            self.rank_of_box = numpy.zeros([self.boxes_in.i * self.boxes_in.j * self.boxes_in.j]).astype(numpy.int32)
+            self.rank_of_box = numpy.zeros(self.shape.tup()).astype(numpy.int32)
         except Exception as e:
             raise Exception("Level create could not allocate rank_of_box")
 
+        if DecomposeLex:
+            decompose_level_lex(self.rank_of_box, self.boxes_in.i, se)
         self.krylov_iterations = 0
         self.ca_krylov_formations_of_g = 0
         self.vcycles_from_this_level = 0
+
+    def for_each_index(self):
+        for k in range(self.shape[2]):
+            for j in range(self.shape[1]):
+                for i in range(self.shape[0]):
+                    yield i, j, k
+
+    def decompose_level_lex(self, ranks):
+        for index in self.shape.foreach():
+            b = self.shape.index_3d_to_1d(index)
+            self.rank_of_box[index] = (ranks * b) / self.total_boxes
 
