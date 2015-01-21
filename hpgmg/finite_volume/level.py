@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 from hpgmg import Coord, CoordStride
@@ -20,7 +22,7 @@ class BlockCopy(object):
         self.write = CoordStride(Coord(0, 0, 0), 0, 0)
 
 
-class CommunicatorType(object):
+class Communicator(object):
     """
     communicator_type in original has lot's of MPI specific code, let's see how
     far we can go without it
@@ -29,23 +31,19 @@ class CommunicatorType(object):
         self.num_receives = 0  # number of neighbors by type
         self.num_sends = 0  # number of neighbors by type
 
+    def print(self, rank, level, print_send=True, print_receive=True, show_blocks=True):
+        print("rank={:2d} level={:2d}".format(rank, level))
+        if print_send:
+            print("num_sends={:2d}".format(self.num_sends))
+        if show_blocks:
+            print("Todo: blocks not part of CommunicatorType yet")
+        if print_receive:
+            print("num_sends={:2d}".format(self.num_sends))
 
-class Box(object):
-    next_id = 0
 
-    @staticmethod
-    def get_next_id():
-        Box.next_id += 1
-        return Box.next_id
-
-    def __init__(self, coord, ghost_zone_depth, vectors):
-        assert isinstance(coord, Coord)
-        assert isinstance(vectors, numpy.ndarray)
-
-        self.global_box_id = Box.get_next_id()  # used to index into level.rank_of_box
-        self.low = coord  # global coordinates of first non-ghost element of subdomain
-        self.ghost_zone_depth = ghost_zone_depth
-        self.vectors = vectors
+GZ = namedtuple('GZ', [
+    'send_rank', 'send_box_id', 'send_box', 'send_dir', 'receive_rank', 'receive_box_id', 'receive_box'
+])
 
 
 BlockCounts = namedtuple('BlockCounts', ['all', 'just_faces'])
