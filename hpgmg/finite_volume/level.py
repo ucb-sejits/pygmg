@@ -2,9 +2,12 @@ from __future__ import print_function
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
+import numpy
+import math
+
 from hpgmg import Coord, CoordStride
 from collections import namedtuple
-import numpy
+from hpgmg.finite_volume.operators.stencil_27_pt import stencil_get_radius
 
 BC_PERIODIC = 0
 BC_DIRICHLET = 1
@@ -62,17 +65,38 @@ class BoundaryCondition(object):
 
 
 class Level(object):
-    def __init__(self, grid_spacing, box_dim, box_ghost_zone, num_box_vectors, boxes_in_ijk):
-        self.grid_spacing = grid_spacing
+    def __init__(self, boxes_in_i, box_dim, box_ghosts, box_vectors, domain_boundary_condition, my_rank, num_ranks):
+        total_boxes = boxes_in_i ** 3
+
+        if my_rank == 0:
+            print("\nattempting to create a %d^3 level (with {} BC)".format(
+                "Dirichlet" if domain_boundary_condition == BC_DIRICHLET else "Periodic"), end="")
+            print("using a {:d}^3 grid of {:d}^3 boxes and {:d} tasks...\n".format(
+                box_dim*boxes_in_i, boxes_in_i, box_dim, num_ranks))
+
+        if box_ghosts < stencil_get_radius():
+            raise Exception("Level creation: ghosts {:d} must be >= stencil_get_radius() {:d}".format(
+                box_ghosts, stencil_get_radius()))
+
         self.is_active = True
         self.box_dim = box_dim
-        self.box_ghost_zone = box_ghost_zone
+        self.box_ghost_zone = box_ghosts
+        self.box_vectors = box_vectors
+        self.boxes_in = Coord(boxes_in_i, boxes_in_i, boxes_in_i)
+        self.dim = Coord(box_dim * self.boxes_in.i, box_dim * self.boxes_in.j, box_dim * self.boxes_in.k)
+        self.my_rank = my_rank
+        self.num_ranks = num_ranks
+        self.boundary_conditions = domain_boundary_condition
+        self.alpha_is_zero = -1
+        self.my_blocks = None
+        self.num_my_blocks = 0
+        self.allocated_blocks = 0
+        self.tag = math.log2(self.dim.i)
 
-        assert isinstance(boxes_in_ijk, Coord)
-        self.num_box_vectors = num_box_vectors
-        self.dim = Coord(boxes_in_ijk.i * box_dim, boxes_in_ijk.j * box_dim, boxes_in_ijk.k * box_dim)
-
-        self.boxes_in_ijk = boxes_in_ijk
+        try:
+            self.rank_of_box = numpy.zeros([self.boxes_in.i * self.boxes_in.j * self.boxes_in.j]).astype(numpy.int32)
+        except Exception as e:
+            raise Exception("Level create could not allocate rank_of_box")
 
         self.krylov_iterations = 0
         self.ca_krylov_formations_of_g = 0
