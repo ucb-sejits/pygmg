@@ -1,6 +1,7 @@
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
-from hpgmg import Coord
+from hpgmg import Coord, CoordStride
+from collections import namedtuple
 import numpy
 
 BC_PERIODIC = 0
@@ -9,6 +10,14 @@ BC_DIRICHLET = 1
 BLOCK_COPY_TILE_I = 10000
 BLOCK_COPY_TILE_J = 8
 BLOCK_COPY_TILE_K = 8
+
+
+class BlockCopy(object):
+    def __init__(self):
+        self.subtype = 0
+        self.dim = Coord(0, 0, 0)
+        self.read = CoordStride(Coord(0, 0, 0), 0, 0)
+        self.write = CoordStride(Coord(0, 0, 0), 0, 0)
 
 
 class CommunicatorType(object):
@@ -27,7 +36,7 @@ class Box(object):
     @staticmethod
     def get_next_id():
         Box.next_id += 1
-        return BoxType.next_id
+        return Box.next_id
 
     def __init__(self, coord, ghost_zone_depth, vectors):
         assert isinstance(coord, Coord)
@@ -37,6 +46,21 @@ class Box(object):
         self.low = coord  # global coordinates of first non-ghost element of subdomain
         self.ghost_zone_depth = ghost_zone_depth
         self.vectors = vectors
+
+
+BlockCounts = namedtuple('BlockCounts', ['all', 'just_faces'])
+BlockCopies = namedtuple('BlockCopies', ['all', 'just_faces'])
+
+
+class BoundaryCondition(object):
+    def __init__(self, condition_type, allocated_blocks, num_blocks, blocks):
+        assert isinstance(allocated_blocks, BlockCounts)
+        assert isinstance(num_blocks, BlockCounts)
+        assert isinstance(num_blocks, BlockCounts)
+
+        self.allocated_blocks = allocated_blocks
+        self.num_blocks = num_blocks
+        self.blocks = blocks
 
 
 class Level(object):
