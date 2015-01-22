@@ -74,23 +74,35 @@ class Level(object):
     """
     a collections of boxes
     """
-    def __init__(self, boxes_in_i, box_dim, box_ghosts, box_vectors, domain_boundary_condition, my_rank, num_ranks):
+    def __init__(self, boxes_in_i, box_dim_size, box_ghost_size, box_vectors, domain_boundary_condition, my_rank, num_ranks):
+        """
+        create a level, initialize everything you can
+        :param boxes_in_i: number of boxes on an axis, appears to be used for all axes
+        :param box_dim_size:
+        :param box_ghost_size:
+        :param box_vectors:
+        :param domain_boundary_condition:
+        :param my_rank:
+        :param num_ranks:
+        :return:
+        """
         self.shape = Shape(boxes_in_i, boxes_in_i, boxes_in_i)
         self.total_boxes = self.shape.volume()
 
         if my_rank == 0:
-            print("\nattempting to create a %d^3 level (with {} BC)".format(
+            print("\nattempting to create a {:d}^3 level (with {} BC) ".format(
+                boxes_in_i * box_dim_size,
                 "Dirichlet" if domain_boundary_condition == BC_DIRICHLET else "Periodic"), end="")
             print("using a {:d}^3 grid of {:d}^3 boxes and {:d} tasks...\n".format(
-                box_dim*boxes_in_i, boxes_in_i, box_dim, num_ranks))
+                box_dim_size*boxes_in_i, boxes_in_i, box_dim_size, num_ranks))
 
-        if box_ghosts < stencil_get_radius():
+        if box_ghost_size < stencil_get_radius():
             raise Exception("Level creation: ghosts {:d} must be >= stencil_get_radius() {:d}".format(
-                box_ghosts, stencil_get_radius()))
+                box_ghost_size, stencil_get_radius()))
 
         self.is_active = True
-        self.box_dim = box_dim
-        self.box_ghost_zone = box_ghosts
+        self.box_dim_size = box_dim_size
+        self.box_ghost_size = box_ghost_size
         self.box_vectors = box_vectors
         self.boxes_in = Coord(boxes_in_i, boxes_in_i, boxes_in_i)
         self.my_rank = my_rank
@@ -136,8 +148,8 @@ class Level(object):
         for index in self.shape.foreach():
             index_1d = self.shape.index_3d_to_1d(index)
             if self.rank_of_box[index] == self.my_rank:
-                box = Box(index_1d, self.box_vectors, self.box_dim, self.box_ghost_zone)
-                box.low = Shape.from_tuple(index) * self.box_dim
+                box = Box(index_1d, self.box_vectors, self.box_dim_size, self.box_ghost_size)
+                box.low = Shape.from_tuple(index) * self.box_dim_size
 
                 self.my_boxes[box_index] = box
                 box_index += 1
