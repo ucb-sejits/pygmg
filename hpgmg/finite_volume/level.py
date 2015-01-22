@@ -10,9 +10,7 @@ from collections import namedtuple
 from hpgmg.finite_volume.operators.stencil_27_pt import stencil_get_radius
 from hpgmg.finite_volume.shape import Shape
 from hpgmg.finite_volume.box import Box
-
-BC_PERIODIC = 0
-BC_DIRICHLET = 1
+from hpgmg.finite_volume.boundary_condition import BoundaryCondition
 
 BLOCK_COPY_TILE_I = 10000
 BLOCK_COPY_TILE_J = 8
@@ -23,14 +21,6 @@ VECTORS_RESERVED = 12  # total number of grids and the starting location for any
 
 DecomposeLex = True  # todo: this should come from global configuration
 DecomposeBisectionSpecial = False  # todo: this should come from global configuration
-
-
-class BlockCopy(object):
-    def __init__(self):
-        self.subtype = 0
-        self.dim = Coord(0, 0, 0)
-        self.read = CoordStride(Coord(0, 0, 0), 0, 0)
-        self.write = CoordStride(Coord(0, 0, 0), 0, 0)
 
 
 class Communicator(object):
@@ -61,18 +51,6 @@ BlockCounts = namedtuple('BlockCounts', ['all', 'just_faces'])
 BlockCopies = namedtuple('BlockCopies', ['all', 'just_faces'])
 
 
-class BoundaryCondition(object):
-    def __init__(self, condition_type, allocated_blocks, num_blocks, blocks):
-        assert isinstance(allocated_blocks, BlockCounts)
-        assert isinstance(num_blocks, BlockCounts)
-        assert isinstance(num_blocks, BlockCounts)
-
-        self.condition_type = condition_type
-        self.allocated_blocks = allocated_blocks
-        self.num_blocks = num_blocks
-        self.blocks = blocks
-
-
 class Level(object):
     """
     a collections of boxes
@@ -95,7 +73,7 @@ class Level(object):
         if my_rank == 0:
             print("\nattempting to create a {:d}^3 level (with {} BC) ".format(
                 boxes_in_i * box_dim_size,
-                "Dirichlet" if domain_boundary_condition == BC_DIRICHLET else "Periodic"), end="")
+                "Dirichlet" if domain_boundary_condition == BoundaryCondition.DIRICHLET else "Periodic"), end="")
             print("using a {:d}^3 grid of {:d}^3 boxes and {:d} tasks...\n".format(
                 box_dim_size*boxes_in_i, boxes_in_i, box_dim_size, num_ranks))
 
@@ -110,7 +88,7 @@ class Level(object):
         self.boxes_in = Coord(boxes_in_i, boxes_in_i, boxes_in_i)
         self.my_rank = my_rank
         self.num_ranks = num_ranks
-        self.boundary_conditions = domain_boundary_condition
+        self.boundary_condition = BoundaryCondition(domain_boundary_condition)
         self.alpha_is_zero = -1
         self.my_blocks = None
         self.num_my_blocks = 0
@@ -118,7 +96,8 @@ class Level(object):
         self.tag = math.log2(self.shape.i)  # todo: this is probably wrong
 
         try:
-            self.rank_of_box = numpy.zeros(self.shape.tup()).astype(numpy.int32)
+            self.rank_of_box = numpy.empty(self.shape.tup()).astype(numpy.int32)
+            self.rank_of_box.fill(-1)
         except Exception:
             raise Exception("Level create could not allocate rank_of_box")
 
@@ -130,7 +109,9 @@ class Level(object):
             self.decompose_level_bisection(num_ranks)
 
         self.num_my_boxes = 0
-        self.my_boxes = None
+        self.my_boxes = []
+
+        self.build_boxes()
 
         self.krylov_iterations = 0
         self.ca_krylov_formations_of_g = 0
@@ -140,7 +121,7 @@ class Level(object):
         self.num_my_boxes = 0
         for index in self.shape.foreach():
             if self.rank_of_box[index] == self.my_rank:
-                self.num_my_blocks += 1
+                self.num_my_boxes += 1
 
         try:
             self.my_boxes = numpy.empty(self.num_my_boxes, dtype=object)
@@ -181,3 +162,34 @@ class Level(object):
                 print()
             print()
         print()
+
+    def append_block_to_list(self, shape, ):
+        pass
+
+    def neighbor_indices(self, box_index):
+        for di in range(-1, 2):
+            for dj in range(-1, 2):
+                for dk in range(-1, 2):
+                    yield box_index
+    def build_boundary_conditions(self, just_faces):
+        assert(BoundaryCondition.valid_index(just_faces))
+
+        # these 3 are defaults for periodic
+        self.boundary_condition.blocks[just_faces] = None
+        self.boundary_condition.num_blocks[just_faces] = 0
+        self.boundary_condition.allocated_blocks[just_faces] = 0
+        if self.boundary_condition.condition_type == BoundaryCondition.PERIODIC:
+            return
+
+        for box_index, box in enumerate(self.my_boxes):
+            pass
+
+
+
+
+
+
+
+
+
+
