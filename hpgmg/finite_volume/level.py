@@ -168,3 +168,16 @@ class Level(object):
     def decompose_level_bisection(self, num_ranks):
         raise Exception("decompose_level_bisection not implemented. Level shape {}".format(self.shape.tup()))
 
+    def print_decomposition(self):
+        if self.my_rank != 0:
+            return
+
+        print()
+        for i in range(self.boxes_in.i-1, 0, -1):
+            for j in range(self.boxes_in.k-1, 0, -1):
+                print(" "*j, end="")
+                for k in range(self.boxes_in.k):
+                    print("{:4d}".format(self.rank_of_box[(i, j, k)]), end="")
+                print()
+            print()
+        print()

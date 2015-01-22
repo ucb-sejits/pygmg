@@ -13,3 +13,5 @@ class TestLevel(unittest.TestCase):
         ghost_zone_size = stencil_get_radius()
         level = Level(8, 1 << 6, 1, VECTORS_RESERVED, BC_DIRICHLET, my_rank=my_rank, num_ranks=2)
         self.assertTrue(level is not None)
+
+        level.print_decomposition()
