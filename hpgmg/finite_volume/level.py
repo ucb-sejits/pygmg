@@ -9,6 +9,7 @@ from hpgmg import Coord, CoordStride
 from collections import namedtuple
 from hpgmg.finite_volume.operators.stencil_27_pt import stencil_get_radius
 from hpgmg.finite_volume.shape import Shape, Section
+from hpgmg.finite_volume.box import Box
 
 BC_PERIODIC = 0
 BC_DIRICHLET = 1
@@ -17,6 +18,8 @@ BLOCK_COPY_TILE_I = 10000
 BLOCK_COPY_TILE_J = 8
 BLOCK_COPY_TILE_K = 8
 
+DecomposeLex = True  # todo: this should come from global configuration
+DecomposeBisectionSpecial = False  # todo: this should come from global configuration
 
 class BlockCopy(object):
     def __init__(self):
@@ -103,19 +106,48 @@ class Level(object):
             raise Exception("Level create could not allocate rank_of_box")
 
         if DecomposeLex:
-            decompose_level_lex(self.rank_of_box, self.boxes_in.i, se)
+            self.decompose_level_lex(num_ranks)
+        elif DecomposeBisectionSpecial:
+            self.decompose_level_bisection_special(num_ranks)
+        else:
+            self.decompose_level_bisection(num_ranks)
+
+        self.num_my_boxes = 0
+        self.my_boxes = None
+
         self.krylov_iterations = 0
         self.ca_krylov_formations_of_g = 0
         self.vcycles_from_this_level = 0
 
-    def for_each_index(self):
-        for k in range(self.shape[2]):
-            for j in range(self.shape[1]):
-                for i in range(self.shape[0]):
-                    yield i, j, k
+    def build_boxes(self):
+        self.num_my_boxes = 0
+        for index in self.shape.foreach():
+            if self.rank_of_box[index] == self.my_rank:
+                self.num_my_blocks += 1
+
+        try:
+            self.my_boxes = numpy.empty([self.num_my_boxes], dtype=object)
+        except Exception:
+            raise("Level build_boxes failed trying to create my_boxes num={}".format(self.num_my_boxes))
+
+        box_index = 0
+        for index in self.shape.foreach():
+            index_1d = self.shape.index_3d_to_1d(index)
+            if self.rank_of_box[index] == self.my_rank:
+                box = Box(index_1d, self.box_vectors, self.box_dim, self.box_ghost_zone)
+                box.low = Shape.from_tuple(index) * self.box_dim
+
+                self.my_boxes[box_index] = box
+                box_index += 1
 
     def decompose_level_lex(self, ranks):
         for index in self.shape.foreach():
             b = self.shape.index_3d_to_1d(index)
             self.rank_of_box[index] = (ranks * b) / self.total_boxes
+
+    def decompose_level_bisection_special(self, num_ranks):
+        raise Exception("decompose_level_bisection_special not implemented. Level shape {}".format(self.shape.tup()))
+
+    def decompose_level_bisection(self, num_ranks):
+        raise Exception("decompose_level_bisection not implemented. Level shape {}".format(self.shape.tup()))
 

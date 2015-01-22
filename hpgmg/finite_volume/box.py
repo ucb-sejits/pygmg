@@ -4,15 +4,11 @@ import numpy
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 
+from hpgmg.finite_volume.shape import Shape
+
+
 class Box(object):
-    next_id = 0
-
-    @staticmethod
-    def get_next_id():
-        Box.next_id += 1
-        return Box.next_id
-
-    def __init__(self, num_vectors, dim, ghost_zone_depth):
+    def __init__(self, id, num_vectors, dim, ghost_zone_depth):
         """
         creates a box, based on create_box from level.c
         currently we are not worrying about alignment in python
@@ -21,8 +17,7 @@ class Box(object):
         :param ghost_zone_depth:
         :return:
         """
-        self.global_box_id = Box.get_next_id()  # used to index into level.rank_of_box
-
+        self.global_box_id = id
         self.num_vectors = num_vectors
         self.dim = dim
         self.ghost_zone_depth = ghost_zone_depth
@@ -31,6 +26,7 @@ class Box(object):
         self.k_stride = self.j_stride * (self.dim + 2 * self.ghost_zone_depth)
 
         self.volume = (dim + 2 * self.ghost_zone_depth) * self.k_stride
+        self.low = Shape()
 
         try:
             self.vectors = numpy.zeros([self.num_vectors]).astype(numpy.float64)

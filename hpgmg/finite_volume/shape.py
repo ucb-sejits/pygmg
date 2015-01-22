@@ -8,7 +8,7 @@ class Shape(object):
     implements a 3d coordinate
     """
     # todo: figure out c hpgmg striding, seems to consider k, least rapidly varying index
-    def __init__(self, i, j, k):
+    def __init__(self, i=0, j=0, k=0):
         self.i, self.j, self.k = i, j, k
 
     def tup(self):
@@ -25,6 +25,14 @@ class Shape(object):
 
     def index_3d_to_1d(self, index):
         return (index[2] * self.i * self.j) + (index[1] * self.i) + index[0]
+
+    def __mul__(self, other):
+        assert isinstance(other, int)
+        return Shape(self.i * other, self.j * other, self.k * other)
+
+    @staticmethod
+    def from_tuple(tup):
+        return Shape(tup[0], tup[1], tup[2])
 
 
 class Section(object):
