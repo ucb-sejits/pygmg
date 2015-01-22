@@ -8,7 +8,7 @@ from hpgmg.finite_volume.shape import Shape
 
 
 class Box(object):
-    def __init__(self, id, num_vectors, dim, ghost_zone_depth):
+    def __init__(self, global_id, num_vectors, dim, ghost_zone_depth):
         """
         creates a box, based on create_box from level.c
         currently we are not worrying about alignment in python
@@ -17,7 +17,7 @@ class Box(object):
         :param ghost_zone_depth:
         :return:
         """
-        self.global_box_id = id
+        self.global_box_id = global_id
         self.num_vectors = num_vectors
         self.dim = dim
         self.ghost_zone_depth = ghost_zone_depth
