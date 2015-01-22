@@ -18,6 +18,9 @@ BLOCK_COPY_TILE_I = 10000
 BLOCK_COPY_TILE_J = 8
 BLOCK_COPY_TILE_K = 8
 
+VECTORS_RESERVED = 12  # total number of grids and the starting location for any auxiliary bottom solver grids
+
+
 DecomposeLex = True  # todo: this should come from global configuration
 DecomposeBisectionSpecial = False  # todo: this should come from global configuration
 
@@ -81,7 +84,7 @@ class Level(object):
         :param box_dim_size:
         :param box_ghost_size:
         :param box_vectors:
-        :param domain_boundary_condition:
+        :param domain_boundary_condition: BC_DIRICHLET or BC_PERIODIC or neither
         :param my_rank:
         :param num_ranks:
         :return:
