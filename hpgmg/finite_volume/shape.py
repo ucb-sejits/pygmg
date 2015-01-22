@@ -24,11 +24,25 @@ class Shape(object):
                     yield i, j, k
 
     def index_3d_to_1d(self, index):
-        return (index[2] * self.i * self.j) + (index[1] * self.i) + index[0]
+        return (index[0] * self.j * self.k) + (index[1] * self.k) + index[2]
+
+    def index_1d_to_3d(self, index):
+        i = index // (self.j * self.k)
+        j = (index - (i * self.j * self.k)) // self.k
+        k = index % self.k
+        return i, j, k
 
     def __mul__(self, other):
         assert isinstance(other, int)
         return Shape(self.i * other, self.j * other, self.k * other)
+
+    __rmul__ = __mul__
+
+    def __eq__(self, other):
+        if isinstance(other, Shape):
+            return self.tup() == other.tup()
+        else:
+            return False
 
     @staticmethod
     def from_tuple(tup):

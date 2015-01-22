@@ -8,7 +8,7 @@ import math
 from hpgmg import Coord, CoordStride
 from collections import namedtuple
 from hpgmg.finite_volume.operators.stencil_27_pt import stencil_get_radius
-from hpgmg.finite_volume.shape import Shape, Section
+from hpgmg.finite_volume.shape import Shape
 from hpgmg.finite_volume.box import Box
 
 BC_PERIODIC = 0
@@ -20,6 +20,7 @@ BLOCK_COPY_TILE_K = 8
 
 DecomposeLex = True  # todo: this should come from global configuration
 DecomposeBisectionSpecial = False  # todo: this should come from global configuration
+
 
 class BlockCopy(object):
     def __init__(self):
@@ -63,6 +64,7 @@ class BoundaryCondition(object):
         assert isinstance(num_blocks, BlockCounts)
         assert isinstance(num_blocks, BlockCounts)
 
+        self.condition_type = condition_type
         self.allocated_blocks = allocated_blocks
         self.num_blocks = num_blocks
         self.blocks = blocks
@@ -98,11 +100,11 @@ class Level(object):
         self.my_blocks = None
         self.num_my_blocks = 0
         self.allocated_blocks = 0
-        self.tag = math.log2(self.dim.i)
+        self.tag = math.log2(self.shape.i)  # todo: this is probably wrong
 
         try:
             self.rank_of_box = numpy.zeros(self.shape.tup()).astype(numpy.int32)
-        except Exception as e:
+        except Exception:
             raise Exception("Level create could not allocate rank_of_box")
 
         if DecomposeLex:
@@ -126,7 +128,7 @@ class Level(object):
                 self.num_my_blocks += 1
 
         try:
-            self.my_boxes = numpy.empty([self.num_my_boxes], dtype=object)
+            self.my_boxes = numpy.empty(self.num_my_boxes, dtype=object)
         except Exception:
             raise("Level build_boxes failed trying to create my_boxes num={}".format(self.num_my_boxes))
 
