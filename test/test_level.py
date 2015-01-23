@@ -22,7 +22,7 @@ class TestLevel(unittest.TestCase):
 
         self.assertTrue(level is not None)
 
-        level.print_decomposition()
+        # level.print_decomposition()
 
         self.assertEqual(level.rank_of_box.size, 8**3)
         self.assertEqual(level.my_boxes.size, (8**3)//2)  # actual boxes decomposed

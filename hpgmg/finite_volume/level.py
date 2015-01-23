@@ -52,7 +52,10 @@ BlockCopies = namedtuple('BlockCopies', ['all', 'just_faces'])
 
 class Level(object):
     """
-    a collections of boxes
+    a collections of boxes and organizations of boxes in blocks
+    level starts with a 3d array rank_of_box that is used by a decomposition routine
+    to label blocks with a rank, the level will only allocate boxes where the rank matches
+    the my_rank of the level
     """
     def __init__(self, boxes_in_i, box_dim_size, box_ghost_size, box_vectors,
                  domain_boundary_condition, my_rank, num_ranks):
@@ -62,14 +65,11 @@ class Level(object):
         :param box_dim_size:
         :param box_ghost_size:
         :param box_vectors:
-        :param domain_boundary_condition: BC_DIRICHLET or BC_PERIODIC or neither
+        :param domain_boundary_condition: DIRICHLET or PERIODIC
         :param my_rank:
         :param num_ranks:
         :return:
         """
-        self.shape = Space(boxes_in_i, boxes_in_i, boxes_in_i)
-        self.total_boxes = self.shape.volume()
-
         if my_rank == 0:
             print("\nattempting to create a {:d}^3 level (with {} BC) ".format(
                 boxes_in_i * box_dim_size,
@@ -105,7 +105,7 @@ class Level(object):
         self.num_my_boxes = self.my_boxes.size
 
         self.allocated_blocks = 0
-        self.tag = math.log2(self.shape.i)  # todo: this is probably wrong
+        self.tag = math.log2(self.boxes_in.i)  # todo: this is probably wrong
 
         self.krylov_iterations = 0
         self.ca_krylov_formations_of_g = 0
@@ -121,7 +121,7 @@ class Level(object):
 
     def build_boxes(self):
         num_my_boxes = 0
-        for index in self.shape.foreach():
+        for index in self.boxes_in.foreach():
             if self.rank_of_box[index.to_tuple()] == self.my_rank:
                 num_my_boxes += 1
 
@@ -131,8 +131,8 @@ class Level(object):
             raise("Level build_boxes failed trying to create my_boxes num={}".format(self.num_my_boxes))
 
         box_index = 0
-        for index in self.shape.foreach():
-            index_1d = self.shape.index_3d_to_1d(index)
+        for index in self.boxes_in.foreach():
+            index_1d = self.boxes_in.index_3d_to_1d(index)
             if self.rank_of_box[index.to_tuple()] == self.my_rank:
                 box = Box(self, index, self.box_vectors, self.box_dim_size, self.box_ghost_size)
                 box.low = index * self.box_dim_size
@@ -143,9 +143,9 @@ class Level(object):
         return my_boxes
 
     def decompose_level_lex(self, ranks):
-        for index in self.shape.foreach():
-            index_1d = self.shape.index_3d_to_1d(index)
-            self.rank_of_box[index.to_tuple()] = (ranks * index_1d) / self.total_boxes
+        for index in self.boxes_in.foreach():
+            index_1d = self.boxes_in.index_3d_to_1d(index)
+            self.rank_of_box[index.to_tuple()] = (ranks * index_1d) / self.boxes_in.volume()
 
     def decompose_level_bisection_special(self, num_ranks):
         raise Exception("decompose_level_bisection_special not implemented. Level shape {}".format(self.shape.to_tuple()))
@@ -154,6 +154,11 @@ class Level(object):
         raise Exception("decompose_level_bisection not implemented. Level shape {}".format(self.shape.to_tuple()))
 
     def print_decomposition(self):
+        """
+        decomposition labels each possible box referenced in rank_of_box with a
+        rank.  this shows the labeling in a table like form
+        :return:
+        """
         if self.my_rank != 0:
             return
 
