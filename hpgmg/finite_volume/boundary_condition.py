@@ -45,13 +45,38 @@ class BoundaryCondition(object):
         1, 0, 1, 0, 0, 0, 1, 0, 1,
     ]
 
+    Normal = 13
 
+    @staticmethod
+    def neighbor_vector(di, dj, dk):
+        return BoundaryCondition.Normal + (di * 9) + (dj * 3) + dk
+
+    @staticmethod
+    def is_face(neighbor_vector):
+        return BoundaryCondition.Faces[neighbor_vector] > 0
+
+    @staticmethod
+    def is_edge(neighbor_vector):
+        return BoundaryCondition.Edges[neighbor_vector] > 0
+
+    @staticmethod
+    def is_corner(neighbor_vector):
+        return BoundaryCondition.Corners[neighbor_vector] > 0
 
     @staticmethod
     def valid_index(index):
         return BoundaryCondition.All <= index <= BoundaryCondition.JustFaces
 
+    @staticmethod
+    def foreach_neighbor_delta():
+        for di in range(-1, 2):
+            for dj in range(-1, 2):
+                for dk in range(-1, 2):
+                    yield di, dj, dk
+
     def __init__(self, condition_type):
+        assert condition_type in [BoundaryCondition.DIRICHLET,BoundaryCondition.PERIODIC]
+
         self.condition_type = condition_type
         self.allocated_blocks = [0, 0]
         self.num_blocks = [0, 0]

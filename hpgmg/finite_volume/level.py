@@ -180,6 +180,7 @@ class Level(object):
             for dj in range(-1, 2):
                 for dk in range(-1, 2):
                     yield box_index
+
     def build_boundary_conditions(self, just_faces):
         assert(BoundaryCondition.valid_index(just_faces))
 
@@ -191,7 +192,8 @@ class Level(object):
             return
 
         for box_index, box in enumerate(self.my_boxes):
-            pass
+            for di, dj, dk in BoundaryCondition.foreach_neighbor_delta():
+                neighbor_vector = BoundaryCondition.neighbor_vector(di, dj, dk)
 
 
 
