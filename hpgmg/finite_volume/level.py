@@ -113,7 +113,7 @@ class Level(object):
 
     def build_rank_of_box(self):
         try:
-            rank_of_box = numpy.empty(self.shape.volume()).astype(numpy.int32)
+            rank_of_box = numpy.empty(self.boxes_in.to_tuple()).astype(numpy.int32)
             rank_of_box.fill(-1)
             return rank_of_box
         except Exception:
@@ -121,8 +121,8 @@ class Level(object):
 
     def build_boxes(self):
         num_my_boxes = 0
-        for index_1d in self.shape.foreach_index_1d():
-            if self.rank_of_box[index_1d] == self.my_rank:
+        for index in self.shape.foreach():
+            if self.rank_of_box[index.to_tuple()] == self.my_rank:
                 num_my_boxes += 1
 
         try:
@@ -133,7 +133,7 @@ class Level(object):
         box_index = 0
         for index in self.shape.foreach():
             index_1d = self.shape.index_3d_to_1d(index)
-            if self.rank_of_box[index_1d] == self.my_rank:
+            if self.rank_of_box[index.to_tuple()] == self.my_rank:
                 box = Box(self, index, self.box_vectors, self.box_dim_size, self.box_ghost_size)
                 box.low = index * self.box_dim_size
 
@@ -145,7 +145,7 @@ class Level(object):
     def decompose_level_lex(self, ranks):
         for index in self.shape.foreach():
             index_1d = self.shape.index_3d_to_1d(index)
-            self.rank_of_box[index_1d] = (ranks * index_1d) / self.total_boxes
+            self.rank_of_box[index.to_tuple()] = (ranks * index_1d) / self.total_boxes
 
     def decompose_level_bisection_special(self, num_ranks):
         raise Exception("decompose_level_bisection_special not implemented. Level shape {}".format(self.shape.to_tuple()))
@@ -162,7 +162,7 @@ class Level(object):
             for j in range(self.boxes_in.k-1, 0, -1):
                 print(" "*j, end="")
                 for k in range(self.boxes_in.k):
-                    print("{:4d}".format(self.rank_of_box[self.boxes_in.index_3d_to_1d((i, j, k))]), end="")
+                    print("{:4d}".format(self.rank_of_box[(i, j, k)]), end="")
                 print()
             print()
         print()
