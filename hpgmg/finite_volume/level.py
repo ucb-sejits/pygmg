@@ -5,14 +5,11 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 import numpy
 import math
 
-from hpgmg import Coord, CoordStride
 from collections import namedtuple
 from hpgmg.finite_volume.operators.stencil_27_pt import stencil_get_radius
-from hpgmg.finite_volume.shape import Shape
+from hpgmg.finite_volume.space import Space
 from hpgmg.finite_volume.box import Box
-
-BC_PERIODIC = 0
-BC_DIRICHLET = 1
+from hpgmg.finite_volume.boundary_condition import BoundaryCondition
 
 BLOCK_COPY_TILE_I = 10000
 BLOCK_COPY_TILE_J = 8
@@ -23,14 +20,6 @@ VECTORS_RESERVED = 12  # total number of grids and the starting location for any
 
 DecomposeLex = True  # todo: this should come from global configuration
 DecomposeBisectionSpecial = False  # todo: this should come from global configuration
-
-
-class BlockCopy(object):
-    def __init__(self):
-        self.subtype = 0
-        self.dim = Coord(0, 0, 0)
-        self.read = CoordStride(Coord(0, 0, 0), 0, 0)
-        self.write = CoordStride(Coord(0, 0, 0), 0, 0)
 
 
 class Communicator(object):
@@ -61,41 +50,30 @@ BlockCounts = namedtuple('BlockCounts', ['all', 'just_faces'])
 BlockCopies = namedtuple('BlockCopies', ['all', 'just_faces'])
 
 
-class BoundaryCondition(object):
-    def __init__(self, condition_type, allocated_blocks, num_blocks, blocks):
-        assert isinstance(allocated_blocks, BlockCounts)
-        assert isinstance(num_blocks, BlockCounts)
-        assert isinstance(num_blocks, BlockCounts)
-
-        self.condition_type = condition_type
-        self.allocated_blocks = allocated_blocks
-        self.num_blocks = num_blocks
-        self.blocks = blocks
-
-
 class Level(object):
     """
-    a collections of boxes
+    a collections of boxes and organizations of boxes in blocks
+    level starts with a 3d array rank_of_box that is used by a decomposition routine
+    to label blocks with a rank, the level will only allocate boxes where the rank matches
+    the my_rank of the level
     """
-    def __init__(self, boxes_in_i, box_dim_size, box_ghost_size, box_vectors, domain_boundary_condition, my_rank, num_ranks):
+    def __init__(self, boxes_in_i, box_dim_size, box_ghost_size, box_vectors,
+                 domain_boundary_condition, my_rank, num_ranks):
         """
         create a level, initialize everything you can
         :param boxes_in_i: number of boxes on an axis, appears to be used for all axes
         :param box_dim_size:
         :param box_ghost_size:
         :param box_vectors:
-        :param domain_boundary_condition: BC_DIRICHLET or BC_PERIODIC or neither
+        :param domain_boundary_condition: DIRICHLET or PERIODIC
         :param my_rank:
         :param num_ranks:
         :return:
         """
-        self.shape = Shape(boxes_in_i, boxes_in_i, boxes_in_i)
-        self.total_boxes = self.shape.volume()
-
         if my_rank == 0:
             print("\nattempting to create a {:d}^3 level (with {} BC) ".format(
                 boxes_in_i * box_dim_size,
-                "Dirichlet" if domain_boundary_condition == BC_DIRICHLET else "Periodic"), end="")
+                "Dirichlet" if domain_boundary_condition == BoundaryCondition.DIRICHLET else "Periodic"), end="")
             print("using a {:d}^3 grid of {:d}^3 boxes and {:d} tasks...\n".format(
                 box_dim_size*boxes_in_i, boxes_in_i, box_dim_size, num_ranks))
 
@@ -103,24 +81,18 @@ class Level(object):
             raise Exception("Level creation: ghosts {:d} must be >= stencil_get_radius() {:d}".format(
                 box_ghost_size, stencil_get_radius()))
 
-        self.is_active = True
         self.box_dim_size = box_dim_size
         self.box_ghost_size = box_ghost_size
         self.box_vectors = box_vectors
-        self.boxes_in = Coord(boxes_in_i, boxes_in_i, boxes_in_i)
+        self.boxes_in = Space(boxes_in_i, boxes_in_i, boxes_in_i)
+        self.dim = self.boxes_in * self.box_dim_size
+        self.is_active = True
         self.my_rank = my_rank
         self.num_ranks = num_ranks
-        self.boundary_conditions = domain_boundary_condition
+        self.boundary_condition = BoundaryCondition(domain_boundary_condition)
         self.alpha_is_zero = -1
-        self.my_blocks = None
-        self.num_my_blocks = 0
-        self.allocated_blocks = 0
-        self.tag = math.log2(self.shape.i)  # todo: this is probably wrong
 
-        try:
-            self.rank_of_box = numpy.zeros(self.shape.tup()).astype(numpy.int32)
-        except Exception:
-            raise Exception("Level create could not allocate rank_of_box")
+        self.rank_of_box = self.build_rank_of_box()
 
         if DecomposeLex:
             self.decompose_level_lex(num_ranks)
@@ -129,42 +101,106 @@ class Level(object):
         else:
             self.decompose_level_bisection(num_ranks)
 
-        self.num_my_boxes = 0
-        self.my_boxes = None
+        self.my_boxes = self.build_boxes()
+        self.num_my_boxes = self.my_boxes.size
+
+        self.allocated_blocks = 0
+        self.tag = math.log2(self.boxes_in.i)  # todo: this is probably wrong
 
         self.krylov_iterations = 0
         self.ca_krylov_formations_of_g = 0
         self.vcycles_from_this_level = 0
 
+    def build_rank_of_box(self):
+        try:
+            rank_of_box = numpy.empty(self.boxes_in.to_tuple()).astype(numpy.int32)
+            rank_of_box.fill(-1)
+            return rank_of_box
+        except Exception:
+            raise Exception("Level create could not allocate rank_of_box")
+
     def build_boxes(self):
-        self.num_my_boxes = 0
-        for index in self.shape.foreach():
-            if self.rank_of_box[index] == self.my_rank:
-                self.num_my_blocks += 1
+        num_my_boxes = 0
+        for index in self.boxes_in.foreach():
+            if self.rank_of_box[index.to_tuple()] == self.my_rank:
+                num_my_boxes += 1
 
         try:
-            self.my_boxes = numpy.empty(self.num_my_boxes, dtype=object)
+            my_boxes = numpy.empty(num_my_boxes, dtype=object)
         except Exception:
             raise("Level build_boxes failed trying to create my_boxes num={}".format(self.num_my_boxes))
 
         box_index = 0
-        for index in self.shape.foreach():
-            index_1d = self.shape.index_3d_to_1d(index)
-            if self.rank_of_box[index] == self.my_rank:
-                box = Box(index_1d, self.box_vectors, self.box_dim_size, self.box_ghost_size)
-                box.low = Shape.from_tuple(index) * self.box_dim_size
+        for index in self.boxes_in.foreach():
+            index_1d = self.boxes_in.index_3d_to_1d(index)
+            if self.rank_of_box[index.to_tuple()] == self.my_rank:
+                box = Box(self, index, self.box_vectors, self.box_dim_size, self.box_ghost_size)
+                box.low = index * self.box_dim_size
 
-                self.my_boxes[box_index] = box
+                my_boxes[box_index] = box
                 box_index += 1
 
+        return my_boxes
+
     def decompose_level_lex(self, ranks):
-        for index in self.shape.foreach():
-            b = self.shape.index_3d_to_1d(index)
-            self.rank_of_box[index] = (ranks * b) / self.total_boxes
+        for index in self.boxes_in.foreach():
+            index_1d = self.boxes_in.index_3d_to_1d(index)
+            self.rank_of_box[index.to_tuple()] = (ranks * index_1d) / self.boxes_in.volume()
 
     def decompose_level_bisection_special(self, num_ranks):
-        raise Exception("decompose_level_bisection_special not implemented. Level shape {}".format(self.shape.tup()))
+        raise Exception("decompose_level_bisection_special not implemented. Level shape {}".format(self.shape.to_tuple()))
 
     def decompose_level_bisection(self, num_ranks):
-        raise Exception("decompose_level_bisection not implemented. Level shape {}".format(self.shape.tup()))
+        raise Exception("decompose_level_bisection not implemented. Level shape {}".format(self.shape.to_tuple()))
+
+    def print_decomposition(self):
+        """
+        decomposition labels each possible box referenced in rank_of_box with a
+        rank.  this shows the labeling in a table like form
+        :return:
+        """
+        if self.my_rank != 0:
+            return
+
+        print()
+        for i in range(self.boxes_in.i-1, 0, -1):
+            for j in range(self.boxes_in.k-1, 0, -1):
+                print(" "*j, end="")
+                for k in range(self.boxes_in.k):
+                    print("{:4d}".format(self.rank_of_box[(i, j, k)]), end="")
+                print()
+            print()
+        print()
+
+    def append_block_to_list(self, shape, ):
+        pass
+
+    def neighbor_indices(self, box_index):
+        for di in range(-1, 2):
+            for dj in range(-1, 2):
+                for dk in range(-1, 2):
+                    yield box_index
+
+    def build_boundary_conditions(self, just_faces):
+        assert(BoundaryCondition.valid_index(just_faces))
+
+        # these 3 are defaults for periodic
+        self.boundary_condition.blocks[just_faces] = None
+        self.boundary_condition.num_blocks[just_faces] = 0
+        self.boundary_condition.allocated_blocks[just_faces] = 0
+        if self.boundary_condition.condition_type == BoundaryCondition.PERIODIC:
+            return
+
+        for box_index, box in enumerate(self.my_boxes):
+            for di, dj, dk in BoundaryCondition.foreach_neighbor_delta():
+                neighbor_vector = BoundaryCondition.neighbor_vector(di, dj, dk)
+
+
+
+
+
+
+
+
+
 

@@ -4,21 +4,28 @@ import numpy
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 
-from hpgmg.finite_volume.shape import Shape
+from hpgmg.finite_volume.space import Space, Coord
+import hpgmg.finite_volume.level
 
 
 class Box(object):
-    def __init__(self, global_id, num_vectors, box_dim_size, ghost_zone_size):
+    def __init__(self, level, coord, num_vectors, box_dim_size, ghost_zone_size):
         """
         creates a box, based on create_box from level.c
         currently we are not worrying about alignment in python
-        :param global_id: typically the 1-d index of box
+        :param coord: typically the 1-d index of box
         :param num_vectors:
         :param box_dim_size:
         :param ghost_zone_size:
         :return:
         """
-        self.global_box_id = global_id
+        assert isinstance(level, hpgmg.finite_volume.level.Level)
+        assert isinstance(coord, Coord)
+
+        self.level = level
+        self.coord = coord
+        self.global_box_id = self.level.dim.index_3d_to_1d(self.coord)
+
         self.num_vectors = num_vectors
         self.box_dim_size = box_dim_size
         self.ghost_zone_size = ghost_zone_size
@@ -27,7 +34,7 @@ class Box(object):
         self.i_stride = self.j_stride * (self.box_dim_size + 2 * self.ghost_zone_size)
 
         self.volume = (box_dim_size + 2 * self.ghost_zone_size) * self.i_stride
-        self.low = Shape()
+        self.low = Space()
 
         try:
             self.vectors = numpy.zeros([self.num_vectors]).astype(numpy.float64)
