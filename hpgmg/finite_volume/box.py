@@ -4,11 +4,12 @@ import numpy
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 
-from hpgmg.finite_volume.space import Space
+from hpgmg.finite_volume.space import Space, Coord
+import hpgmg.finite_volume.level
 
 
 class Box(object):
-    def __init__(self, coord, num_vectors, box_dim_size, ghost_zone_size):
+    def __init__(self, level, coord, num_vectors, box_dim_size, ghost_zone_size):
         """
         creates a box, based on create_box from level.c
         currently we are not worrying about alignment in python
@@ -18,10 +19,12 @@ class Box(object):
         :param ghost_zone_size:
         :return:
         """
-        assert isinstance(coord, Space)
+        assert isinstance(level, hpgmg.finite_volume.level.Level)
+        assert isinstance(coord, Coord)
 
+        self.level = level
         self.coord = coord
-        self.global_box_id = coord.index_3d_to_1d()
+        self.global_box_id = self.level.dim.index_3d_to_1d(self.coord)
 
         self.num_vectors = num_vectors
         self.box_dim_size = box_dim_size
