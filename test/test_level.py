@@ -13,7 +13,13 @@ class TestLevel(unittest.TestCase):
         my_rank = 0
         num_ranks = 1
         ghost_zone_size = stencil_get_radius()
-        level = Level(8, 1 << 6, 1, VECTORS_RESERVED, BoundaryCondition.DIRICHLET, my_rank=my_rank, num_ranks=2)
+        level = Level(
+            boxes_in_i=1, box_dim_size=1 << 6, box_ghost_size=1,
+            box_vectors=VECTORS_RESERVED,
+            domain_boundary_condition=BoundaryCondition.DIRICHLET,
+            my_rank=my_rank, num_ranks=2
+        )
+
         self.assertTrue(level is not None)
 
         level.print_decomposition()

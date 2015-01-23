@@ -1,14 +1,15 @@
+from __future__ import print_function
+
 __author__ = 'nzhang-dev'
 
 import argparse
-from __future__ import print_function
-
 MAX_COARSE_DIM = 11
+
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('log2_box_dim', help='The dimensions of the box taken log 2', type=int)
-    parser.add_argument('target_boxes_per_rank', 'number of boxes per rank', type=int)
+    parser.add_argument('--log2_box_dim', help='The dimensions of the box taken log 2', type=int, default=6)
+    parser.add_argument('--target_boxes_per_rank', help='number of boxes per rank', type=int, default=1)
 
     args = parser.parse_args()
     if args.log2_box_dim < 4:
@@ -38,3 +39,5 @@ if __name__ == '__main__':
     if boxes_in_i < 1:
         print('failed to find an acceptable problem size')
         exit(0)
+
+    print("boxes_in_i {} box_dim {}".format(boxes_in_i, box_dim))

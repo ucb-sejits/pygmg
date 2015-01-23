@@ -5,10 +5,9 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 import numpy
 import math
 
-from hpgmg import Coord, CoordStride
 from collections import namedtuple
 from hpgmg.finite_volume.operators.stencil_27_pt import stencil_get_radius
-from hpgmg.finite_volume.shape import Shape
+from hpgmg.finite_volume.space import Space
 from hpgmg.finite_volume.box import Box
 from hpgmg.finite_volume.boundary_condition import BoundaryCondition
 
@@ -67,7 +66,7 @@ class Level(object):
         :param num_ranks:
         :return:
         """
-        self.shape = Shape(boxes_in_i, boxes_in_i, boxes_in_i)
+        self.shape = Space(boxes_in_i, boxes_in_i, boxes_in_i)
         self.total_boxes = self.shape.volume()
 
         if my_rank == 0:
@@ -81,25 +80,18 @@ class Level(object):
             raise Exception("Level creation: ghosts {:d} must be >= stencil_get_radius() {:d}".format(
                 box_ghost_size, stencil_get_radius()))
 
-        self.is_active = True
         self.box_dim_size = box_dim_size
         self.box_ghost_size = box_ghost_size
         self.box_vectors = box_vectors
-        self.boxes_in = Coord(boxes_in_i, boxes_in_i, boxes_in_i)
+        self.boxes_in = Space(boxes_in_i, boxes_in_i, boxes_in_i)
+        self.dim = self.boxes_in * self.box_dim_size
+        self.is_active = True
         self.my_rank = my_rank
         self.num_ranks = num_ranks
         self.boundary_condition = BoundaryCondition(domain_boundary_condition)
         self.alpha_is_zero = -1
-        self.my_blocks = None
-        self.num_my_blocks = 0
-        self.allocated_blocks = 0
-        self.tag = math.log2(self.shape.i)  # todo: this is probably wrong
 
-        try:
-            self.rank_of_box = numpy.empty(self.shape.tup()).astype(numpy.int32)
-            self.rank_of_box.fill(-1)
-        except Exception:
-            raise Exception("Level create could not allocate rank_of_box")
+        self.rank_of_box = self.build_rank_of_box()
 
         if DecomposeLex:
             self.decompose_level_lex(num_ranks)
@@ -108,23 +100,32 @@ class Level(object):
         else:
             self.decompose_level_bisection(num_ranks)
 
-        self.num_my_boxes = 0
-        self.my_boxes = []
+        self.my_boxes = self.build_boxes()
+        self.num_my_boxes = self.my_boxes.size
 
-        self.build_boxes()
+        self.allocated_blocks = 0
+        self.tag = math.log2(self.shape.i)  # todo: this is probably wrong
 
         self.krylov_iterations = 0
         self.ca_krylov_formations_of_g = 0
         self.vcycles_from_this_level = 0
 
+    def build_rank_of_box(self):
+        try:
+            rank_of_box = numpy.empty(self.shape.to_tuple()).astype(numpy.int32)
+            rank_of_box.fill(-1)
+            return rank_of_box
+        except Exception:
+            raise Exception("Level create could not allocate rank_of_box")
+
     def build_boxes(self):
-        self.num_my_boxes = 0
+        num_my_boxes = 0
         for index in self.shape.foreach():
             if self.rank_of_box[index] == self.my_rank:
-                self.num_my_boxes += 1
+                num_my_boxes += 1
 
         try:
-            self.my_boxes = numpy.empty(self.num_my_boxes, dtype=object)
+            my_boxes = numpy.empty(num_my_boxes, dtype=object)
         except Exception:
             raise("Level build_boxes failed trying to create my_boxes num={}".format(self.num_my_boxes))
 
@@ -132,11 +133,13 @@ class Level(object):
         for index in self.shape.foreach():
             index_1d = self.shape.index_3d_to_1d(index)
             if self.rank_of_box[index] == self.my_rank:
-                box = Box(index_1d, self.box_vectors, self.box_dim_size, self.box_ghost_size)
-                box.low = Shape.from_tuple(index) * self.box_dim_size
+                box = Box(Space.from_tuple(index), self.box_vectors, self.box_dim_size, self.box_ghost_size)
+                box.low = Space.from_tuple(index) * self.box_dim_size
 
-                self.my_boxes[box_index] = box
+                my_boxes[box_index] = box
                 box_index += 1
+
+        return my_boxes
 
     def decompose_level_lex(self, ranks):
         for index in self.shape.foreach():
@@ -144,10 +147,10 @@ class Level(object):
             self.rank_of_box[index] = (ranks * b) / self.total_boxes
 
     def decompose_level_bisection_special(self, num_ranks):
-        raise Exception("decompose_level_bisection_special not implemented. Level shape {}".format(self.shape.tup()))
+        raise Exception("decompose_level_bisection_special not implemented. Level shape {}".format(self.shape.to_tuple()))
 
     def decompose_level_bisection(self, num_ranks):
-        raise Exception("decompose_level_bisection not implemented. Level shape {}".format(self.shape.tup()))
+        raise Exception("decompose_level_bisection not implemented. Level shape {}".format(self.shape.to_tuple()))
 
     def print_decomposition(self):
         if self.my_rank != 0:
