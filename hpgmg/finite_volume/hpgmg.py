@@ -9,24 +9,26 @@ import logging
 import operators
 
 
-log = logging.getLogger(__name__)
+log = logging
+log.root.setLevel(logging.INFO)
 
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('log2_box_dim', help='The dimensions of the box taken log 2', default=6, type=int)
-    parser.add_argument('target_boxes_per_rank', 'number of boxes per rank', type=int)
+    parser.add_argument('target_boxes_per_rank', help='number of boxes per rank', type=int)
     parser.add_argument('-bc', '--boundary-conditions',
                         help='Type of boundary condition. Use p for Periodic and d for Dirichlet. Default is d or USE_PERIODIC_BC from environment',
                         default=('p' if os.environ.get('USE_PERIODIC_BC', 0) else 'd'),
                         choices=['p', 'd'])
     parser.add_argument('-m', '--max_coarse-dim',
                         help='Maximum coarse dim',
-                        default=int(os.environ.get('MAX_COARSE_DIM', 3)),
+                        default=int(os.environ.get('MAX_COARSE_DIM', 11)),
                         type=int,
                         dest='max_coarse_dim')
     parser.add_argument('-eq', '--equation-type', help='Use h for Helmholtz or p for Poisson',
                         default=('h' if os.environ.get('USE_HELMHOLTZ', 0) else 'p'),
-                        choices=['p', 'h'])
+                        choices=['p', 'h'],
+                        dest='eq')
 
     args = parser.parse_args()
     if args.log2_box_dim < 4:
@@ -64,13 +66,11 @@ if __name__ == '__main__':
     #conditional setup for Helmholtz and Poisson
     if args.eq == 'h':
         a = b = 1
-        log.info('Creating Helmholtz (a={a}, b={b} test problem'.format(a=a, b=b))
+        log.info('Creating Helmholtz (a={a}, b={b} test problem)'.format(a=a, b=b))
     elif args.eq == 'p':
         a = 0
         b = 1
-        log.info('Creating Poisson (a={a}, b={b} test problem'.format(a=a, b=b))
+        log.info('Creating Poisson (a={a}, b={b} test problem)'.format(a=a, b=b))
 
     h0 = 1 / (boxes_in_i * box_dim)
-
-
 

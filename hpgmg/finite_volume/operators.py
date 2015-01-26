@@ -1,5 +1,5 @@
 __author__ = 'nzhang-dev'
 
 
-def get_stencil_radius():
-    return 2
+def stencil_get_radius():
+    return 1
