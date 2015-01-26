@@ -7,7 +7,7 @@ class Coord(object):
     """
     implements a 3d coordinate, with convenience methods
     """
-    def __init__(self, i, j, k):
+    def __init__(self, i=0, j=0, k=0):
         self.i, self.j, self.k = i, j, k
 
     def to_tuple(self):
@@ -42,17 +42,6 @@ class Coord(object):
 
     __radd__ = __add__
 
-
-class Space(Coord):
-    """
-    implements a 3d coordinate, but viewed as 3d rectilinear space,
-    includes methods for converting between coordinates in the space and
-    linear 1d array offset
-    """
-    # todo: figure out c hpgmg striding, seems to consider k, least rapidly varying index
-    def __init__(self, i=0, j=0, k=0):
-        self.i, self.j, self.k = i, j, k
-
     def volume(self):
         """
         enclosed volume of space
@@ -68,6 +57,16 @@ class Space(Coord):
         for k in range(self.k):
             for j in range(self.j):
                 for i in range(self.i):
+                    yield Coord(i, j, k)
+
+    def foreach_tiled(self, tiling_coord):
+        """
+        iterate overall all coordinates in the space
+        :return:
+        """
+        for k in range(0, self.k, tiling_coord.k):
+            for j in range(0, self.j, tiling_coord.j):
+                for i in range(0, self.i, tiling_coord.i):
                     yield Coord(i, j, k)
 
     def foreach_index_1d(self):
@@ -99,6 +98,15 @@ class Space(Coord):
         j = (index - (i * self.j * self.k)) // self.k
         k = index % self.k
         return i, j, k
+
+    def constrain_to_min(self, constraint):
+        assert isinstance(constraint, Coord)
+        return Coord(max(self.i, constraint.i), min(self.j, constraint.j), min(self.k, constraint.k))
+
+
+class Space(Coord):
+    pass
+
 
 
 class Section(object):

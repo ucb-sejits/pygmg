@@ -105,7 +105,7 @@ class Level(object):
         self.my_boxes = self.build_boxes()
         self.num_my_boxes = self.my_boxes.size
 
-        self.allocated_blocks = 0
+        self.blocks = numpy.empty(0, dtype=object)
         self.tag = math.log2(self.boxes_in.i)  # todo: this is probably wrong
 
         self.krylov_iterations = 0
@@ -177,8 +177,7 @@ class Level(object):
             print()
         print()
 
-
-    def append_block_to_list(self, dim, read_pointer, write_pointer, block_copy_tile, subtype):
+    def append_block_to_list(self, dim, read_info, write_info, block_copy_tile, subtype):
         """
         This increases the number of blockCopies in the ghost zone exchange and thereby increases the thread-level parallelism
         FIX... move from lexicographical ordering of tiles to recursive (e.g. z-mort)
@@ -190,24 +189,30 @@ class Level(object):
         FIX... dim_i,j,k -> read_dim_i,j,k, write_dim_i,j,k
 
         :param dim:
-        :param read_pointer:
-        :param write_pointer:
+        :param read_info:
+        :param write_info:
         :param block_copy_tile:
         :param subtype:
         :return:
         """
         assert isinstance(dim, Coord)
-        assert isinstance(read_pointer, GridCoordinate)
-        assert isinstance(write_pointer, GridCoordinate)
+        assert isinstance(read_info, GridCoordinate)
+        assert isinstance(write_info, GridCoordinate)
         assert isinstance(block_copy_tile, Coord)
 
-        for i in range(0, dim.i, block_copy_tile.i):
-            for j in range(0, dim.j, block_copy_tile.j):
-                for k in range(0, dim.k, block_copy_tile.k):
-                    dim_mod = Coord(
-                        min()
-                    )
-        pass
+        new_blocks = []
+        for tiled_dim in dim.foreach_tiled(block_copy_tile):
+            dim_mod = (dim - tiled_dim).constrain_to_min(block_copy_tile)
+
+            new_block = BlockCopies(
+                subtype=subtype,
+                dim=dim_mod,
+                read_info=read_info.copy(coord=read_info.coord + (read_info.scale * tiled_dim)),
+                write_info=write_info.copy(coord=write_info.coord + (write_info.scale * tiled_dim))
+            )
+            new_blocks.append(new_block)
+
+        self.blocks = numpy.append(self.blocks, new_blocks)
 
     def neighbor_indices(self, box_index):
         for di in range(-1, 2):
