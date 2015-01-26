@@ -1,5 +1,4 @@
 from __future__ import print_function
-
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 import numpy
@@ -7,9 +6,11 @@ import math
 
 from collections import namedtuple
 from hpgmg.finite_volume.operators.stencil_27_pt import stencil_get_radius
-from hpgmg.finite_volume.space import Space
+from hpgmg.finite_volume.space import Space, Coord
 from hpgmg.finite_volume.box import Box
 from hpgmg.finite_volume.boundary_condition import BoundaryCondition
+from hpgmg.finite_volume.block_copy import GridCoordinate
+
 
 BLOCK_COPY_TILE_I = 10000
 BLOCK_COPY_TILE_J = 8
@@ -142,6 +143,10 @@ class Level(object):
 
         return my_boxes
 
+    def create_initial_blocks(self):
+        for box in self.my_boxes:
+            self.append_block_to_list(box.dim, )
+
     def decompose_level_lex(self, ranks):
         for index in self.boxes_in.foreach():
             index_1d = self.boxes_in.index_3d_to_1d(index)
@@ -172,7 +177,36 @@ class Level(object):
             print()
         print()
 
-    def append_block_to_list(self, shape, ):
+
+    def append_block_to_list(self, dim, read_pointer, write_pointer, block_copy_tile, subtype):
+        """
+        This increases the number of blockCopies in the ghost zone exchange and thereby increases the thread-level parallelism
+        FIX... move from lexicographical ordering of tiles to recursive (e.g. z-mort)
+
+        read_/write_scale are used to stride appropriately when read and write loop iterations spaces are different
+        ghostZone:     read_scale=1, write_scale=1
+        interpolation: read_scale=1, write_scale=2
+        restriction:   read_scale=2, write_scale=1
+        FIX... dim_i,j,k -> read_dim_i,j,k, write_dim_i,j,k
+
+        :param dim:
+        :param read_pointer:
+        :param write_pointer:
+        :param block_copy_tile:
+        :param subtype:
+        :return:
+        """
+        assert isinstance(dim, Coord)
+        assert isinstance(read_pointer, GridCoordinate)
+        assert isinstance(write_pointer, GridCoordinate)
+        assert isinstance(block_copy_tile, Coord)
+
+        for i in range(0, dim.i, block_copy_tile.i):
+            for j in range(0, dim.j, block_copy_tile.j):
+                for k in range(0, dim.k, block_copy_tile.k):
+                    dim_mod = Coord(
+                        min()
+                    )
         pass
 
     def neighbor_indices(self, box_index):

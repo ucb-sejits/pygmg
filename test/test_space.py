@@ -3,7 +3,7 @@ from __future__ import print_function
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 import unittest
-from hpgmg.finite_volume.space import Space
+from hpgmg.finite_volume.space import Space,  Coord
 
 
 class TestSpace(unittest.TestCase):
@@ -37,3 +37,9 @@ class TestSpace(unittest.TestCase):
         self.assertEqual(4 * Space(1, 1, 1), Space(4, 4, 4))
         self.assertEqual(5 * Space(3, 2, 1), Space(15, 10, 5))
         self.assertEqual(1 * Space(1, 2, 3), Space(1, 2, 3))
+
+    def test_add(self):
+        self.assertEqual(Coord(1, 1, 1) + Coord(1, 2, 3), Coord(2, 3, 4))
+        self.assertEqual(Coord(1, 1, 1) + (1, 2, 3), Coord(2, 3, 4))
+        self.assertEqual(Coord(1, 1, 1) + 4, Coord(5, 5, 5))
+        self.assertEqual(4 + Coord(1, 1, 1), Coord(5, 5, 5))
