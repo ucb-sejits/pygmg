@@ -43,3 +43,8 @@ class TestSpace(unittest.TestCase):
         self.assertEqual(Coord(1, 1, 1) + (1, 2, 3), Coord(2, 3, 4))
         self.assertEqual(Coord(1, 1, 1) + 4, Coord(5, 5, 5))
         self.assertEqual(4 + Coord(1, 1, 1), Coord(5, 5, 5))
+
+    def test_floor_div(self):
+        self.assertEqual(Coord(12, 10, 9) // Coord(4, 5, 3), Coord(3, 2, 3))
+        self.assertEqual(Coord(8, 6, 5) // (4, 2, 2), Coord(2, 3, 2))
+        self.assertEqual(Coord(7, 8, 9) // 4, Coord(1, 2, 2))

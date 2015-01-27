@@ -1,5 +1,4 @@
-from __future__ import print_function
-
+from __future__ import print_function, division
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 
@@ -41,6 +40,18 @@ class Coord(object):
             raise Exception("Coord {}, can't add {}".format(self.to_tuple(), other))
 
     __radd__ = __add__
+
+    def __floordiv__(self, other):
+        if isinstance(other, Coord):
+            return Coord(self.i // other.i, self.j // other.j, self.k // other.k)
+        elif isinstance(other, tuple):
+            if len(other) == 3:
+                return Coord(self.i // other[0], self.j // other[1], self.k // other[2])
+        elif isinstance(other, int):
+            return Coord(self.i // other, self.j // other, self.k // other)
+        else:
+            raise Exception("Coord {}, can't floor divide {}".format(self.to_tuple(), other))
+
 
     def volume(self):
         """
