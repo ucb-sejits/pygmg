@@ -69,24 +69,23 @@ def point_in_shape(point, shape):
     )
 
 def legal_neighbors(point, shape):
-    dimension_values = list(map(lambda x: (x-1, x, x+1), shape))
+    dimension_values = map(lambda x: (x-1, x, x+1), shape)
     return [
-        point
-        for point in itertools.product(*dimension_values)
-        if point_in_shape(point, shape)
+        pt
+        for pt in itertools.product(*dimension_values)
+        if point_in_shape(pt, shape) and pt != point
     ]
 
 
 def restrict(mesh):
-    new_space = Space.from_tuple(mesh.shape).halve()
-    new_mesh = np.zeros(new_space)
+    new_space = Coord.from_tuple(mesh.shape).halve()
+    new_mesh = np.zeros(new_space.to_tuple())
 
-    for index in multi_iter(mesh):
+    for index in multi_iter(new_mesh):
         target_index = tuple_multiply(index, 2)
         neighbors = legal_neighbors(index, mesh.shape)
-        for neighbor_index in neighbors:
-            new_mesh[target_index] += mesh[neighbor_index]
-        new_mesh[target_index] /= len(neighbors)
+        neighbor_mean = sum(mesh[x] for x in neighbors)/len(neighbors)
+        new_mesh[target_index] = 0.5*mesh[index] + 0.5*neighbor_mean
 
     return new_mesh
 
