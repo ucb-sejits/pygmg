@@ -8,15 +8,6 @@ import itertools
 from hpgmg.finite_volume.space import Coord, Space
 
 
-def halve_space(space):
-    return (space // 2) + 1
-
-
-def double_space(space):
-    return (space * 2) - 1
-
-
-
 def tuple_multiply(tup, n):
     return tuple(map(lambda x: x * n, tup))
 
@@ -32,7 +23,7 @@ def smooth(b, x):
 def interpolate(mesh):
     new_shape = double_shape(mesh.shape)
 
-    new_mesh = np.zeros((new_shape,) * 2)
+    new_mesh = np.zeros(new_shape)
 
     # expand known values
     for index in multi_iter(mesh):
@@ -87,7 +78,7 @@ def legal_neighbors(point, shape):
 
 
 def restrict(mesh):
-    new_space = halve_space(Space(mesh.shape))
+    new_space = Space.from_tuple(mesh.shape).halve()
     new_mesh = np.zeros(new_space)
 
     for index in multi_iter(mesh):

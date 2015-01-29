@@ -113,6 +113,17 @@ class Coord(object):
         assert isinstance(constraint, Coord)
         return Coord(max(self.i, constraint.i), min(self.j, constraint.j), min(self.k, constraint.k))
 
+    def is_space(self):
+        return odd(self.i) and odd(self.j) and odd(self.k)
+
+    def halve(self):
+        assert self.is_space()
+        return (self // 2) + 1
+
+    def double(self):
+        assert self.is_space()
+        return (self * 2) + 1
+
     RelativeFaceNeighbors = [
         (-1, 0, 0), (1, 0, 0),
         (0, -1, 0), (0, 1, 0),
@@ -125,10 +136,13 @@ class Coord(object):
         ()
     ]
 
+
+def odd(x):
+    return x % 2 == 1
+
+
 class Space(Coord):
     pass
-
-
 
 class Section(object):
     """
