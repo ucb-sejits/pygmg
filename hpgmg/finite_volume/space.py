@@ -116,6 +116,10 @@ class Coord(object):
     def is_space(self):
         return odd(self.i) and odd(self.j) and odd(self.k)
 
+    def in_space(self, space):
+        assert isinstance(space, Coord)
+        return 0 <= self.i < space.i and 0 <= self.j < space.j and 0 <= self.k < space.k
+
     def halve(self):
         assert self.is_space()
         return (self // 2) + 1

@@ -6,7 +6,7 @@ import numpy as np
 import itertools
 
 from hpgmg.finite_volume.space import Coord, Space
-
+from hpgmg.finite_volume.mesh import Mesh
 
 def tuple_multiply(tup, n):
     return tuple(map(lambda x: x * n, tup))
@@ -21,14 +21,13 @@ def smooth(b, x):
 
 
 def interpolate(mesh):
-    new_shape = double_shape(mesh.shape)
+    assert isinstance(mesh, Mesh)
 
-    new_mesh = np.zeros(new_shape)
+    new_mesh = Mesh.from_coord(mesh.space().double())
 
     # expand known values
-    for index in multi_iter(mesh):
-        expanded_index = tuple_multiply(index, 2)
-        new_mesh[expanded_index] = mesh[index]
+    for index in mesh.indices():
+        new_mesh[index*2] = mesh[index]
 
     # interpolate to the center of each 'x' of known values
     max_index = tuple_add(new_shape, -1)
@@ -59,14 +58,6 @@ def multi_iter(matrix):
         yield iterator.multi_index
         iterator.iternext()
 
-
-def point_in_shape(point, shape):
-    return all(
-        map(
-            lambda x: x[0] < x[1],
-            zip(point, shape)
-        )
-    )
 
 def legal_neighbors(point, shape):
     dimension_values = map(lambda x: (x-1, x, x+1), shape)
