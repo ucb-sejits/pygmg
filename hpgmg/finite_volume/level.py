@@ -233,6 +233,10 @@ class Level(object):
         for box_index, box in enumerate(self.my_boxes):
             for di, dj, dk in BoundaryCondition.foreach_neighbor_delta():
                 neighbor_vector = BoundaryCondition.neighbor_vector(di, dj, dk)
+                my_box = box // self.box_dim_size
+                neighbor_box = my_box + (di, dj ,dk)
+
+
 
 
 

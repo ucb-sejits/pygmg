@@ -6,10 +6,8 @@ import argparse
 import os
 import logging
 
-import operators
-import level
-
-import finite_volume
+from hpgmg.finite_volume.level import Level
+from hpgmg.finite_volume.operators.stencil_27_pt import stencil_get_radius
 
 log = logging
 log.root.setLevel(logging.INFO)
@@ -63,8 +61,8 @@ if __name__ == '__main__':
         log.error('failed to find an acceptable problem size')
         exit(0)
 
-    ghosts = operators.stencil_get_radius()
-    calc_level = level.Level(boxes_in_i, box_dim, ghosts,)
+    ghosts = stencil_get_radius()
+    calc_level = Level(boxes_in_i, box_dim, ghosts,)
 
     #conditional setup for Helmholtz and Poisson
     if args.eq == 'h':

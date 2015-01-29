@@ -52,7 +52,6 @@ class Coord(object):
         else:
             raise Exception("Coord {}, can't floor divide {}".format(self.to_tuple(), other))
 
-
     def volume(self):
         """
         enclosed volume of space
@@ -114,6 +113,17 @@ class Coord(object):
         assert isinstance(constraint, Coord)
         return Coord(max(self.i, constraint.i), min(self.j, constraint.j), min(self.k, constraint.k))
 
+    RelativeFaceNeighbors = [
+        (-1, 0, 0), (1, 0, 0),
+        (0, -1, 0), (0, 1, 0),
+        (0, 0, -1), (0, 0, 1),
+    ]
+
+    RelativeEdgeNeighbors = [
+        (-1, -1, 0), (-1, 1, 0), (1, -1, 0), (1, 1, 0),
+        (-1, 0, -1), (-1, 0, 1), (1, 0, -1), (1, 0, 1),
+        ()
+    ]
 
 class Space(Coord):
     pass
