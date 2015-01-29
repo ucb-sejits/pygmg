@@ -128,17 +128,57 @@ class Coord(object):
         assert self.is_space()
         return (self * 2) + 1
 
-    RelativeFaceNeighbors = [
+    RelativeFaceNeighborCoords = [
         (-1, 0, 0), (1, 0, 0),
         (0, -1, 0), (0, 1, 0),
         (0, 0, -1), (0, 0, 1),
     ]
 
-    RelativeEdgeNeighbors = [
+    RelativeEdgeNeighborCoords = [
         (-1, -1, 0), (-1, 1, 0), (1, -1, 0), (1, 1, 0),
         (-1, 0, -1), (-1, 0, 1), (1, 0, -1), (1, 0, 1),
-        ()
+        (0, -1, -1), (0, -1, 1), (0, 1, -1), (0, 1, 1),
     ]
+
+    RelativeCornerNeighborCoords = [
+        (-1, -1, -1), (-1, -1, 1), (-1, 1, -1), (-1, 1, 1),
+        (1, -1, -1), (1, -1, 1), (1, 1, -1), (1, 1, 1),
+    ]
+
+    def legal_face_neighbor_coords(self, space=None):
+        for offset_tuple in Coord.RelativeFaceNeighborCoords:
+            coord = self + offset_tuple
+            if space is None:
+                if 0 <= coord.i and 0 <= coord.j and 0 <= coord.k:
+                    yield coord
+            elif coord.in_space(space):
+                yield coord
+
+    def legal_edge_neighbor_coords(self, space=None):
+        for offset_tuple in Coord.RelativeEdgeNeighborCoords:
+            coord = self + offset_tuple
+            if space is None:
+                if 0 <= coord.i and 0 <= coord.j and 0 <= coord.k:
+                    yield coord
+            elif coord.in_space(space):
+                yield coord
+
+    def legal_corner_neighbor_coords(self, space=None):
+        for offset_tuple in Coord.RelativeCornerNeighborCoords:
+            coord = self + offset_tuple
+            if space is None:
+                if 0 <= coord.i and 0 <= coord.j and 0 <= coord.k:
+                    yield coord
+            elif coord.in_space(space):
+                yield coord
+
+    def legal_neighbor_coords(self, space=None):
+        for coord in self.legal_face_neighbor_coords(space):
+            yield coord
+        for coord in self.legal_edge_neighbor_coords(space):
+            yield coord
+        for coord in self.legal_corner_neighbor_coords(space):
+            yield coord
 
 
 def odd(x):

@@ -48,3 +48,12 @@ class TestSpace(unittest.TestCase):
         self.assertEqual(Coord(12, 10, 9) // Coord(4, 5, 3), Coord(3, 2, 3))
         self.assertEqual(Coord(8, 6, 5) // (4, 2, 2), Coord(2, 3, 2))
         self.assertEqual(Coord(7, 8, 9) // 4, Coord(1, 2, 2))
+
+    def test_neighbors(self):
+        coord = Coord(1, 1, 1)
+        self.assertEqual(len(list(coord.legal_neighbor_coords())), 26)
+        origin = Coord(0, 0, 0)
+        self.assertEqual(len(list(origin.legal_face_neighbor_coords())), 3)
+        self.assertEqual(len(list(origin.legal_edge_neighbor_coords())), 3)
+        self.assertEqual(len(list(origin.legal_corner_neighbor_coords())), 1)
+        self.assertEqual(len(list(origin.legal_neighbor_coords())), 7)
