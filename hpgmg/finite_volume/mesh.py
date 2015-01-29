@@ -27,6 +27,44 @@ class Mesh(np.ndarray):
         for coord in self.space().foreach():
             yield coord
 
+    def red_indices(self):
+        """
+        matrix origin we define to be black
+        :return:
+        """
+        for index in self.indices():
+            if index.is_red():
+                yield index
+
+    def black_indices(self):
+        """
+        matrix origin we define to be black
+        :return:
+        """
+        for index in self.indices():
+            if index.is_red():
+                yield index
+
     @staticmethod
     def from_coord(coord):
         return Mesh(coord.to_tuple())
+
+    def print(self):
+        """
+        decomposition labels each possible box referenced in rank_of_box with a
+        rank.  this shows the labeling in a table like form
+        :return:
+        """
+        max_i, max_j, max_k = self.shape
+
+        print("mesh with shape {}".format(self.shape))
+        for i in range(max_i-1, -1, -1):
+            # print("i  {}".format(i))
+            for j in range(max_j-1, -1, -1):
+                print(" "*j, end="")
+                for k in range(max_k):
+                    print("{:4.0f}".format(self[(i, j, k)]), end="")
+                print()
+            print()
+        print()
+

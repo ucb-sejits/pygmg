@@ -31,6 +31,7 @@ def interpolate(mesh):
 
     # interpolate to the center of each 'x' of known values
     for index in mesh.indices():
+        target = index * 2 + 1
 
     max_index = tuple_add(new_shape, -1)
     for index in multi_iter(new_mesh):

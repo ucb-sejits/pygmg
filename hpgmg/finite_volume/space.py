@@ -180,6 +180,12 @@ class Coord(object):
         for coord in self.legal_corner_neighbor_coords(space):
             yield coord
 
+    def is_black(self):
+        return (self.i + self.j + self.k) % 2 == 0
+
+    def is_red(self):
+        return not self.is_black()
+
 
 def odd(x):
     return x % 2 == 1
