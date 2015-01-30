@@ -4,7 +4,7 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 import numpy as np
 
-from hpgmg.finite_volume.space import Coord
+from space import Coord
 
 
 class Mesh(np.ndarray):
@@ -48,6 +48,13 @@ class Mesh(np.ndarray):
     @staticmethod
     def from_coord(coord):
         return Mesh(coord.to_tuple())
+
+    def __contains__(self, item):
+        if isinstance(item, Coord):
+            item = item.to_tuple()
+        return all(
+            0 <= index < max_dim for index, max_dim in zip(item, self.shape)
+        )
 
     def print(self, message=None):
         """

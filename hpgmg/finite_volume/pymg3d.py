@@ -20,6 +20,12 @@ def tuple_add(tup, n):
 def smooth(b, x):
     return x
 
+def iter_delta(coord, mesh):
+    for direction in itertools.product((-1, 0, 1), repeat=3):
+        delta = Coord(*direction)
+        new_coord = delta + coord
+        if all(0 <= dim < m for dim, m in zip(new_coord.to_tuple(), mesh.shape)):
+            yield delta
 
 def interpolate(mesh):
     assert isinstance(mesh, Mesh)
@@ -33,9 +39,18 @@ def interpolate(mesh):
     # interpolate to the center of each 'x' of known values
     for index in mesh.indices():
         target = index * 2 + 1
-        if target.in_space(new_mesh.space()):
-            neighbors = list(target.legal_corner_neighbor_coords(new_mesh.space()))
-            new_mesh[target] = sum(new_mesh[n] for n in neighbors) / len(neighbors)
+
+def interpolate(mesh):
+    new_mesh = np.zeros([i*2 - 1 for i in mesh.shape])
+    indices = Coord.from_tuple(mesh.shape).foreach()
+
+    for index in indices:
+        new_coord = index*2
+        value = mesh[index.to_tuple()]
+        for delta in iter_delta(new_coord, new_mesh):
+            target = new_coord + delta
+            norm = np.linalg.norm(delta.to_tuple(), 1)
+            new_mesh[target.to_tuple()] += value * np.exp2(-norm)
 
     return new_mesh
 
@@ -57,7 +72,7 @@ def legal_neighbors(point, shape):
 
 
 def restrict(mesh):
-    new_space = Coord.from_tuple(mesh.shape).halve()
+    new_space = Coord.from_tuple(mesh.shape).halve_space()
     new_mesh = np.zeros(new_space.to_tuple())
 
     for index in mesh.indices():

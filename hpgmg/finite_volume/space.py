@@ -14,11 +14,11 @@ class Coord(object):
 
     @staticmethod
     def from_tuple(tup):
-        return Space(tup[0], tup[1], tup[2])
+        return Coord(tup[0], tup[1], tup[2])
 
     def __mul__(self, other):
         assert isinstance(other, int)
-        return Space(self.i * other, self.j * other, self.k * other)
+        return Coord(self.i * other, self.j * other, self.k * other)
 
     __rmul__ = __mul__
 
@@ -115,7 +115,6 @@ class Coord(object):
 
     def is_space(self):
         return odd(self.i) and odd(self.j) and odd(self.k)
-
     def in_space(self, space):
         assert isinstance(space, Coord)
         return 0 <= self.i < space.i and 0 <= self.j < space.j and 0 <= self.k < space.k
