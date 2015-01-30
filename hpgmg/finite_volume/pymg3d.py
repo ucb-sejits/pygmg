@@ -8,6 +8,7 @@ import itertools
 from hpgmg.finite_volume.space import Coord, Space
 from hpgmg.finite_volume.mesh import Mesh
 
+
 def tuple_multiply(tup, n):
     return tuple(map(lambda x: x * n, tup))
 
@@ -67,7 +68,7 @@ def legal_neighbors(point, shape):
     return [
         pt
         for pt in itertools.product(*dimension_values)
-        if point_in_shape(pt, shape) and pt != point
+        if pt.in_space(pt, shape) and pt != point
     ]
 
 
@@ -75,7 +76,7 @@ def restrict(mesh):
     new_space = Coord.from_tuple(mesh.shape).halve()
     new_mesh = np.zeros(new_space.to_tuple())
 
-    for index in multi_iter(new_mesh):
+    for index in mesh.indices():
         target_index = tuple_multiply(index, 2)
         neighbors = legal_neighbors(index, mesh.shape)
         neighbor_mean = sum(mesh[x] for x in neighbors)/len(neighbors)

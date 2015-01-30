@@ -134,10 +134,22 @@ class Coord(object):
         (0, 0, -1), (0, 0, 1),
     ]
 
+    RelativeForwardFaceNeighborCoords = [
+        c
+        for c in RelativeFaceNeighborCoords
+        if 0 <= c[0] and 0 <= c[1] and 0 <= c[2]
+    ]
+
     RelativeEdgeNeighborCoords = [
         (-1, -1, 0), (-1, 1, 0), (1, -1, 0), (1, 1, 0),
         (-1, 0, -1), (-1, 0, 1), (1, 0, -1), (1, 0, 1),
         (0, -1, -1), (0, -1, 1), (0, 1, -1), (0, 1, 1),
+    ]
+
+    RelativeForwardEdgeNeighborCoords = [
+        c
+        for c in RelativeEdgeNeighborCoords
+        if 0 <= c[0] and 0 <= c[1] and 0 <= c[2]
     ]
 
     RelativeCornerNeighborCoords = [
