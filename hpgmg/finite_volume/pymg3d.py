@@ -24,7 +24,7 @@ def smooth(b, x):
 def interpolate(mesh):
     assert isinstance(mesh, Mesh)
 
-    new_mesh = Mesh.from_coord(mesh.space().double())
+    new_mesh = Mesh.from_coord(mesh.space().double_space())
 
     # expand known values
     for index in mesh.indices():
@@ -73,7 +73,7 @@ def legal_neighbors(point, shape):
 
 
 def restrict(mesh):
-    new_space = Coord.from_tuple(mesh.shape).halve()
+    new_space = Coord.from_tuple(mesh.shape).halve_space()
     new_mesh = np.zeros(new_space.to_tuple())
 
     for index in mesh.indices():
