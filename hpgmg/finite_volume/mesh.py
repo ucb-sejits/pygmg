@@ -4,7 +4,7 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 import numpy as np
 
-from space import Coord
+from hpgmg.finite_volume.space import Coord
 
 
 class Mesh(np.ndarray):
@@ -21,7 +21,7 @@ class Mesh(np.ndarray):
         if isinstance(key, Coord):
             return super(Mesh, self).__setitem__(key.to_tuple(), value)
         else:
-            return super(Mesh, self).__getitem__(key, value)
+            return super(Mesh, self).__setitem__(key, value)
 
     def indices(self):
         for coord in self.space().foreach():

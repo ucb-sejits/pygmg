@@ -4,8 +4,9 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 import unittest
 
-from main.finite_volume.mesh import Mesh
-from main.finite_volume.space import Coord
+from hpgmg.finite_volume.mesh import Mesh
+from hpgmg.finite_volume.space import Coord
+from hpgmg.finite_volume.pymg3d import interpolate
 
 
 class TestMesh(unittest.TestCase):

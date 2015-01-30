@@ -20,6 +20,7 @@ def tuple_add(tup, n):
 def smooth(b, x):
     return x
 
+
 def iter_delta(coord, mesh):
     for direction in itertools.product((-1, 0, 1), repeat=3):
         delta = Coord(*direction)
@@ -27,21 +28,11 @@ def iter_delta(coord, mesh):
         if all(0 <= dim < m for dim, m in zip(new_coord.to_tuple(), mesh.shape)):
             yield delta
 
+
 def interpolate(mesh):
     assert isinstance(mesh, Mesh)
-
-    new_mesh = Mesh.from_coord(mesh.space().double())
-
-    # expand known values
-    for index in mesh.indices():
-        new_mesh[index*2] = mesh[index]
-
-    # interpolate to the center of each 'x' of known values
-    for index in mesh.indices():
-        target = index * 2 + 1
-
-def interpolate(mesh):
-    new_mesh = np.zeros([i*2 - 1 for i in mesh.shape])
+    # new_mesh = np.zeros([i*2 - 1 for i in mesh.shape])
+    new_mesh = Mesh(((mesh.space() * 2) + -1).to_tuple())
     indices = Coord.from_tuple(mesh.shape).foreach()
 
     for index in indices:
@@ -50,7 +41,7 @@ def interpolate(mesh):
         for delta in iter_delta(new_coord, new_mesh):
             target = new_coord + delta
             norm = np.linalg.norm(delta.to_tuple(), 1)
-            new_mesh[target.to_tuple()] += value * np.exp2(-norm)
+            new_mesh[target.to_tuple()] += (value * np.exp2(-norm))
 
     return new_mesh
 
@@ -84,7 +75,7 @@ def restrict(mesh):
     return new_mesh
 
 
-def multigridv(T, b, x):
+def multi_grid_v_cycle(t, b, x):
     """
     :param b: numpy matrix
     :param x: numpy matrix
@@ -93,10 +84,10 @@ def multigridv(T, b, x):
     i = b.shape[0]
     if i == 2**1 + 1:
         #compute exact
-        return np.linalg.solve(T, b)
+        return np.linalg.solve(t, b)
     x = smooth(b, x)
-    residual = np.dot(T, x) - b
-    diff = interpolate(multigridv(T, restrict(residual)), np.zeros_like(b))
+    residual = np.dot(t, x) - b
+    diff = interpolate(multi_grid_v_cycle(t, restrict(residual)), np.zeros_like(b))
     x -= diff
     x = smooth(b,x)
     return x
