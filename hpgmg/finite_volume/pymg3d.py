@@ -8,15 +8,6 @@ import itertools
 from hpgmg.finite_volume.space import Coord, Space
 from hpgmg.finite_volume.mesh import Mesh
 
-
-def tuple_multiply(tup, n):
-    return tuple(map(lambda x: x * n, tup))
-
-
-def tuple_add(tup, n):
-    return tuple(map(lambda x: x + n, tup))
-
-
 def smooth(b, x):
     return x
 
@@ -31,9 +22,8 @@ def iter_delta(coord, mesh):
 
 def interpolate(mesh):
     assert isinstance(mesh, Mesh)
-    new_mesh = Mesh(mesh.space().double_space())
-    # new_mesh.fill(0)
-    indices = Coord(mesh.shape).foreach()
+    new_mesh = Mesh(mesh.space * 2)
+    indices = Space(mesh.shape).points
 
     for index in indices:
         new_coord = index*2

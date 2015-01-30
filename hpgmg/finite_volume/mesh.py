@@ -4,57 +4,20 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 import numpy as np
 
-from hpgmg.finite_volume.space import Coord
+from hpgmg.finite_volume.space import Coord, Space
 
 
 class Mesh(np.ndarray):
+
+    @property
     def space(self):
-        return Coord(self.shape)
-
-    def __getitem__(self, item):
-        if isinstance(item, Coord):
-            return super(Mesh, self).__getitem__(item)
-        else:
-            return super(Mesh, self).__getitem__(item)
-
-    def __setitem__(self, key, value):
-        if isinstance(key, Coord):
-            return super(Mesh, self).__setitem__(key, value)
-        else:
-            return super(Mesh, self).__setitem__(key, value)
+        return Space(self.shape)
 
     def indices(self):
-        for coord in self.space().foreach():
-            yield coord
-
-    def red_indices(self):
-        """
-        matrix origin we define to be black
-        :return:
-        """
-        for index in self.indices():
-            if index.is_red():
-                yield index
-
-    def black_indices(self):
-        """
-        matrix origin we define to be black
-        :return:
-        """
-        for index in self.indices():
-            if index.is_red():
-                yield index
-
-    @staticmethod
-    def from_coord(coord):
-        return Mesh(coord)
+        return self.space.points
 
     def __contains__(self, item):
-        if isinstance(item, Coord):
-            item = item
-        return all(
-            0 <= index < max_dim for index, max_dim in zip(item, self.shape)
-        )
+        return item in self.space
 
     def print(self, message=None):
         """
