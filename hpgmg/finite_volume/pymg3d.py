@@ -33,25 +33,9 @@ def interpolate(mesh):
     # interpolate to the center of each 'x' of known values
     for index in mesh.indices():
         target = index * 2 + 1
-
-    max_index = tuple_add(new_shape, -1)
-    for index in multi_iter(new_mesh):
-        if point_in_shape(index, max_index):
-
-    for i, j in itertools.product(range(1, new_shape, 2), repeat=2):
-        new_mesh[i, j] = sum(
-            new_mesh[m,n] for m, n in itertools.product((i-1, i+1), (j-1, j+1))
-        ) / 4.0  # number of neighbors
-
-    for i in range(new_shape):
-        for j in range(1 - (i & 1), 2*(s-1)+1, 2):
-            neighbors = [
-                new_mesh[m, n]
-                for m, n in ((i-1, j), (i+1, j), (i, j-1), (i, j+1))
-                if 0 <= m < new_shape and 0 <= n < new_shape
-            ]
-            new_val = sum(neighbors) / len(neighbors)
-            new_mesh[i, j] = new_val
+        if target.in_space(new_mesh.space()):
+            neighbors = list(target.legal_corner_neighbor_coords(new_mesh.space()))
+            new_mesh[target] = sum(new_mesh[n] for n in neighbors) / len(neighbors)
 
     return new_mesh
 

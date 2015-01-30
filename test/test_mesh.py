@@ -6,6 +6,7 @@ import unittest
 
 from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.space import Coord
+from hpgmg.finite_volume.pymg3d import interpolate
 
 
 class TestMesh(unittest.TestCase):
@@ -43,16 +44,11 @@ class TestMesh(unittest.TestCase):
     def test_interpolation_indices(self):
         print("1's are copied points from coarse grid")
         print("2's are 1st interpolation points")
-        coarse_space = Coord(3, 3, 3)
-        mesh = Mesh(coarse_space.double().to_tuple())
-        mesh.fill(0)
+        coarse_mesh = Mesh([3, 3, 3])
+        for index in coarse_mesh.indices():
+            coarse_mesh[index] = sum(index.to_tuple())
+        coarse_mesh.print("Coarse mesh")
+        fine_mesh = interpolate(coarse_mesh)
 
-        for index in (coarse_space+1).foreach():
-            target = index * 2
-            mesh[target] = 1
-        for index in coarse_space.foreach():
-            interpolation_point = index * 2 + 1
-            mesh[interpolation_point] = 2
-
-        mesh.print()
+        fine_mesh.print("Fine mesh")
 

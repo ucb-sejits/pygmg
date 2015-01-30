@@ -49,7 +49,7 @@ class Mesh(np.ndarray):
     def from_coord(coord):
         return Mesh(coord.to_tuple())
 
-    def print(self):
+    def print(self, message=None):
         """
         decomposition labels each possible box referenced in rank_of_box with a
         rank.  this shows the labeling in a table like form
@@ -57,7 +57,9 @@ class Mesh(np.ndarray):
         """
         max_i, max_j, max_k = self.shape
 
-        print("mesh with shape {}".format(self.shape))
+        if message:
+            print("Mesh print {} shape {}".format(message, self.shape))
+
         for i in range(max_i-1, -1, -1):
             # print("i  {}".format(i))
             for j in range(max_j-1, -1, -1):

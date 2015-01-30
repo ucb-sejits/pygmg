@@ -126,7 +126,7 @@ class Coord(object):
 
     def double(self):
         assert self.is_space()
-        return (self * 2) + 1
+        return (self * 2) + -1
 
     RelativeFaceNeighborCoords = [
         (-1, 0, 0), (1, 0, 0),
