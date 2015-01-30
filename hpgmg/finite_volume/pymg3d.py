@@ -33,6 +33,7 @@ def interpolate(mesh):
     assert isinstance(mesh, Mesh)
     # new_mesh = np.zeros([i*2 - 1 for i in mesh.shape])
     new_mesh = Mesh(((mesh.space() * 2) + -1).to_tuple())
+    new_mesh.fill(0)
     indices = Coord.from_tuple(mesh.shape).foreach()
 
     for index in indices:

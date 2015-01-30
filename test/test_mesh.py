@@ -4,8 +4,10 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 import unittest
 
+import sys
+print("sys path {}".format("\n".join(sys.path)))
+
 from hpgmg.finite_volume.mesh import Mesh
-from hpgmg.finite_volume.space import Coord
 from hpgmg.finite_volume.pymg3d import interpolate
 
 
