@@ -2,7 +2,7 @@ from __future__ import print_function
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
-from hpgmg.finite_volume.space import Coord
+from space import Coord
 
 
 class GridCoordinate(object):

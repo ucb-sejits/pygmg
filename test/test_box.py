@@ -3,10 +3,10 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 import unittest
 
-from hpgmg.finite_volume.level import Level
-from hpgmg.finite_volume.box import Box
-from hpgmg.finite_volume.space import Coord
-from hpgmg.finite_volume.boundary_condition import BoundaryCondition
+from main.finite_volume.level import Level
+from main.finite_volume.box import Box
+from main.finite_volume.space import Coord
+from main.finite_volume.boundary_condition import BoundaryCondition
 
 
 class TestBox(unittest.TestCase):

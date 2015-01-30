@@ -5,8 +5,8 @@ __author__ = 'nzhang-dev'
 import numpy as np
 import itertools
 
-from hpgmg.finite_volume.space import Coord, Space
-from hpgmg.finite_volume.mesh import Mesh
+from space import Coord, Space
+from mesh import Mesh
 
 
 def tuple_multiply(tup, n):
@@ -20,39 +20,24 @@ def tuple_add(tup, n):
 def smooth(b, x):
     return x
 
+def iter_delta(coord, mesh):
+    for direction in itertools.product((-1, 0, 1), repeat=3):
+        delta = Coord(*direction)
+        new_coord = delta + coord
+        if all(0 <= dim < m for dim, m in zip(new_coord.to_tuple(), mesh.shape)):
+            yield delta
+
 
 def interpolate(mesh):
-    assert isinstance(mesh, Mesh)
-
-    new_mesh = Mesh.from_coord(mesh.space().double_space())
-
-    # expand known values
-    for index in mesh.indices():
-        new_mesh[index*2] = mesh[index]
-
-    # interpolate to the center of each 'x' of known values
-    for index in mesh.indices():
-        target = index * 2 + 1
-
-    max_index = tuple_add(new_shape, -1)
-    for index in multi_iter(new_mesh):
-        if point_in_shape(index, max_index):
-
-    for i, j in itertools.product(range(1, new_shape, 2), repeat=2):
-        new_mesh[i, j] = sum(
-            new_mesh[m,n] for m, n in itertools.product((i-1, i+1), (j-1, j+1))
-        ) / 4.0  # number of neighbors
-
-    for i in range(new_shape):
-        for j in range(1 - (i & 1), 2*(s-1)+1, 2):
-            neighbors = [
-                new_mesh[m, n]
-                for m, n in ((i-1, j), (i+1, j), (i, j-1), (i, j+1))
-                if 0 <= m < new_shape and 0 <= n < new_shape
-            ]
-            new_val = sum(neighbors) / len(neighbors)
-            new_mesh[i, j] = new_val
-
+    new_mesh = np.zeros([i*2 - 1 for i in mesh.shape])
+    indices = Coord.from_tuple(mesh.shape).foreach()
+    for index in indices:
+        new_coord = index*2
+        value = mesh[index.to_tuple()]
+        for delta in iter_delta(new_coord, new_mesh):
+            target = new_coord + delta
+            norm = np.linalg.norm(delta.to_tuple(), 1)
+            new_mesh[target.to_tuple()] += value * np.exp2(-norm)
     return new_mesh
 
 
