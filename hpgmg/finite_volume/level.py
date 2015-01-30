@@ -114,7 +114,7 @@ class Level(object):
 
     def build_rank_of_box(self):
         try:
-            rank_of_box = numpy.empty(self.boxes_in.to_tuple()).astype(numpy.int32)
+            rank_of_box = numpy.empty(self.boxes_in).astype(numpy.int32)
             rank_of_box.fill(-1)
             return rank_of_box
         except Exception:
@@ -123,7 +123,7 @@ class Level(object):
     def build_boxes(self):
         num_my_boxes = 0
         for index in self.boxes_in.foreach():
-            if self.rank_of_box[index.to_tuple()] == self.my_rank:
+            if self.rank_of_box[index] == self.my_rank:
                 num_my_boxes += 1
 
         try:
@@ -134,7 +134,7 @@ class Level(object):
         box_index = 0
         for index in self.boxes_in.foreach():
             index_1d = self.boxes_in.index_3d_to_1d(index)
-            if self.rank_of_box[index.to_tuple()] == self.my_rank:
+            if self.rank_of_box[index] == self.my_rank:
                 box = Box(self, index, self.box_vectors, self.box_dim_size, self.box_ghost_size)
                 box.low = index * self.box_dim_size
 
@@ -150,13 +150,13 @@ class Level(object):
     def decompose_level_lex(self, ranks):
         for index in self.boxes_in.foreach():
             index_1d = self.boxes_in.index_3d_to_1d(index)
-            self.rank_of_box[index.to_tuple()] = (ranks * index_1d) / self.boxes_in.volume()
+            self.rank_of_box[index] = (ranks * index_1d) / self.boxes_in.volume()
 
     def decompose_level_bisection_special(self, num_ranks):
-        raise Exception("decompose_level_bisection_special not implemented. Level shape {}".format(self.shape.to_tuple()))
+        raise Exception("decompose_level_bisection_special not implemented. Level shape {}".format(self.shape))
 
     def decompose_level_bisection(self, num_ranks):
-        raise Exception("decompose_level_bisection not implemented. Level shape {}".format(self.shape.to_tuple()))
+        raise Exception("decompose_level_bisection not implemented. Level shape {}".format(self.shape))
 
     def print_decomposition(self):
         """

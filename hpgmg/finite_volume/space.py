@@ -2,31 +2,38 @@ from __future__ import print_function, division
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 
-class Coord(object):
+class Coord(tuple):
     """
     implements a 3d coordinate, with convenience methods
     """
-    def __init__(self, i=0, j=0, k=0):
-        self.i, self.j, self.k = i, j, k
+    def __new__(cls, *args):
+        if len(args) == 1 and isinstance(args[0], (Coord, tuple)):
+            return tuple.__new__(Coord, (args[0][0], args[0][1], args[0][2]))
+        elif len(args) == 3:
+            return tuple.__new__(Coord, (args[0], args[1], args[2]))
+        else:
+            raise Exception("Attempting to create a Coord from {}".format(*args))
+
+    @property
+    def i(self):
+        return self[0]
+
+    @property
+    def j(self):
+        return self[1]
+
+    @property
+    def k(self):
+        return self[2]
 
     def to_tuple(self):
         return self.i, self.j, self.k
-
-    @staticmethod
-    def from_tuple(tup):
-        return Coord(tup[0], tup[1], tup[2])
 
     def __mul__(self, other):
         assert isinstance(other, int)
         return Coord(self.i * other, self.j * other, self.k * other)
 
     __rmul__ = __mul__
-
-    def __eq__(self, other):
-        if isinstance(other, Coord):
-            return self.to_tuple() == other.to_tuple()
-        else:
-            return False
 
     def __add__(self, other):
         if isinstance(other, Coord):
@@ -37,9 +44,31 @@ class Coord(object):
         elif isinstance(other, int):
             return Coord(self.i + other, self.j + other, self.k + other)
         else:
-            raise Exception("Coord {}, can't add {}".format(self.to_tuple(), other))
+            raise Exception("Coord {}, can't add {}".format(self, other))
 
     __radd__ = __add__
+
+    def __sub__(self, other):
+        if isinstance(other, Coord):
+            return Coord(self.i - other.i, self.j - other.j, self.k - other.k)
+        elif isinstance(other, tuple):
+            if len(other) == 3:
+                return Coord(self.i - other[0], self.j - other[1], self.k - other[2])
+        elif isinstance(other, int):
+            return Coord(self.i - other, self.j - other, self.k - other)
+        else:
+            raise Exception("Coord {}, can't add {}".format(self, other))
+
+    def __rsub__(self, other):
+        if isinstance(other, Coord):
+            return Coord(other.i - self.i, other.j - self.j, other.k - self.k)
+        elif isinstance(other, tuple):
+            if len(other) == 3:
+                return Coord(other[0] - self.i, other[1] - self.j, other[2] - self.k)
+        elif isinstance(other, int):
+            return Coord(other - self.i, other - self.j, other - self.k)
+        else:
+            raise Exception("Coord {}, can't add {}".format(self, other))
 
     def __floordiv__(self, other):
         if isinstance(other, Coord):
@@ -50,7 +79,7 @@ class Coord(object):
         elif isinstance(other, int):
             return Coord(self.i // other, self.j // other, self.k // other)
         else:
-            raise Exception("Coord {}, can't floor divide {}".format(self.to_tuple(), other))
+            raise Exception("Coord {}, can't floor divide {}".format(self, other))
 
     def volume(self):
         """
@@ -100,7 +129,7 @@ class Coord(object):
         elif isinstance(coord, (list, tuple)):
             return (coord[0] * self.j * self.k) + (coord[1] * self.k) + coord[2]
         else:
-            raise Exception("Space({}).index_3d_to_1d bad argument {}".format(self.to_tuple(), coord))
+            raise Exception("Space({}).index_3d_to_1d bad argument {}".format(self, coord))
 
     def index_1d_to_3d(self, index):
         assert isinstance(index, int)

@@ -3,12 +3,12 @@ from __future__ import print_function
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 import unittest
-from main.finite_volume.space import Space,  Coord
+from hpgmg.finite_volume.space import Space,  Coord
 
 
 class TestSpace(unittest.TestCase):
-    def test_create(self):
-        space = Space()
+    def test_aaa_create(self):
+        space = Coord(0, 0, 0)
         self.assertEqual((space.i, space.j, space.k), (0, 0, 0))
 
         space = Space(1, 2, 3)
@@ -27,7 +27,7 @@ class TestSpace(unittest.TestCase):
             self.assertEqual(len(list(space.foreach())), space.volume())
             for index in space.foreach():
                 index_1d = space.index_3d_to_1d(index)
-                index_3d = Space.from_tuple(space.index_1d_to_3d(index_1d))
+                index_3d = Space(space.index_1d_to_3d(index_1d))
                 self.assertEqual(index, index_3d)
 
     def test_multiply(self):

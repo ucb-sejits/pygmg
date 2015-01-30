@@ -25,24 +25,24 @@ def iter_delta(coord, mesh):
     for direction in itertools.product((-1, 0, 1), repeat=3):
         delta = Coord(*direction)
         new_coord = delta + coord
-        if all(0 <= dim < m for dim, m in zip(new_coord.to_tuple(), mesh.shape)):
+        if all(0 <= dim < m for dim, m in zip(new_coord, mesh.shape)):
             yield delta
 
 
 def interpolate(mesh):
     assert isinstance(mesh, Mesh)
     # new_mesh = np.zeros([i*2 - 1 for i in mesh.shape])
-    new_mesh = Mesh(((mesh.space() * 2) + -1).to_tuple())
+    new_mesh = Mesh(((mesh.space() * 2) + -1))
     new_mesh.fill(0)
-    indices = Coord.from_tuple(mesh.shape).foreach()
+    indices = Coord(mesh.shape).foreach()
 
     for index in indices:
         new_coord = index*2
-        value = mesh[index.to_tuple()]
+        value = mesh[index]
         for delta in iter_delta(new_coord, new_mesh):
             target = new_coord + delta
-            norm = np.linalg.norm(delta.to_tuple(), 1)
-            new_mesh[target.to_tuple()] += (value * np.exp2(-norm))
+            norm = np.linalg.norm(delta, 1)
+            new_mesh[target] += (value * np.exp2(-norm))
 
     return new_mesh
 
@@ -64,8 +64,8 @@ def legal_neighbors(point, shape):
 
 
 def restrict(mesh):
-    new_space = Coord.from_tuple(mesh.shape).halve_space()
-    new_mesh = np.zeros(new_space.to_tuple())
+    new_space = Coord(mesh.shape).halve_space()
+    new_mesh = np.zeros(new_space)
 
     for index in mesh.indices():
         target_index = tuple_multiply(index, 2)

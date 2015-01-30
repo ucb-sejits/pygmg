@@ -9,17 +9,17 @@ from hpgmg.finite_volume.space import Coord
 
 class Mesh(np.ndarray):
     def space(self):
-        return Coord.from_tuple(self.shape)
+        return Coord(self.shape)
 
     def __getitem__(self, item):
         if isinstance(item, Coord):
-            return super(Mesh, self).__getitem__(item.to_tuple())
+            return super(Mesh, self).__getitem__(item)
         else:
             return super(Mesh, self).__getitem__(item)
 
     def __setitem__(self, key, value):
         if isinstance(key, Coord):
-            return super(Mesh, self).__setitem__(key.to_tuple(), value)
+            return super(Mesh, self).__setitem__(key, value)
         else:
             return super(Mesh, self).__setitem__(key, value)
 
@@ -47,11 +47,11 @@ class Mesh(np.ndarray):
 
     @staticmethod
     def from_coord(coord):
-        return Mesh(coord.to_tuple())
+        return Mesh(coord)
 
     def __contains__(self, item):
         if isinstance(item, Coord):
-            item = item.to_tuple()
+            item = item
         return all(
             0 <= index < max_dim for index, max_dim in zip(item, self.shape)
         )
