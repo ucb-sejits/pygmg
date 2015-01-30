@@ -6,8 +6,8 @@ import argparse
 import os
 import logging
 
-from hpgmg.finite_volume.level import Level
-from hpgmg.finite_volume.operators.stencil_27_pt import stencil_get_radius
+from level import Level
+from operators.stencil_27_pt import stencil_get_radius
 
 log = logging
 log.root.setLevel(logging.INFO)

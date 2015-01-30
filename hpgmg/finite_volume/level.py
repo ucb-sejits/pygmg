@@ -5,11 +5,11 @@ import numpy
 import math
 
 from collections import namedtuple
-from hpgmg.finite_volume.operators.stencil_27_pt import stencil_get_radius
-from hpgmg.finite_volume.space import Space, Coord
-from hpgmg.finite_volume.box import Box
-from hpgmg.finite_volume.boundary_condition import BoundaryCondition
-from hpgmg.finite_volume.block_copy import GridCoordinate
+from operators.stencil_27_pt import stencil_get_radius
+from space import Space, Coord
+from box import Box
+from boundary_condition import BoundaryCondition
+from block_copy import GridCoordinate
 
 
 BLOCK_COPY_TILE_I = 10000

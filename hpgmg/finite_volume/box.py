@@ -4,8 +4,8 @@ import numpy
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 
-from hpgmg.finite_volume.space import Space, Coord
-import hpgmg.finite_volume.level
+from space import Space, Coord
+import level
 
 
 class Box(object):
@@ -19,7 +19,7 @@ class Box(object):
         :param ghost_zone_size:
         :return:
         """
-        assert isinstance(level, hpgmg.finite_volume.level.Level)
+        assert isinstance(level, level.Level)
         assert isinstance(coord, Coord)
 
         self.level = level

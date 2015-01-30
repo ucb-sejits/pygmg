@@ -3,7 +3,7 @@ from __future__ import print_function
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 import unittest
-from hpgmg.finite_volume.space import Space,  Coord
+from main.finite_volume.space import Space,  Coord
 
 
 class TestSpace(unittest.TestCase):
