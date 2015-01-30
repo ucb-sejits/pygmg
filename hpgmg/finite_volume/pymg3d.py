@@ -31,9 +31,8 @@ def iter_delta(coord, mesh):
 
 def interpolate(mesh):
     assert isinstance(mesh, Mesh)
-    # new_mesh = np.zeros([i*2 - 1 for i in mesh.shape])
-    new_mesh = Mesh(((mesh.space() * 2) + -1))
-    new_mesh.fill(0)
+    new_mesh = Mesh(mesh.space().double_space())
+    # new_mesh.fill(0)
     indices = Coord(mesh.shape).foreach()
 
     for index in indices:
@@ -64,11 +63,10 @@ def legal_neighbors(point, shape):
 
 
 def restrict(mesh):
-    new_space = Coord(mesh.shape).halve_space()
-    new_mesh = np.zeros(new_space)
+    new_mesh = Mesh(Coord(mesh.shape).halve_space())
 
     for index in mesh.indices():
-        target_index = tuple_multiply(index, 2)
+        target_index = index * 2
         neighbors = legal_neighbors(index, mesh.shape)
         neighbor_mean = sum(mesh[x] for x in neighbors)/len(neighbors)
         new_mesh[target_index] = 0.5*mesh[index] + 0.5*neighbor_mean

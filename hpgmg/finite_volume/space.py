@@ -149,11 +149,11 @@ class Coord(tuple):
         assert isinstance(space, Coord)
         return 0 <= self.i < space.i and 0 <= self.j < space.j and 0 <= self.k < space.k
 
-    def halve(self):
+    def halve_space(self):
         assert self.is_space()
         return (self // 2) + 1
 
-    def double(self):
+    def double_space(self):
         assert self.is_space()
         return (self * 2) + -1
 
@@ -234,6 +234,7 @@ def odd(x):
 
 class Space(Coord):
     pass
+
 
 class Section(object):
     """
