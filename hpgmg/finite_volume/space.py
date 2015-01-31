@@ -82,6 +82,10 @@ class Space(tuple):
         return self
 
     @property
+    def ndim(self):
+        return len(self)
+
+    @property
     def volume(self):
         return np.multiply.reduce(self)
 
@@ -120,6 +124,18 @@ class Space(tuple):
         if isinstance(other, collections.Iterable):
             return Space((dim - 1) // scale for dim, scale in zip(self, other))
         return NotImplemented
+
+    __truediv__ = __floordiv__ = __div__
+
+    def __add__(self, other):
+        if isinstance(other, int):
+            return Space(i + other for i in self)
+        return NotImplemented
+
+    __radd__ = __add__
+
+    def __sub__(self, other):
+        return self + -other
 
     def neighbor_deltas(self):
         return itertools.product((-1, 0, 1), repeat=len(self))

@@ -5,8 +5,8 @@ __author__ = 'nzhang-dev'
 import numpy as np
 import itertools
 
-from hpgmg.finite_volume.space import Coord, Space
-from hpgmg.finite_volume.mesh import Mesh
+from space import Coord, Space
+from mesh import Mesh
 
 def smooth(b, x):
     return x
@@ -23,9 +23,8 @@ def iter_delta(coord, mesh):
 def interpolate(mesh):
     assert isinstance(mesh, Mesh)
     new_mesh = Mesh(mesh.space * 2)
-    indices = Space(mesh.shape).points
 
-    for index in indices:
+    for index in mesh.indices():
         new_coord = index*2
         value = mesh[index]
         for delta in iter_delta(new_coord, new_mesh):
@@ -35,32 +34,15 @@ def interpolate(mesh):
 
     return new_mesh
 
-
-def multi_iter(matrix):
-    iterator = np.nditer(matrix, flags=['multi_index'])
-    while not iterator.finished:
-        yield iterator.multi_index
-        iterator.iternext()
-
-
-def legal_neighbors(point, shape):
-    dimension_values = map(lambda x: (x-1, x, x+1), shape)
-    return [
-        pt
-        for pt in itertools.product(*dimension_values)
-        if pt.in_space(pt, shape) and pt != point
-    ]
-
-
 def restrict(mesh):
-    new_mesh = Mesh(Coord(mesh.shape).halve_space())
-
-    for index in mesh.indices():
-        target_index = index * 2
-        neighbors = legal_neighbors(index, mesh.shape)
-        neighbor_mean = sum(mesh[x] for x in neighbors)/len(neighbors)
-        new_mesh[target_index] = 0.5*mesh[index] + 0.5*neighbor_mean
-
+    new_mesh = Mesh(mesh.space/2)
+    for index in new_mesh.indices():
+        target = index+1
+        for delta in mesh.space.neighbor_deltas():
+            neighbor = target + delta
+            if neighbor in mesh.space:
+                weight = np.exp2(-(np.linalg.norm(delta, 1) + mesh.space.ndim))
+                new_mesh[index] += mesh[neighbor] * weight
     return new_mesh
 
 
@@ -87,9 +69,10 @@ def main(args):
 
     print("hello world")
     i = 4
-    b = np.random.random(space)
-    restrict(b)
+    b = np.random.random(space).view(Mesh)
+    restricted = restrict(b)
     x = np.zeros(2**i)
+    print(restricted)()
 
 if __name__ == '__main__':
     import sys
