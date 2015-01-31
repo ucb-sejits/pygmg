@@ -5,6 +5,7 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 import unittest
 
 from hpgmg.finite_volume.mesh import Mesh
+from hpgmg.finite_volume.pymg3d import interpolate
 
 
 class TestMesh(unittest.TestCase):
@@ -14,8 +15,8 @@ class TestMesh(unittest.TestCase):
 
         for coord in mesh.indices():
             self.assertEqual(mesh[coord], 1)
-            self.assertEqual(mesh[coord.to_tuple()], 1)
-            self.assertEqual(mesh[coord], mesh[coord.to_tuple()])
+            self.assertEqual(mesh[coord], 1)
+            self.assertEqual(mesh[coord], mesh[coord])
 
         for coord in mesh.indices():
             mesh[coord] = coord.volume()
@@ -25,16 +26,7 @@ class TestMesh(unittest.TestCase):
             self.assertEqual(mesh[coord.to_tuple()], coord.volume())
 
     def test_print(self):
-        mesh = Mesh([3, 3, 3])
-        for index in mesh.indices():
-            mesh[index] = index.volume()
-
+        mesh = Mesh(Space(3,3,3))
+        mesh.fill(2)
         mesh.print()
 
-    def test_red(self):
-        print("red 1 black 2")
-        mesh = Mesh([3, 3, 3])
-        for index in mesh.indices():
-            mesh[index] = 1 if index.is_red() else 2
-
-        mesh.print()

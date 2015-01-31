@@ -4,7 +4,7 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 import unittest
 
-from main.finite_volume.boundary_condition import BoundaryCondition
+from hpgmg.finite_volume.boundary_condition import BoundaryCondition
 
 
 class TestBoundaryCondition(unittest.TestCase):
