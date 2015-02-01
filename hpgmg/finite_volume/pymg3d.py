@@ -11,39 +11,66 @@ from mesh import Mesh
 def smooth(b, x):
     return x
 
-
-def iter_delta(coord, mesh):
-    for direction in itertools.product((-1, 0, 1), repeat=3):
-        delta = Coord(*direction)
-        new_coord = delta + coord
-        if all(0 <= dim < m for dim, m in zip(new_coord, mesh.shape)):
-            yield delta
-
+def interpolation_matrix(ndim):
+    """
+    :param ndim: Int, number of dimensions
+    :return: np.ndarray so of weights
+    """
+    weight_matrix = np.zeros((3,)*ndim).view(Mesh)
+    coord = Coord(1,1,1)  # center of matrix
+    for delta in weight_matrix.space.neighbor_deltas():
+        new_coord = coord + delta
+        norm = np.linalg.norm(delta, 1)
+        weight_matrix[new_coord] = np.exp2(-norm)
+    return weight_matrix
 
 def interpolate(mesh):
-    assert isinstance(mesh, Mesh)
     new_mesh = Mesh(mesh.space * 2)
 
     for index in mesh.indices():
         new_coord = index*2
         value = mesh[index]
-        for delta in iter_delta(new_coord, new_mesh):
+        for delta in new_mesh.space.neighbor_deltas():
             target = new_coord + delta
-            norm = np.linalg.norm(delta, 1)
-            new_mesh[target] += (value * np.exp2(-norm))
-
+            if target in new_mesh:
+                norm = np.linalg.norm(delta, 1)
+                new_mesh[target] += (value * np.exp2(-norm))
     return new_mesh
+
+def interpolate_m(mesh):
+    """
+    :param mesh: Mesh to be interpolate
+    :return: interpolated matrix
+
+    Using matrix embedding and multiply instead of neighbor iteration
+    """
+    new_matrix = np.zeros((mesh.space + 1)*2).view(Mesh)
+    inter_matrix = interpolation_matrix(mesh.ndim)
+    for coord in mesh.indices():
+        target = coord * 2 + 1
+        neighborhood_slice = new_matrix.space.neighborhood_slice(target)
+        new_matrix[neighborhood_slice] += mesh[coord] * inter_matrix
+    return new_matrix[(slice(1,-1),)*mesh.ndim]
 
 def restrict(mesh):
     new_mesh = Mesh(mesh.space/2)
     for index in new_mesh.indices():
-        target = index+1
+        target = index*2
+        weights = 0
+        value = 0
         for delta in mesh.space.neighbor_deltas():
             neighbor = target + delta
             if neighbor in mesh.space:
                 weight = np.exp2(-(np.linalg.norm(delta, 1) + mesh.space.ndim))
-                new_mesh[index] += mesh[neighbor] * weight
+                value += mesh[neighbor] * weight
+                weights += weight
+        new_mesh[index] = value / weights
+
     return new_mesh
+
+def simple_restrict(mesh):
+    slices = tuple(slice(None, None, 2) for _ in range(mesh.ndim))
+    return mesh[slices]
 
 
 def multi_grid_v_cycle(t, b, x):
@@ -65,14 +92,14 @@ def multi_grid_v_cycle(t, b, x):
 
 
 def main(args):
-    space = Space(64, 64, 64)
+    space = Space(6,6,6)
 
     print("hello world")
     i = 4
     b = np.random.random(space).view(Mesh)
     restricted = restrict(b)
     x = np.zeros(2**i)
-    print(restricted)()
+    print(restricted)
 
 if __name__ == '__main__':
     import sys

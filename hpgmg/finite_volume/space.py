@@ -16,9 +16,9 @@ class Vector(tuple):
     def __mul__(self, other):
         """scalar product if other is a number, otherwise does inner product"""
         if isinstance(other, numbers.Number):
-            return Coord(other*el for el in self)
+            return type(self)(other*el for el in self)
         elif isinstance(other, collections.Iterable):
-            return sum(i*j for i,j in zip(self, other))
+            return sum(i*j for i,j in itertools.izip_longest(self, other))
         else:
             return NotImplemented
 
@@ -27,9 +27,9 @@ class Vector(tuple):
     def __add__(self, other):
         """adds a constant to each element if other is a number, otherwise does pairwise addition"""
         if isinstance(other, numbers.Number):
-            return Coord(other+el for el in self)
+            return type(self)(other+el for el in self)
         elif isinstance(other, collections.Iterable):
-            return Coord(i+j for i,j in zip(self, other))
+            return type(self)(i+j for i,j in itertools.izip_longest(self, other))
         else:
             return NotImplemented
 
@@ -48,14 +48,14 @@ class Vector(tuple):
         if isinstance(other, numbers.Number):
             return self * 1/other
         if isinstance(other, collections.Iterable):
-            return Coord(i/j for i,j in zip(self, other))
+            return type(self)(i/j for i,j in itertools.izip_longest(self, other))
         return NotImplemented
 
     def __floordiv__(self, other):
         if isinstance(other, numbers.Number):
-            return Coord(i//other for i in self)
+            return type(self)(i//other for i in self)
         elif isinstance(other, collections.Iterable):
-            return Coord(i//j for i,j in zip(self, other))
+            return type(self)(i//j for i,j in itertools.izip_longest(self, other))
         return NotImplemented
 
 
@@ -97,14 +97,14 @@ class Space(tuple):
     def __contains__(self, item):
         """Determines if the coordinate is in this space"""
         if isinstance(item, collections.Iterable):
-            return all(0 <= i < bound for i, bound in zip(item, self))
+            return all(0 <= i < bound for i, bound in itertools.izip_longest(item, self, fillvalue=0))
         return NotImplemented
 
     def __mul__(self, other):
         if isinstance(other, int):
             return Space((dim - 1) * other + 1 for dim in self)
         if isinstance(other, collections.Iterable):
-            return Space((dim - 1) * scale + 1 for dim, scale in zip(self, other))
+            return Space((dim - 1) * scale + 1 for dim, scale in itertools.izip_longest(self, other, fillvalue=0))
         return NotImplemented
 
     def __rmul__(self, other):
@@ -122,7 +122,7 @@ class Space(tuple):
         if isinstance(other, int):
             return Space((dim - 1)//other + 1 for dim in self)
         if isinstance(other, collections.Iterable):
-            return Space((dim - 1) // scale for dim, scale in zip(self, other))
+            return Space((dim - 1) // scale for dim, scale in itertools.izip_longest(self, other, fillvalue=0))
         return NotImplemented
 
     __truediv__ = __floordiv__ = __div__
@@ -153,6 +153,17 @@ class Space(tuple):
                 new_pt = coord + delta
                 if new_pt in self:
                     yield new_pt
+
+    def neighborhood_slice(self, coord):
+        """
+        Calculates the slice surrounding a coord, so self[slice] is its neighborhood
+        """
+        slices = []
+        for vector, bound in itertools.izip_longest(coord, self, fillvalue=0):
+            lower = max(0, vector - 1)
+            upper = min(bound, vector + 2)
+            slices.append(slice(lower, upper))
+        return tuple(slices)
 
 
 class Section(object):
