@@ -35,6 +35,18 @@ class Vector(tuple):
 
     __radd__ = __add__
 
+    @property
+    def i(self):
+        return self[0]
+
+    @property
+    def j(self):
+        return self[1]
+
+    @property
+    def k(self):
+        return self[2]
+
     def __neg__(self):
         return self * -1
 
@@ -58,11 +70,16 @@ class Vector(tuple):
             return Coord(i//j for i,j in zip(self, other))
         return NotImplemented
 
+    def in_space(self, space):
+        assert isinstance(space, (Space, Coord, Vector)), "error space {} {}".format(type(space), space)
+        return 0 <= self.i < space.i and 0 <= self.j < self.j and 0 <= self.k < space.k
+
 
 class Coord(Vector):
     pass
 
-class Space(tuple):
+
+class Space(Vector):
     """
     represents a multidimensional space, i.e. a 3x3x3 space would have indices
     0-2 in each dimension, created with Space(3,3,3).

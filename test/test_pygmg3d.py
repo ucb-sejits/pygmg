@@ -43,7 +43,7 @@ class TestPygmg3d(unittest.TestCase):
         print("2's are 1st interpolation points")
         coarse_mesh = Mesh([3, 3, 3])
         for index in coarse_mesh.indices():
-            coarse_mesh[index] = sum(index.to_tuple())
+            coarse_mesh[index] = sum(index)
         coarse_mesh.print("Coarse mesh")
         fine_mesh = interpolate(coarse_mesh)
 

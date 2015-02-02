@@ -44,20 +44,20 @@ def multi_iter(matrix):
 
 
 def legal_neighbors(point, shape):
-    dimension_values = map(lambda x: (x-1, x, x+1), shape)
+    dimension_values = map(lambda x: (x-1, x, x+1), point)
     return [
         pt
         for pt in itertools.product(*dimension_values)
-        if pt.in_space(pt, shape) and pt != point
+        if Coord(pt).in_space(shape) and pt != point
     ]
 
 
 def restrict(mesh):
-    new_mesh = Mesh(Coord(mesh.shape).halve_space())
+    new_mesh = Mesh((mesh.space//2)+1)
 
-    for index in mesh.indices():
+    for index in new_mesh.indices():
         target_index = index * 2
-        neighbors = legal_neighbors(index, mesh.shape)
+        neighbors = legal_neighbors(index, mesh.space)
         neighbor_mean = sum(mesh[x] for x in neighbors)/len(neighbors)
         new_mesh[target_index] = 0.5*mesh[index] + 0.5*neighbor_mean
 
