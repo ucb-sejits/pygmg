@@ -7,7 +7,7 @@
 
 
 
-#generates matrix for solving heat equation, with 1d mesh
+#generates matrix for solving heat equation, with 1d n sized mesh
 import numpy as np
 import math
 def gen1DHeatMatrixT(n):
@@ -27,7 +27,7 @@ def gen1DHeatMatrixT(n):
 # 3 4 5
 # 0 1 2 
 
-#generates 
+#generates matrix for solving heat equation, with 2d nxn sized mesh
 def gen2DHeatMatrixT(n):
     T = np.zeros(shape=(n*n,n*n))
     for i in range(n*n):
@@ -53,7 +53,7 @@ def gen2DHeatMatrixT(n):
 #    /  3  4  5 /	
 #   /  0  1  2 /
 
-
+#generates matrix for solving heat equation, with 3d nxnxn mesh
 def gen3DHeatMatrixT(n):
     T = np.zeros(shape=(n*n*n,n*n*n))
     for i in range(n*n*n):
