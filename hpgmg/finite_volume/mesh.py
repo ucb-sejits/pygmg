@@ -35,7 +35,7 @@ class Mesh(np.ndarray):
             for j in range(max_j-1, -1, -1):
                 print(" "*j, end="")
                 for k in range(max_k):
-                    print("{:4.0f}".format(self[(i, j, k)]), end="")
+                    print("{:5.2f}".format(self[(i, j, k)]), end="")
                 print()
             print()
         print()

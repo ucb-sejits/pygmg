@@ -4,6 +4,7 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 import unittest
 
+from hpgmg.finite_volume.space import Space
 from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.pymg3d import interpolate
 
@@ -19,11 +20,11 @@ class TestMesh(unittest.TestCase):
             self.assertEqual(mesh[coord], mesh[coord])
 
         for coord in mesh.indices():
-            mesh[coord] = coord.volume()
+            mesh[coord] = Space(coord).volume
 
         for coord in mesh.indices():
-            self.assertEqual(mesh[coord], coord.volume())
-            self.assertEqual(mesh[coord.to_tuple()], coord.volume())
+            self.assertEqual(mesh[coord], Space(coord).volume)
+            self.assertEqual(mesh[coord], Space(coord).volume)
 
     def test_print(self):
         mesh = Mesh(Space(3,3,3))
