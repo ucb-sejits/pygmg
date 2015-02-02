@@ -70,7 +70,7 @@ def gen3DHeatMatrixT(n):
     			T[i,j]=-1
     return T
 
-print gen3DHeatMatrixT(27)
 #print gen3DHeatMatrixT(27)
+
 
 
