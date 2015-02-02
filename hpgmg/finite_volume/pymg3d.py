@@ -5,47 +5,52 @@ __author__ = 'nzhang-dev'
 import numpy as np
 import itertools
 
-from space import Coord, Space
-from mesh import Mesh
-
-
-def tuple_multiply(tup, n):
-    return tuple(map(lambda x: x * n, tup))
-
-
-def tuple_add(tup, n):
-    return tuple(map(lambda x: x + n, tup))
-
+from hpgmg.finite_volume.space import Coord, Space
+from hpgmg.finite_volume.mesh import Mesh
 
 def smooth(b, x):
     return x
 
-def iter_delta(coord, mesh):
-    for direction in itertools.product((-1, 0, 1), repeat=3):
-        delta = Coord(*direction)
-        new_coord = delta + coord
-        if all(0 <= dim < m for dim, m in zip(new_coord.to_tuple(), mesh.shape)):
-            yield delta
-
+def interpolation_matrix(ndim):
+    """
+    :param ndim: Int, number of dimensions
+    :return: np.ndarray so of weights
+    """
+    weight_matrix = np.zeros((3,)*ndim).view(Mesh)
+    coord = Coord(1,1,1)  # center of matrix
+    for delta in weight_matrix.space.neighbor_deltas():
+        new_coord = coord + delta
+        norm = np.linalg.norm(delta, 1)
+        weight_matrix[new_coord] = np.exp2(-norm)
+    return weight_matrix
 
 def interpolate(mesh):
-    new_mesh = np.zeros([i*2 - 1 for i in mesh.shape])
-    indices = Coord.from_tuple(mesh.shape).foreach()
-    for index in indices:
+    new_mesh = Mesh(mesh.space * 2)
+
+    for index in mesh.indices():
         new_coord = index*2
-        value = mesh[index.to_tuple()]
-        for delta in iter_delta(new_coord, new_mesh):
+        value = mesh[index]
+        for delta in new_mesh.space.neighbor_deltas():
             target = new_coord + delta
-            norm = np.linalg.norm(delta.to_tuple(), 1)
-            new_mesh[target.to_tuple()] += value * np.exp2(-norm)
+            if target in new_mesh:
+                norm = np.linalg.norm(delta, 1)
+                new_mesh[target] += (value * np.exp2(-norm))
     return new_mesh
 
+def interpolate_m(mesh):
+    """
+    :param mesh: Mesh to be interpolate
+    :return: interpolated matrix
 
-def multi_iter(matrix):
-    iterator = np.nditer(matrix, flags=['multi_index'])
-    while not iterator.finished:
-        yield iterator.multi_index
-        iterator.iternext()
+    Using matrix embedding and multiply instead of neighbor iteration
+    """
+    new_matrix = np.zeros((mesh.space + 1)*2).view(Mesh)
+    inter_matrix = interpolation_matrix(mesh.ndim)
+    for coord in mesh.indices():
+        target = coord * 2 + 1
+        neighborhood_slice = new_matrix.space.neighborhood_slice(target)
+        new_matrix[neighborhood_slice] += mesh[coord] * inter_matrix
+    return new_matrix[(slice(1,-1),)*mesh.ndim]
 
 
 def legal_neighbors(point, shape):
@@ -58,19 +63,33 @@ def legal_neighbors(point, shape):
 
 
 def restrict(mesh):
-    new_space = Coord.from_tuple(mesh.shape).halve_space()
-    new_mesh = np.zeros(new_space.to_tuple())
+    new_mesh = Mesh(mesh.space/2)
+    for index in new_mesh.indices():
+        target = index*2
+        weights = 0
+        value = 0
+        for delta in mesh.space.neighbor_deltas():
+            neighbor = target + delta
+            if neighbor in mesh.space:
+                weight = np.exp2(-(np.linalg.norm(delta, 1) + mesh.space.ndim))
+                value += mesh[neighbor] * weight
+                weights += weight
+        new_mesh[index] = value / weights
 
     for index in mesh.indices():
-        target_index = tuple_multiply(index, 2)
+        target_index = index * 2
         neighbors = legal_neighbors(index, mesh.shape)
         neighbor_mean = sum(mesh[x] for x in neighbors)/len(neighbors)
         new_mesh[target_index] = 0.5*mesh[index] + 0.5*neighbor_mean
 
     return new_mesh
 
+def simple_restrict(mesh):
+    slices = tuple(slice(None, None, 2) for _ in range(mesh.ndim))
+    return mesh[slices]
 
-def multigridv(T, b, x):
+
+def multi_grid_v_cycle(t, b, x):
     """
     :param b: numpy matrix
     :param x: numpy matrix
@@ -79,23 +98,24 @@ def multigridv(T, b, x):
     i = b.shape[0]
     if i == 2**1 + 1:
         #compute exact
-        return np.linalg.solve(T, b)
+        return np.linalg.solve(t, b)
     x = smooth(b, x)
-    residual = np.dot(T, x) - b
-    diff = interpolate(multigridv(T, restrict(residual)), np.zeros_like(b))
+    residual = np.dot(t, x) - b
+    diff = interpolate(multi_grid_v_cycle(t, restrict(residual)), np.zeros_like(b))
     x -= diff
     x = smooth(b,x)
     return x
 
 
 def main(args):
-    space = Space(64, 64, 64)
+    space = Space(6,6,6)
 
     print("hello world")
     i = 4
-    b = np.random.random(space)
-    restrict(b)
+    b = np.random.random(space).view(Mesh)
+    restricted = restrict(b)
     x = np.zeros(2**i)
+    print(restricted)
 
 if __name__ == '__main__':
     import sys
