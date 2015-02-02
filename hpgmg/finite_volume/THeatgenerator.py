@@ -29,12 +29,9 @@ def gen1DHeatMatrixT(n):
 
 #generates 
 def gen2DHeatMatrixT(n):
-    test= n**(float(1)/2)
-    assert test==(test//1), "not a square mesh"
-
-    T = np.zeros(shape=(n,n))
-    for i in range(n):
-    	for j in range(n):
+    T = np.zeros(shape=(n*n,n*n))
+    for i in range(n*n):
+    	for j in range(n*n):
     		if i==j:
     			T[i,j]=4
     		elif j==i-1 or j==i+1 or j==i-n or j==i+n:
@@ -58,19 +55,16 @@ def gen2DHeatMatrixT(n):
 
 
 def gen3DHeatMatrixT(n):
-    test= n**(float(1)/3)
-    assert test==(test//1), "not a cubic mesh"
-
-    T = np.zeros(shape=(n,n))
-    for i in range(n):
-    	for j in range(n):
+    T = np.zeros(shape=(n*n*n,n*n*n))
+    for i in range(n*n*n):
+    	for j in range(n*n*n):
     		if i==j:
     			T[i,j]=8
     		elif j==i-1 or j==i+1 or j==i-n or j==i+n or j==i+n*n or j==i-n*n:
     			T[i,j]=-1
     return T
 
-#print gen3DHeatMatrixT(27)
+print gen3DHeatMatrixT(3)
 
 
 
