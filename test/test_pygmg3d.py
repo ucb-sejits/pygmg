@@ -22,6 +22,10 @@ class TestPygmg3d(unittest.TestCase):
         )
         fine_mesh.print("Fine mesh")
 
+        print("Restricted Fine Mesh")
+        restricted = restrict(fine_mesh)
+        restricted.print("Restricted Mesh")
+
     def test_restriction(self):
         fine_mesh = Mesh([5, 5, 5])
         for index in fine_mesh.indices():

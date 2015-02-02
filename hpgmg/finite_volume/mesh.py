@@ -8,6 +8,10 @@ from hpgmg.finite_volume.space import Coord, Space
 
 
 class Mesh(np.ndarray):
+    def __new__(cls, *args, **kwargs):
+        obj = np.ndarray(*args, **kwargs).view(Mesh)
+        obj.fill(0)
+        return obj
 
     @property
     def space(self):
@@ -35,7 +39,7 @@ class Mesh(np.ndarray):
             for j in range(max_j-1, -1, -1):
                 print(" "*j, end="")
                 for k in range(max_k):
-                    print("{:5.2f}".format(self[(i, j, k)]), end="")
+                    print("{:4.1f}".format(self[(i, j, k)]), end=" ")
                 print()
             print()
         print()
