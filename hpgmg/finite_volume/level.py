@@ -11,7 +11,6 @@ from box import Box
 from boundary_condition import BoundaryCondition
 from block_copy import GridCoordinate
 
-
 BLOCK_COPY_TILE_I = 10000
 BLOCK_COPY_TILE_J = 8
 BLOCK_COPY_TILE_K = 8

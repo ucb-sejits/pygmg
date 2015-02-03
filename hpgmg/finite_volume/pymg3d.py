@@ -75,13 +75,6 @@ def restrict(mesh):
                 value += mesh[neighbor] * weight
                 weights += weight
         new_mesh[index] = value / weights
-
-    for index in mesh.indices():
-        target_index = index * 2
-        neighbors = legal_neighbors(index, mesh.shape)
-        neighbor_mean = sum(mesh[x] for x in neighbors)/len(neighbors)
-        new_mesh[target_index] = 0.5*mesh[index] + 0.5*neighbor_mean
-
     return new_mesh
 
 def simple_restrict(mesh):
