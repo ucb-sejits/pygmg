@@ -4,7 +4,7 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 import numpy as np
 
-from hpgmg.finite_volume.space import Coord, Space
+from space import Coord, Space
 
 
 class Mesh(np.ndarray):

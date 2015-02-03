@@ -5,8 +5,8 @@ __author__ = 'nzhang-dev'
 import numpy as np
 import itertools
 
-from hpgmg.finite_volume.space import Coord, Space
-from hpgmg.finite_volume.mesh import Mesh
+from space import Coord, Space
+from mesh import Mesh
 
 def smooth(b, x):
     return x
@@ -22,6 +22,7 @@ def interpolation_matrix(ndim):
         new_coord = coord + delta
         norm = np.linalg.norm(delta, 1)
         weight_matrix[new_coord] = np.exp2(-norm)
+    weight_matrix.setflags(write=False)
     return weight_matrix
 
 def interpolate(mesh):
@@ -51,15 +52,6 @@ def interpolate_m(mesh):
         neighborhood_slice = new_matrix.space.neighborhood_slice(target)
         new_matrix[neighborhood_slice] += mesh[coord] * inter_matrix
     return new_matrix[(slice(1,-1),)*mesh.ndim]
-
-
-def legal_neighbors(point, shape):
-    dimension_values = map(lambda x: (x-1, x, x+1), shape)
-    return [
-        pt
-        for pt in itertools.product(*dimension_values)
-        if pt.in_space(pt, shape) and pt != point
-    ]
 
 
 def restrict(mesh):
@@ -101,14 +93,15 @@ def multi_grid_v_cycle(t, b, x):
 
 
 def main(args):
-    space = Space(6,6,6)
-
+    import cProfile
+    space = Space([int(args[1])]*int(args[2]))
     print("hello world")
     i = 4
     b = np.random.random(space).view(Mesh)
-    restricted = restrict(b)
-    x = np.zeros(2**i)
-    print(restricted)
+    for func in (restrict, simple_restrict, interpolate, interpolate_m):
+        print(func.__name__)
+        cProfile.runctx('{}(b)'.format(func.__name__), {'b': b, func.__name__: func}, {})
+
 
 if __name__ == '__main__':
     import sys
