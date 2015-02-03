@@ -3,9 +3,9 @@ from __future__ import print_function
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 import unittest
-from main.finite_volume.level import Level, VECTORS_RESERVED
-from main.finite_volume.boundary_condition import BoundaryCondition
-from main.finite_volume.operators.stencil_27_pt import stencil_get_radius
+from hpgmg.finite_volume.level import Level, VECTORS_RESERVED
+from hpgmg.finite_volume.boundary_condition import BoundaryCondition
+from hpgmg.finite_volume.operators.stencil_27_pt import stencil_get_radius
 
 
 class TestLevel(unittest.TestCase):
