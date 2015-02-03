@@ -1,91 +1,186 @@
-from __future__ import print_function
+from __future__ import print_function, division
+
+import collections
+import numbers
+import itertools
+import numpy as np
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
-
-class Coord(object):
-    """
-    implements a 3d coordinate, with convenience methods
-    """
-    def __init__(self, i, j, k):
-        self.i, self.j, self.k = i, j, k
-
-    def to_tuple(self):
-        return self.i, self.j, self.k
-
-    @staticmethod
-    def from_tuple(tup):
-        return Space(tup[0], tup[1], tup[2])
+class Vector(tuple):
+    def __new__(cls, *args):
+        if len(args) > 1:
+            return tuple.__new__(cls, args)
+        return tuple.__new__(cls, args[0])
 
     def __mul__(self, other):
-        assert isinstance(other, int)
-        return Space(self.i * other, self.j * other, self.k * other)
+        """scalar product if other is a number, otherwise does inner product"""
+        if isinstance(other, numbers.Number):
+            return type(self)(other*el for el in self)
+        elif isinstance(other, collections.Iterable):
+            return sum(i*j for i,j in itertools.izip_longest(self, other))
+        else:
+            return NotImplemented
 
     __rmul__ = __mul__
 
-    def __eq__(self, other):
-        if isinstance(other, Coord):
-            return self.to_tuple() == other.to_tuple()
+    def __add__(self, other):
+        """adds a constant to each element if other is a number, otherwise does pairwise addition"""
+        if isinstance(other, numbers.Number):
+            return type(self)(other+el for el in self)
+        elif isinstance(other, collections.Iterable):
+            return type(self)(i+j for i,j in itertools.izip_longest(self, other))
         else:
-            return False
+            return NotImplemented
+
+    __radd__ = __add__
+
+    @property
+    def i(self):
+        return self[0]
+
+    @property
+    def j(self):
+        return self[1]
+
+    @property
+    def k(self):
+        return self[2]
+
+    def __neg__(self):
+        return self * -1
+
+    def __sub__(self, other):
+        return self + -other
+
+    def __rsub__(self, other):
+        return other + -self
+
+    def __div__(self, other):
+        if isinstance(other, numbers.Number):
+            return self * 1/other
+        if isinstance(other, collections.Iterable):
+            return type(self)(i/j for i,j in itertools.izip_longest(self, other))
+        return NotImplemented
+
+    def __floordiv__(self, other):
+        if isinstance(other, numbers.Number):
+            return type(self)(i//other for i in self)
+        elif isinstance(other, collections.Iterable):
+            return type(self)(i//j for i,j in itertools.izip_longest(self, other))
+        return NotImplemented
+
+    def in_space(self, space):
+        assert isinstance(space, (Space, Coord, Vector)), "error space {} {}".format(type(space), space)
+        return 0 <= self.i < space.i and 0 <= self.j < self.j and 0 <= self.k < space.k
 
 
-class Space(Coord):
+class Coord(Vector):
+    pass
+
+
+class Space(Vector):
     """
-    implements a 3d coordinate, but viewed as 3d rectilinear space,
-    includes methods for converting between coordinates in the space and
-    linear 1d array offset
-    """
-    # todo: figure out c hpgmg striding, seems to consider k, least rapidly varying index
-    def __init__(self, i=0, j=0, k=0):
-        self.i, self.j, self.k = i, j, k
+    represents a multidimensional space, i.e. a 3x3x3 space would have indices
+    0-2 in each dimension, created with Space(3,3,3).
 
+    Multiplying a space multiplies the maximum index in each direction by that constant.
+    a 3x3x3 space has indices 0-2 in each direction, so that space * 2 gives 0-4 in each direction,
+    or a 5x5x5 space.
+    """
+
+    def __new__(cls, *args):
+        if len(args) > 1:
+            return tuple.__new__(cls, args)
+        return tuple.__new__(cls, args[0])
+
+    def to_tuple(self):
+        """legacy support"""
+        return self
+
+    @property
+    def ndim(self):
+        return len(self)
+
+    @property
     def volume(self):
-        """
-        enclosed volume of space
-        :return:
-        """
-        return self.i * self.j * self.k
+        return np.multiply.reduce(self)
 
-    def foreach(self):
-        """
-        iterate overall all coordinates in the space
-        :return:
-        """
-        for k in range(self.k):
-            for j in range(self.j):
-                for i in range(self.i):
-                    yield Coord(i, j, k)
+    @property
+    def points(self):
+        """Iterates over the points in the space"""
+        return (Coord(coord) for coord in itertools.product(*[range(i) for i in self]))
 
-    def foreach_index_1d(self):
-        """
-        iterate overall all coordinates in the space, as 1d array offset
-        :return:
-        """
-        for k in range(self.k):
-            for j in range(self.j):
-                for i in range(self.i):
-                    yield self.index_3d_to_1d((i, j, k))
+    def __contains__(self, item):
+        """Determines if the coordinate is in this space"""
+        if isinstance(item, collections.Iterable):
+            return all(0 <= i < bound for i, bound in itertools.izip_longest(item, self, fillvalue=0))
+        return NotImplemented
 
-    def index_3d_to_1d(self, coord):
-        """
-        convert the Coord coord to a scalar, using this shape as dimensional basis
-        :param coord:
-        :return: a scalar representing a 1d position to where coord would be in this linearized shape
-        """
-        if isinstance(coord, Coord):
-            return (coord.i * self.j * self.k) + (coord.j * self.k) + coord.k
-        elif isinstance(coord, (list, tuple)):
-            return (coord[0] * self.j * self.k) + (coord[1] * self.k) + coord[2]
-        else:
-            raise Exception("Space({}).index_3d_to_1d bad argument {}".format(self.to_tuple(), coord))
+    def __mul__(self, other):
+        if isinstance(other, int):
+            return Space((dim - 1) * other + 1 for dim in self)
+        if isinstance(other, collections.Iterable):
+            return Space((dim - 1) * scale + 1 for dim, scale in itertools.izip_longest(self, other, fillvalue=0))
+        return NotImplemented
 
-    def index_1d_to_3d(self, index):
-        assert isinstance(index, int)
-        i = index // (self.j * self.k)
-        j = (index - (i * self.j * self.k)) // self.k
-        k = index % self.k
-        return i, j, k
+    def __rmul__(self, other):
+        """
+        only multiplying a space by an int makes sense
+        """
+        if isinstance(other, int):
+            return self * other
+        return NotImplemented
+
+    def __div__(self, other):
+        """
+        performs integer division only. Can't have decimal dimensions
+        """
+        if isinstance(other, int):
+            return Space((dim - 1)//other + 1 for dim in self)
+        if isinstance(other, collections.Iterable):
+            return Space((dim - 1) // scale for dim, scale in itertools.izip_longest(self, other, fillvalue=0))
+        return NotImplemented
+
+    __truediv__ = __floordiv__ = __div__
+
+    def __add__(self, other):
+        if isinstance(other, int):
+            return Space(i + other for i in self)
+        return NotImplemented
+
+    __radd__ = __add__
+
+    def __sub__(self, other):
+        return self + -other
+
+    def neighbor_deltas(self):
+        return itertools.product((-1, 0, 1), repeat=len(self))
+
+    def neighbors(self, coord, norm=None):
+        """
+        Calculates the neighbors of the coordinate in n-space with 1-norm 'norm'.
+        I.E. in 3-space, a 'corner' would have a 1-norm of 3, an 'edge' would have a
+        1-norm of 2, and a 'face' would have a 1-norm of 1
+
+        If norm is specified, then it filters for points with norm 'norm'
+        """
+        for delta in self.neighbor_deltas():
+            if norm is None or np.linalg.norm(delta, 1) == norm:
+                new_pt = coord + delta
+                if new_pt in self:
+                    yield new_pt
+
+    def neighborhood_slice(self, coord):
+        """
+        Calculates the slice surrounding a coord, so self[slice] is its neighborhood
+        """
+        slices = []
+        for vector, bound in itertools.izip_longest(coord, self, fillvalue=0):
+            lower = max(0, vector - 1)
+            upper = min(bound, vector + 2)
+            slices.append(slice(lower, upper))
+        return tuple(slices)
 
 
 class Section(object):

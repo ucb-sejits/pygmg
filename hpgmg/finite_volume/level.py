@@ -1,15 +1,15 @@
 from __future__ import print_function
-
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 import numpy
 import math
 
 from collections import namedtuple
-from hpgmg.finite_volume.operators.stencil_27_pt import stencil_get_radius
-from hpgmg.finite_volume.space import Space
-from hpgmg.finite_volume.box import Box
-from hpgmg.finite_volume.boundary_condition import BoundaryCondition
+from operators.stencil_27_pt import stencil_get_radius
+from space import Space, Coord
+from box import Box
+from boundary_condition import BoundaryCondition
+from block_copy import GridCoordinate
 
 BLOCK_COPY_TILE_I = 10000
 BLOCK_COPY_TILE_J = 8
@@ -104,7 +104,7 @@ class Level(object):
         self.my_boxes = self.build_boxes()
         self.num_my_boxes = self.my_boxes.size
 
-        self.allocated_blocks = 0
+        self.blocks = numpy.empty(0, dtype=object)
         self.tag = math.log2(self.boxes_in.i)  # todo: this is probably wrong
 
         self.krylov_iterations = 0
@@ -113,7 +113,7 @@ class Level(object):
 
     def build_rank_of_box(self):
         try:
-            rank_of_box = numpy.empty(self.boxes_in.to_tuple()).astype(numpy.int32)
+            rank_of_box = numpy.empty(self.boxes_in).astype(numpy.int32)
             rank_of_box.fill(-1)
             return rank_of_box
         except Exception:
@@ -122,7 +122,7 @@ class Level(object):
     def build_boxes(self):
         num_my_boxes = 0
         for index in self.boxes_in.foreach():
-            if self.rank_of_box[index.to_tuple()] == self.my_rank:
+            if self.rank_of_box[index] == self.my_rank:
                 num_my_boxes += 1
 
         try:
@@ -133,7 +133,7 @@ class Level(object):
         box_index = 0
         for index in self.boxes_in.foreach():
             index_1d = self.boxes_in.index_3d_to_1d(index)
-            if self.rank_of_box[index.to_tuple()] == self.my_rank:
+            if self.rank_of_box[index] == self.my_rank:
                 box = Box(self, index, self.box_vectors, self.box_dim_size, self.box_ghost_size)
                 box.low = index * self.box_dim_size
 
@@ -142,16 +142,20 @@ class Level(object):
 
         return my_boxes
 
+    def create_initial_blocks(self):
+        for box in self.my_boxes:
+            self.append_block_to_list(box.dim, )
+
     def decompose_level_lex(self, ranks):
         for index in self.boxes_in.foreach():
             index_1d = self.boxes_in.index_3d_to_1d(index)
-            self.rank_of_box[index.to_tuple()] = (ranks * index_1d) / self.boxes_in.volume()
+            self.rank_of_box[index] = (ranks * index_1d) / self.boxes_in.volume()
 
     def decompose_level_bisection_special(self, num_ranks):
-        raise Exception("decompose_level_bisection_special not implemented. Level shape {}".format(self.shape.to_tuple()))
+        raise Exception("decompose_level_bisection_special not implemented. Level shape {}".format(self.shape))
 
     def decompose_level_bisection(self, num_ranks):
-        raise Exception("decompose_level_bisection not implemented. Level shape {}".format(self.shape.to_tuple()))
+        raise Exception("decompose_level_bisection not implemented. Level shape {}".format(self.shape))
 
     def print_decomposition(self):
         """
@@ -172,8 +176,42 @@ class Level(object):
             print()
         print()
 
-    def append_block_to_list(self, shape, ):
-        pass
+    def append_block_to_list(self, dim, read_info, write_info, block_copy_tile, subtype):
+        """
+        This increases the number of blockCopies in the ghost zone exchange and thereby increases the thread-level parallelism
+        FIX... move from lexicographical ordering of tiles to recursive (e.g. z-mort)
+
+        read_/write_scale are used to stride appropriately when read and write loop iterations spaces are different
+        ghostZone:     read_scale=1, write_scale=1
+        interpolation: read_scale=1, write_scale=2
+        restriction:   read_scale=2, write_scale=1
+        FIX... dim_i,j,k -> read_dim_i,j,k, write_dim_i,j,k
+
+        :param dim:
+        :param read_info:
+        :param write_info:
+        :param block_copy_tile:
+        :param subtype:
+        :return:
+        """
+        assert isinstance(dim, Coord)
+        assert isinstance(read_info, GridCoordinate)
+        assert isinstance(write_info, GridCoordinate)
+        assert isinstance(block_copy_tile, Coord)
+
+        new_blocks = []
+        for tiled_dim in dim.foreach_tiled(block_copy_tile):
+            dim_mod = (dim - tiled_dim).constrain_to_min(block_copy_tile)
+
+            new_block = BlockCopies(
+                subtype=subtype,
+                dim=dim_mod,
+                read_info=read_info.copy(coord=read_info.coord + (read_info.scale * tiled_dim)),
+                write_info=write_info.copy(coord=write_info.coord + (write_info.scale * tiled_dim))
+            )
+            new_blocks.append(new_block)
+
+        self.blocks = numpy.append(self.blocks, new_blocks)
 
     def neighbor_indices(self, box_index):
         for di in range(-1, 2):
@@ -194,6 +232,10 @@ class Level(object):
         for box_index, box in enumerate(self.my_boxes):
             for di, dj, dk in BoundaryCondition.foreach_neighbor_delta():
                 neighbor_vector = BoundaryCondition.neighbor_vector(di, dj, dk)
+                my_box = box // self.box_dim_size
+                neighbor_box = my_box + (di, dj ,dk)
+
+
 
 
 
