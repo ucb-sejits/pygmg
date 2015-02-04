@@ -82,11 +82,11 @@ def multi_grid_v_cycle(t, b, x):
     if i == 2**1 + 1:
         #compute exact
         return np.linalg.solve(t, b)
-    x = smooth(b, x)
+    x = smooth(np.flatten(b), x)
     residual = np.dot(t, x) - b
     diff = interpolate(multi_grid_v_cycle(t, restrict(residual)), np.zeros_like(b))
     x -= diff
-    x = smooth(b,x)
+    x = smooth(np.flatten(b),x)
     return x
 
 
