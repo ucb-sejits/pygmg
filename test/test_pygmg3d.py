@@ -54,3 +54,6 @@ class TestPygmg3d(unittest.TestCase):
         fine_mesh = interpolate(coarse_mesh)
 
         fine_mesh.print("Fine mesh")
+
+
+    def test_implementation(self):

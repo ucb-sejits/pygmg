@@ -76,20 +76,43 @@ def simple_restrict(mesh):
 
 def multi_grid_v_cycle(t, b, x):
     """
-    :param b: numpy matrix
-    :param x: numpy matrix
-    :return: numpy matrix
+    :param b: mesh
+    :param x: mesh
+    :return: guess for x, for T*x = b
     """
     i = b.shape[0]
-    if i == 2**1 + 1:
+    if i == 3: #minimum size
         #compute exact
         return np.linalg.solve(t, b)
-    x = smooth(b, x)
-    residual = np.dot(t, x) - b
-    diff = interpolate(multi_grid_v_cycle(t, restrict(residual)), np.zeros_like(b))
+    x = smooth(b.flatten(), x.flatten())
+    residual = (np.dot(t, x) - b.flatten()).reshape(b.shape)
+    diff = interpolate(multi_grid_v_cycle(t, restrict(residual)), np.zeros_like(b)).flatten()
     x -= diff
     x = smooth(b,x)
-    return x
+    return x.reshape(b.shape)
+
+class MultigridSolver(object):
+    def __init__(self, T, smoother):
+        self.T = T
+        self.smooth = smoother
+
+    def __call__(self, b, x):
+        """
+        :param b: Solution
+        :param x: guess
+        :return: refined guess for X in T*x = b
+        """
+        print(self.T, b, x)
+        i = b.shape[0]
+        if i == 3: #minimum size
+            #compute exact
+            return np.linalg.solve(self.T, b)
+        x = self.smooth(self.T.flatten(), b.flatten(), x.flatten())
+        residual = (np.dot(self.T, x) - b.flatten()).reshape(b.shape).view(Mesh)
+        diff = interpolate(self(restrict(residual), np.zeros_like(b).view(Mesh))).flatten()
+        x -= diff
+        x = self.smooth(self.T.flatten(), b.flatten(), x)
+        return x.reshape(b.shape)
 
 
 def main(args):
