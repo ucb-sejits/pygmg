@@ -7,9 +7,7 @@ import itertools
 
 from space import Coord, Space
 from mesh import Mesh
-
-def smooth(b, x):
-    return x
+from smoothers import gausssiedel as smooth
 
 def interpolation_matrix(ndim):
     """
