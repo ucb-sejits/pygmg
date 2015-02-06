@@ -82,23 +82,6 @@ def simple_restrict(mesh):
     return mesh[slices]
 
 
-def multi_grid_v_cycle(t, b, x):
-    """
-    :param b: mesh
-    :param x: mesh
-    :return: guess for x, for T*x = b
-    """
-    i = b.shape[0]
-    if i == 3: #minimum size
-        #compute exact
-        return np.linalg.solve(t, b)
-    x = smooth(b.flatten(), x.flatten())
-    residual = (np.dot(t, x) - b.flatten()).reshape(b.shape)
-    diff = interpolate(multi_grid_v_cycle(t, restrict(residual), np.zeros_like(b))).flatten()
-    x -= diff
-    x = smooth(b,x)
-    return x.reshape(b.shape)
-
 class MultigridSolver(object):
     def __init__(self, interpolate, restrict, smooth, smooth_iterations):
         self.interpolate = interpolate
