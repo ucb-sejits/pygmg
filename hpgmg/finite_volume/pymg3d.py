@@ -123,7 +123,7 @@ class MultigridSolver(object):
         x = x.reshape(shape)
         residual = (np.dot(A, x) - b)
         restricted_residual = self.restrict(residual)
-        diff = self.interpolate(self(self.restrict(A), restricted_residual, np.zeros_like(restricted_residual)))
+        diff = self.interpolate(self(self.restrict(A), restricted_residual, self.restrict(x)))
         x -= diff
         result = self.smooth(A, b.flatten(), x.flatten(), self.smooth_iterations)
         return result.reshape(shape)
@@ -138,24 +138,15 @@ def main(args):
     z = 2
     # A = np.random.random(shape)
     # b = np.random.random(solution_shape)
-    # A = np.identity(shape[0])*(3)
-    # A += np.diag((z,)*(shape[0]-1), 1)
-    # A += np.diag((z,)*(shape[0]-1), -1)
-    # b = np.array([6., 25., -11., 25., 6.])
-    A = np.array([
-        [9, 1, 0, 0, 0],
-        [1, 9, 1, 0, 0],
-        [0, 1, 9, 1, 1],
-        [0, 0, 1, 9, 1],
-        [0, 0, 0, 1, 9]
-        ]
-    )
-    b = np.array([3, 9, -6, 5, 4])
+    A = np.identity(shape[0])*(3*z)
+    A += np.diag((z,)*(shape[0]-1), 1)
+    A += np.diag((z,)*(shape[0]-1), -1)
+    b = np.random.random((shape[0],))
     print(A)
     x = np.linalg.solve(A, b)
     solver = MultigridSolver(interpolate_m, restrict, smoothers.gausssiedel, iterations)
     x_1 = solver(A, b, np.zeros_like(b))
-    x_2 = smoothers.gausssiedel(A, b, np.zeros_like(b), iterations)
+    x_2 = smoothers.gausssiedel(A, b, np.zeros_like(b), iterations*2)
     return A, b, x, x_1, x_2
 
 
