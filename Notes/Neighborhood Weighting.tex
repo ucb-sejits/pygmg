@@ -22,11 +22,10 @@
 \subsection{Problem}
 When dealing with N-dim spaces and restriction, it is important to guarantee that any point will have a weight influence of exactly 1. This is because for any restriction algorithm, a uniform matrix must restrict to a uniform matrix with the same value.\\
 
-I propose the following algorithm.\\
 Let $P$ be the N-dimensional coordinate of a non-boundary restriction point. For each neighbor $i$ at position $p_i$ with value $v_i$ in $P$'s neighborhood, let $\delta_i$ be the vector $p_i - P$. We then set the weight of this neighbor to be $2^{-(||\delta_i||_1 - N)}$. That is, the value of $P$ post-restriction is $$\Sigma_{i \in neighborhood(P)} 2^{-(||p_i - P||_1 - N)} * v_i$$
 
 \subsection{Weight Calculation}
-In $N$-dimensional space the cumulative weight is $\Sigma_{i \in neighborhood(P)} 2^{-(||p_i - P||_1 - N)}$. Each $\delta$ falls in $\{-1, 0, 1\}^n$. There are $\dbinom{N}{k} \cdot 2^k$ $\delta$s of 1-norm $k$, and therefore the sum of all weights at the $||\delta||_1=k$ level is $\dbinom{N}{k} \cdot 2^k \cdot 2^{-(k+N)}$ or $\dbinom{N}{k}2^{-N}$. Since $\Sigma{k=0}^{N} \dbinom{N}{k} = 2^N$, we arrive at the cumulative weight of $2^N \cdot 2^{-N} = 1$
+In $N$-dimensional space the cumulative weight is $\Sigma_{i \in neighborhood(P)} 2^{-(||p_i - P||_1 - N)}$. Each $\delta$ falls in $\{-1, 0, 1\}^n$. There are $\dbinom{N}{k} \cdot 2^k$ $\delta$s of 1-norm $k$, and therefore the sum of all weights at the $||\delta||_1=k$ level is $\dbinom{N}{k} \cdot 2^k \cdot 2^{-(k+N)}$ or $\dbinom{N}{k}2^{-N}$. Since $\Sigma_{k=0}^{N} \dbinom{N}{k} = 2^N$, we arrive at the cumulative weight of $2^N \cdot 2^{-N} = 1$
 
 \section{Interpolation}
 \subsection{Problem}

@@ -2,6 +2,7 @@ import numpy as np
 
 #gauss siedel solver. 
 def gausssiedel(A, b, x, iter=10):
+    print(A, b, x, iter)
     L = np.tril(A)  # lower triangular matrix of A, includes diagonal
     Linv = np.linalg.inv(L)  # inverse of L
     U = A-L  # strictly upper triangular matrix of A
