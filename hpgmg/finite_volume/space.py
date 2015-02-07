@@ -182,6 +182,9 @@ class Space(Vector):
             slices.append(slice(lower, upper))
         return tuple(slices)
 
+    def is_boundary_point(self, coord):
+        return any(i == 0 or i == lim - 1 for i, lim in zip(coord, self))
+
 
 class Section(object):
     """

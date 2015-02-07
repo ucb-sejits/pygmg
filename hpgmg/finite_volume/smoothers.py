@@ -1,6 +1,21 @@
 import numpy as np
+import functools
+
+def flatten_args(func):
+    """
+    :param func: function to wrap, flattens all of the args to 2-D, 1D, 1D
+    :return: wrapped function
+    """
+    @functools.wraps(func)
+    def wrapper(A, b, x, iter=10):
+        b_flat = b.flatten()
+        x_flat = x.flatten()
+        return func(A, b, x, iter).reshape(x.shape)
+    return wrapper
 
 # Gauss Siedel solver.
+
+@flatten_args
 def gauss_siedel(A, b, x, iter = 10):
     print(A, b, x, iter)
     L = np.tril(A)  # lower triangular matrix of A, includes diagonal
@@ -13,6 +28,7 @@ def gauss_siedel(A, b, x, iter = 10):
 
 # Gauss Siedel which requires only one storage array
 # From Wikipedia page on Gauss-Siedel smoothing
+@flatten_args
 def gauss_siedel_inplace(A, b, x, iter = 10):
     for _ in range(iter):
         for i in range(A.shape[0]):
@@ -23,6 +39,7 @@ def gauss_siedel_inplace(A, b, x, iter = 10):
  
 
 # Chebyshev smoother THIS DOES NOT WORK YET
+@flatten_args
 def chebyshev(A, b, x, iter=10):
     
     for k in range(iter):
@@ -43,7 +60,6 @@ def chebyshev(A, b, x, iter=10):
 def get_smoother(type):
     smoother = globals().get
     return smoother("gauss_siedel")
-
 
 def smooth_matrix(A, b, x, iterations = 10, smooth_func=gauss_siedel):
     '''

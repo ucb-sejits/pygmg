@@ -8,6 +8,7 @@ import itertools
 from space import Coord, Space
 from mesh import Mesh
 from smoothers import smooth_matrix as smooth
+import cProfile
 
 def to_mesh(func):
     def wrapper(arg):
@@ -37,6 +38,9 @@ def interpolation_matrix(ndim):
         weight_matrix[new_coord] = np.exp2(-norm)
     weight_matrix.setflags(write=False)
     return weight_matrix
+
+def restriction_matrix(ndim):
+    return interpolation_matrix(ndim) / np.exp2(ndim)
 
 @to_mesh
 def interpolate(mesh):
@@ -85,6 +89,30 @@ def restrict(mesh):
     return new_mesh
 
 @to_mesh
+def restrict_m(mesh):
+    """
+    :param mesh: mesh to be restricted
+    :return: new mesh, with boundary conditions copied
+    """
+    new_mesh = Mesh(mesh.space/2)
+    ndim = len(new_mesh.space)
+    restriction_mat = restriction_matrix(ndim)
+    for index in new_mesh.indices():
+        target = index * 2
+        if new_mesh.space.is_boundary_point(index):
+            new_mesh[index] = mesh[target]
+        else:
+            sub_matrix = mesh[mesh.space.neighborhood_slice(target)]
+            new_value = np.tensordot(restriction_mat, sub_matrix, ndim)
+            new_mesh[index] = new_value
+    return new_mesh
+
+
+
+
+
+
+@to_mesh
 def simple_restrict(mesh):
     slices = tuple(slice(None, None, 2) for _ in range(mesh.ndim))
     return mesh[slices]
@@ -112,30 +140,51 @@ class MultigridSolver(object):
         restricted_residual = self.restrict(residual)
         diff = self.interpolate(self(self.restrict(A), restricted_residual, np.zeros_like(restricted_residual)))
         x -= diff
-
         result = self.smooth(A, b, x, self.smooth_iterations)
         return result
 
+    def profiled_call(self, A, b, x):
+        cProfile.runctx('self(A, b, x)', {'self': self, 'A':A, 'b':b, 'x':x}, {})
+
 
 def main(args):
-    import smoothers
+    def _print_array(arr):
+        if len(arr.shape) == 1:
+            print(*arr, sep="\t"*1)
+        else:
+            for row in arr:
+                _print_array(row)
+    import smoothers, cProfile
     shape = Space((int(args[1]),)*int(args[2]))
     solution_shape = Space((int(args[1]),)*(int(args[2])-1))
+    seed = sum(ord(i) for i in 'SEJITS')
+    np.random.seed(seed)
     iterations = int(args[3])
-    np.random.seed(0)
-    z = 2
+    z = np.random.ranf()*32
+    d1 = np.random.ranf()*z
+    d2 = np.random.ranf()*(z-d1)
     # A = np.random.random(shape)
     # b = np.random.random(solution_shape)
-    A = np.identity(shape[0])*(3*z)
-    A += np.diag((z,)*(shape[0]-1), 1)
-    A += np.diag((z,)*(shape[0]-1), -1)
+    A = np.identity(shape[0])*(z)
+    A += np.diag((d1,)*(shape[0]-1), 1)
+    A += np.diag((d2,)*(shape[0]-1), -1)
     b = np.random.random((shape[0],))
-    print(A)
     x = np.linalg.solve(A, b)
-    solver = MultigridSolver(interpolate_m, restrict, smoothers.gausssiedel, iterations)
+    solver = MultigridSolver(interpolate_m, restrict_m, smoothers.gauss_siedel, iterations)
     x_1 = solver(A, b, np.zeros_like(b))
-    x_2 = smoothers.gausssiedel(A, b, np.zeros_like(b), iterations*2)
-    return A, b, x, x_1, x_2
+    # solver.profiled_call(A, b, np.zeros_like(b))
+    x_2 = smoothers.gauss_siedel(A, b, np.zeros_like(b), iterations*2)
+    print()
+    for name, result in (("numpy", x), ("MGS", x_1), ("Smoother", x_2)):
+        print(name)
+        print(*result)
+        print()
+        print("error")
+        e = error(A, b, result)
+        print()
+        print("Absolute Relative Error")
+        print(max(abs(err/val) for err, val in zip(e, b)))
+        print()
 
 
 if __name__ == '__main__':
@@ -143,8 +192,3 @@ if __name__ == '__main__':
         return np.dot(A, x) - b
     import sys
     res = main(sys.argv)
-    A, b, x, x_1, x_2 = res
-    print("\n"*5)
-    print("Numpy", x, "Error", error(A, b, x), sep="\n")
-    print("MGS", x_1, "Error", error(A, b, x_1), sep="\n")
-    print("Smoother", x_2, "Error", error(A, b, x_2), sep="\n")
