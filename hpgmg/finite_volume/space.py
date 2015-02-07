@@ -18,7 +18,7 @@ class Vector(tuple):
         if isinstance(other, numbers.Number):
             return type(self)(other*el for el in self)
         elif isinstance(other, collections.Iterable):
-            return sum(i*j for i,j in itertools.izip_longest(self, other))
+            return sum(i*j for i,j in itertools.izip_longest(self, other, fillvalue=0))
         else:
             return NotImplemented
 
@@ -29,7 +29,7 @@ class Vector(tuple):
         if isinstance(other, numbers.Number):
             return type(self)(other+el for el in self)
         elif isinstance(other, collections.Iterable):
-            return type(self)(i+j for i,j in itertools.izip_longest(self, other))
+            return type(self)(i+j for i,j in itertools.izip_longest(self, other, fillvalue=0))
         else:
             return NotImplemented
 
@@ -60,14 +60,14 @@ class Vector(tuple):
         if isinstance(other, numbers.Number):
             return self * 1/other
         if isinstance(other, collections.Iterable):
-            return type(self)(i/j for i,j in itertools.izip_longest(self, other))
+            return type(self)(i/j for i,j in itertools.izip_longest(self, other, fillvalue=0))
         return NotImplemented
 
     def __floordiv__(self, other):
         if isinstance(other, numbers.Number):
             return type(self)(i//other for i in self)
         elif isinstance(other, collections.Iterable):
-            return type(self)(i//j for i,j in itertools.izip_longest(self, other))
+            return type(self)(i//j for i,j in itertools.izip_longest(self, other, fillvalue=0))
         return NotImplemented
 
     def in_space(self, space):
