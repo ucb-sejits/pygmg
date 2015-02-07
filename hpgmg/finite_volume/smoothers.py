@@ -22,7 +22,6 @@ def gauss_siedel_inplace(A, b, x, iter = 10):
     return x
  
 
-#chebyshev smoother THIS DOES NOT WORK YET
 # Chebyshev smoother THIS DOES NOT WORK YET
 def chebyshev(A, b, x, iter=10):
     

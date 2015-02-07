@@ -19,6 +19,11 @@ def to_mesh(func):
         return func(arg.view(Mesh))
     return wrapper
 
+def to_mesh(func):
+    def wrapper(arg):
+        return func(arg.view(Mesh))
+    return wrapper
+
 def interpolation_matrix(ndim):
     """
     :param ndim: Int, number of dimensions
@@ -85,24 +90,6 @@ def simple_restrict(mesh):
     return mesh[slices]
 
 
-def multi_grid_v_cycle(t, b, x):
-    """
-    :param b: mesh
-    :param x: mesh
-    :return: guess for x, for T*x = b
-    """
-    i = b.shape[0]
-    if i == 3: #minimum size
-        #compute exact
-        return np.linalg.solve(t, b)
-
-    x = smooth(b.flatten(), x.flatten())
-    residual = (np.dot(t, x) - b.flatten()).reshape(b.shape)
-    diff = interpolate(multi_grid_v_cycle(t, restrict(residual), np.zeros_like(b))).flatten()
-    x -= diff
-    x = smooth(b,x)
-    return x.reshape(b.shape)
-
 class MultigridSolver(object):
     def __init__(self, interpolate, restrict, smooth, smooth_iterations):
         self.interpolate = interpolate
@@ -117,7 +104,6 @@ class MultigridSolver(object):
         :param x: guess for x
         :return: refined guess for X in Ax = b
         """
-
         if len(b.flatten()) <= 3: # minimum size, so we compute exact
             return np.linalg.solve(A, b)
 
@@ -140,24 +126,15 @@ def main(args):
     z = 2
     # A = np.random.random(shape)
     # b = np.random.random(solution_shape)
-    # A = np.identity(shape[0])*(3)
-    # A += np.diag((z,)*(shape[0]-1), 1)
-    # A += np.diag((z,)*(shape[0]-1), -1)
-    # b = np.array([6., 25., -11., 25., 6.])
-    A = np.array([
-        [9, 1, 0, 0, 0],
-        [1, 9, 1, 0, 0],
-        [0, 1, 9, 1, 1],
-        [0, 0, 1, 9, 1],
-        [0, 0, 0, 1, 9]
-        ]
-    )
-    b = np.array([3, 9, -6, 5, 4])
+    A = np.identity(shape[0])*(3*z)
+    A += np.diag((z,)*(shape[0]-1), 1)
+    A += np.diag((z,)*(shape[0]-1), -1)
+    b = np.random.random((shape[0],))
     print(A)
     x = np.linalg.solve(A, b)
-    solver = MultigridSolver(interpolate_m, restrict, smoothers.gauss_siedel, iterations)
+    solver = MultigridSolver(interpolate_m, restrict, smoothers.gausssiedel, iterations)
     x_1 = solver(A, b, np.zeros_like(b))
-    x_2 = smoothers.gauss_siedel(A, b, np.zeros_like(b), iterations)
+    x_2 = smoothers.gausssiedel(A, b, np.zeros_like(b), iterations*2)
     return A, b, x, x_1, x_2
 
 
