@@ -20,6 +20,19 @@ class Mesh(np.ndarray):
     def indices(self):
         return self.space.points
 
+    def assign_to_all(self, value):
+        for index in self.indices():
+            self[index] = value
+
+    def __eq__(self, other):
+        if self.space != other.space:
+            return False
+        else:
+            for i in self.indices():
+                if self[i] != other[i]:
+                    return False
+        return True
+
     def __contains__(self, item):
         return item in self.space
 
