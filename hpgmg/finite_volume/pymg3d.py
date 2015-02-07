@@ -3,7 +3,7 @@ from __future__ import division, print_function
 __author__ = 'nzhang-dev'
 
 import numpy as np
-import itertools
+import itertools, functools
 
 from space import Coord, Space
 from mesh import Mesh
@@ -11,16 +11,7 @@ from smoothers import smooth_matrix as smooth
 import cProfile
 
 def to_mesh(func):
-    def wrapper(arg):
-        return func(arg.view(Mesh))
-    return wrapper
-
-def to_mesh(func):
-    def wrapper(arg):
-        return func(arg.view(Mesh))
-    return wrapper
-
-def to_mesh(func):
+    @functools.wraps(func)
     def wrapper(arg):
         return func(arg.view(Mesh))
     return wrapper

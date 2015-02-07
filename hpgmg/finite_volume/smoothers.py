@@ -7,17 +7,16 @@ def flatten_args(func):
     :return: wrapped function
     """
     @functools.wraps(func)
-    def wrapper(A, b, x, iter=10):
+    def f(A, b, x, iter=10):
         b_flat = b.flatten()
         x_flat = x.flatten()
         return func(A, b, x, iter).reshape(x.shape)
-    return wrapper
+    return f
 
 # Gauss Siedel solver.
 
 @flatten_args
 def gauss_siedel(A, b, x, iter = 10):
-    print(A, b, x, iter)
     L = np.tril(A)  # lower triangular matrix of A, includes diagonal
     Linv = np.linalg.inv(L)  # inverse of L
     U = A-L  # strictly upper triangular matrix of A

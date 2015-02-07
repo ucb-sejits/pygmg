@@ -65,7 +65,4 @@ def gen3DHeatMatrixT(n):
     return T
 
 
-print gen3DHeatMatrixT(3)
-
-
 
