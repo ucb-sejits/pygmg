@@ -8,23 +8,45 @@ from hpgmg.finite_volume.pymg3d import interpolate, restrict
 
 
 class TestPygmg3d(unittest.TestCase):
-    def test_interpolation(self):
+    def test_interpolation_for_scaling(self):
         print("1's are copied points from coarse grid")
         print("2's are 1st interpolation points")
         coarse_mesh = Mesh([3, 3, 3])
-        for index in coarse_mesh.indices():
-            coarse_mesh[index] = 1
+        coarse_mesh.assign_to_all(1)
         coarse_mesh.print("Coarse mesh")
         fine_mesh = interpolate(coarse_mesh)
 
         self.assertTrue(
             all(map(lambda x: fine_mesh[x] == 1, fine_mesh.indices()))
         )
-        fine_mesh.print("Fine mesh")
+        # print("Restricted Fine Mesh")
+        # restricted = restrict(fine_mesh)
+        # restricted.print("Restricted Mesh")
 
-        print("Restricted Fine Mesh")
-        restricted = restrict(fine_mesh)
-        restricted.print("Restricted Mesh")
+    def test_interpolation_for_values(self):
+        coarse_mesh = Mesh([3, 3, 3])
+
+        for i in coarse_mesh.indices():
+            if i[0] == 2:
+                coarse_mesh[i] = 15
+            else:
+                coarse_mesh[i] = 1
+
+        # running interpolation (the point of the test), and capturing output
+        fine_mesh = interpolate(coarse_mesh)
+
+        # constructing the expected fine mesh
+        expected_fine_mesh = Mesh([5, 5, 5])
+        for i in expected_fine_mesh.indices():
+            if i[0] == 4:
+                expected_fine_mesh[i] = 15
+            elif i[0] == 3:
+                expected_fine_mesh[i] = 8
+            else:
+                expected_fine_mesh[i] = 1
+
+        # final test
+        self.assertTrue(fine_mesh == expected_fine_mesh)
 
     def test_restriction(self):
         fine_mesh = Mesh([5, 5, 5])

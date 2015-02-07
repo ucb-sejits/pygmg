@@ -31,3 +31,47 @@ class TestMesh(unittest.TestCase):
         mesh.fill(2)
         mesh.print()
 
+    def test_eq_true(self):
+        mesh_1 = Mesh([5, 5, 5])
+        for i in mesh_1.indices():
+            if i[0] == 4:
+                mesh_1[i] = 15
+            elif i[0] == 3:
+                mesh_1[i] = 8
+            else:
+                mesh_1[i] = 1
+
+        mesh_2 = Mesh([5, 5, 5])
+        for i in mesh_2.indices():
+            if i[0] == 4:
+                mesh_2[i] = 15
+            elif i[0] == 3:
+                mesh_2[i] = 8
+            else:
+                mesh_2[i] = 1
+
+        self.assertTrue(mesh_1 == mesh_2)
+
+    def test_eq_false_value(self):
+        mesh_1 = Mesh([5, 5, 5])
+        for i in mesh_1.indices():
+            if i[0] == 4:
+                mesh_1[i] = 15
+            elif i[0] == 3:
+                mesh_1[i] = 8
+            else:
+                mesh_1[i] = 1
+
+        mesh_2 = Mesh([5, 5, 5])
+        for i in mesh_2.indices():
+            if i[0] == 4:
+                mesh_2[i] = 15
+            elif i[0] == 3:
+                mesh_2[i] = 8
+            else:
+                mesh_2[i] = 1
+
+        mesh_2[(0, 0, 0)] = 0
+
+        self.assertFalse(mesh_1 == mesh_2)
+
