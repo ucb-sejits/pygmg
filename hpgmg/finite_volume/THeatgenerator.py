@@ -7,10 +7,10 @@
 
 
 
-#generates matrix for solving heat equation, with 1d n sized mesh
+#generates lapalacian matrix for solving poisson problem with 1d n sized mesh
 import numpy as np
 import math
-def gen1DHeatMatrixT(n):
+def gen1DHeatMatrixL(n):
     T = np.zeros(shape=(n,n))
     for i in range(n):
         for j in range(n):
@@ -27,8 +27,8 @@ def gen1DHeatMatrixT(n):
 # 3 4 5
 # 0 1 2 
 
-#generates matrix for solving heat equation, with 2d nxn sized mesh
-def gen2DHeatMatrixT(n):
+#generates laplacian matrix for solving poisson problem with 2d nxn sized mesh
+def gen2DHeatMatrixL(n):
     T = np.zeros(shape=(n*n,n*n))
     for i in range(n*n):
         for j in range(n*n):
@@ -53,8 +53,8 @@ def gen2DHeatMatrixT(n):
 #    /  3  4  5 /	
 #   /  0  1  2 /
 
-#generates matrix for solving heat equation, with 3d nxnxn mesh
-def gen3DHeatMatrixT(n):
+#generates laplacian matrix for solving poisson problem with 3d nxnxn mesh
+def gen3DHeatMatrixL(n):
     T = np.zeros(shape=(n*n*n,n*n*n))
     for i in range(n*n*n):
         for j in range(n*n*n):
@@ -63,6 +63,25 @@ def gen3DHeatMatrixT(n):
             elif j == i-1 or j == i+1 or j == i-n or j == i+n or j == i+n*n or j == i-n*n:
                 T[i, j] = -1
     return T
+
+#
+def gen3DHeatMatrixT(n, C, delta, h):
+    '''
+    This method generates the correct matrix T for solving the 3D heat equation, 
+    using the Laplacian L 
+
+    :param n: size of 1 dimension of the nxnxn mesh
+    :param C: thermal diffusivity constant
+    :param delta: timestep size
+    :param h: position step size
+    :return: the matrix T for solving Tu=f to numerically solve heat equation
+    '''
+    L = gen3DHeatMatrixL(n)
+    z=C*delta/(h*h)
+    return np.identity(n*n*n) - z*L
+
+print gen3DHeatMatrixT(3, .4, .7, 2)
+
 
 
 
