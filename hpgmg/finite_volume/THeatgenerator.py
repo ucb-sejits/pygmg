@@ -5,6 +5,7 @@
 #matrix coefficients based off of finite difference methods
 #only works for linear/square/cubic grids, but can be generalized to rectangular/prism grids
 
+from mesh import Mesh
 
 
 #generates lapalacian matrix for solving poisson problem with 1d n sized mesh
@@ -80,7 +81,10 @@ def gen3DHeatMatrixT(n, C, delta, h):
     z=C*delta/(h*h)
     return np.identity(n*n*n) - z*L
 
-print gen3DHeatMatrixT(3, .4, .7, 2)
+
+
+if __name__ == '__main__':
+    print gen3DHeatMatrixT(3, .4, .7, 2)
 
 
 

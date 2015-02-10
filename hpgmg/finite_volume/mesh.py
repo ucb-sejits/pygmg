@@ -9,7 +9,7 @@ from space import Coord, Space
 
 class Mesh(np.ndarray):
     def __new__(cls, *args, **kwargs):
-        obj = np.ndarray(*args, **kwargs).view(Mesh)
+        obj = np.ndarray(*args, **kwargs).view(cls)
         obj.fill(0)
         return obj
 

@@ -10,7 +10,7 @@ def flatten_args(func):
     def f(A, b, x, iter=10):
         b_flat = b.flatten()
         x_flat = x.flatten()
-        return func(A, b, x, iter).reshape(x.shape)
+        return func(A, b_flat, x_flat, iter).reshape(x.shape)
     return f
 
 # Gauss Siedel solver.

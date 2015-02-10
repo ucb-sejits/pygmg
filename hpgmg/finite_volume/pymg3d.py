@@ -7,8 +7,21 @@ import itertools, functools
 
 from space import Coord, Space
 from mesh import Mesh
-from smoothers import smooth_matrix as smooth
 import cProfile
+
+import THeatgenerator
+
+def cache(func):
+    func_cache = {}
+    sentinel = object()
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        key = tuple(args) + tuple(sorted(kwargs.items()))
+        res = func_cache.get(key, sentinel)
+        if res is sentinel:
+            return func_cache.setdefault(key, func(*args, **kwargs))
+        return res
+    return wrapper
 
 def to_mesh(func):
     @functools.wraps(func)
@@ -16,6 +29,7 @@ def to_mesh(func):
         return func(arg.view(Mesh))
     return wrapper
 
+@cache
 def interpolation_matrix(ndim):
     """
     :param ndim: Int, number of dimensions
@@ -30,8 +44,11 @@ def interpolation_matrix(ndim):
     weight_matrix.setflags(write=False)
     return weight_matrix
 
+@cache
 def restriction_matrix(ndim):
-    return interpolation_matrix(ndim) / np.exp2(ndim)
+    result = interpolation_matrix(ndim) / np.exp2(ndim)
+    result.setflags(write=False)
+    return result
 
 @to_mesh
 def interpolate(mesh):
@@ -102,7 +119,6 @@ def restrict_m(mesh):
 
 
 
-
 @to_mesh
 def simple_restrict(mesh):
     slices = tuple(slice(None, None, 2) for _ in range(mesh.ndim))
@@ -123,63 +139,40 @@ class MultigridSolver(object):
         :param x: guess for x
         :return: refined guess for X in Ax = b
         """
-        if len(b.flatten()) <= 3: # minimum size, so we compute exact
-            return np.linalg.solve(A, b)
+
+        if min(b.shape) <= 3: # minimum size, so we compute exact
+            return np.linalg.solve(A, b.flatten()).reshape(x.shape)
 
         x = self.smooth(A, b, x, self.smooth_iterations)
-        residual = (np.dot(A, x) - b)
+        residual = (np.dot(A, x.flatten()) - b.flatten()).reshape(x.shape)
         restricted_residual = self.restrict(residual)
-        diff = self.interpolate(self(self.restrict(A), restricted_residual, np.zeros_like(restricted_residual)))
+        diff = self.interpolate(self(self._evolve(A, b.ndim), restricted_residual, np.zeros_like(restricted_residual)))
         x -= diff
         result = self.smooth(A, b, x, self.smooth_iterations)
         return result
+
+
+    @staticmethod
+    def _evolve(A, ndim):
+        n = int(round((A.shape[0])**(1/ndim)))
+        n = int((n + 1)/2)
+        slices = tuple(slice(0, n**ndim) for _ in range(A.ndim))
+        return A[slices]
+
+
 
     def profiled_call(self, A, b, x):
         cProfile.runctx('self(A, b, x)', {'self': self, 'A':A, 'b':b, 'x':x}, {})
 
 
-def main(args):
-    def _print_array(arr):
-        if len(arr.shape) == 1:
-            print(*arr, sep="\t"*1)
-        else:
-            for row in arr:
-                _print_array(row)
-    import smoothers, cProfile
-    shape = Space((int(args[1]),)*int(args[2]))
-    solution_shape = Space((int(args[1]),)*(int(args[2])-1))
-    seed = sum(ord(i) for i in 'SEJITS')
-    np.random.seed(seed)
-    iterations = int(args[3])
-    z = np.random.ranf()*32
-    d1 = np.random.ranf()*z
-    d2 = np.random.ranf()*(z-d1)
-    # A = np.random.random(shape)
-    # b = np.random.random(solution_shape)
-    A = np.identity(shape[0])*(z)
-    A += np.diag((d1,)*(shape[0]-1), 1)
-    A += np.diag((d2,)*(shape[0]-1), -1)
-    b = np.random.random((shape[0],))
-    x = np.linalg.solve(A, b)
-    solver = MultigridSolver(interpolate_m, restrict_m, smoothers.gauss_siedel, iterations)
-    x_1 = solver(A, b, np.zeros_like(b))
-    # solver.profiled_call(A, b, np.zeros_like(b))
-    x_2 = smoothers.gauss_siedel(A, b, np.zeros_like(b), iterations*2)
-    print()
-    for name, result in (("numpy", x), ("MGS", x_1), ("Smoother", x_2)):
-        print(name)
-        print(*result)
-        print()
-        print("error")
-        e = error(A, b, result)
-        print()
-        print("Absolute Relative Error")
-        print(max(abs(err/val) for err, val in zip(e, b)))
-        print()
-
 
 if __name__ == '__main__':
-    def error(A, b, x):
-        return np.dot(A, x) - b
-    import sys
-    res = main(sys.argv)
+    n = 9
+    dims = 3
+    from THeatgenerator import gen3DHeatMatrixT
+    from smoothers import gauss_siedel
+    A = gen3DHeatMatrixT(9, 0.2, 1, 1/n)
+    b = np.random.random((n,)*dims)
+    x = np.zeros_like(b)
+    solver = MultigridSolver(interpolate_m, restrict_m, gauss_siedel, 4)
+    print(solver(A, b, x))
