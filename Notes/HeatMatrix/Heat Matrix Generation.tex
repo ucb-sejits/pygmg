@@ -1,0 +1,33 @@
+\documentclass[11pt, oneside]{article}   	% use "amsart" instead of "article" for AMSLaTeX format
+\usepackage{geometry}                		% See geometry.pdf to learn the layout options. There are lots.
+\geometry{letterpaper}                   		% ... or a4paper or a5paper or ... 
+%\geometry{landscape}                		% Activate for for rotated page geometry
+%\usepackage[parfill]{parskip}    		% Activate to begin paragraphs with an empty line rather than an indent
+\usepackage{graphicx}				% Use pdf, png, jpg, or eps§ with pdflatex; use eps in DVI mode
+								% TeX will automatically convert eps --> pdf in pdflatex		
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{hyperref}
+
+\title{Formulating Laplacian Matrix Generation as a N-D Stencil Problem}
+\author{Nathan Zhang}
+%\date{}							% Activate to display a given date or no date
+
+\begin{document}
+\maketitle
+%\section{}
+%\subsection{}
+As per Professor James Demmel's lecture note\footnote{\url{http://www.cs.berkeley.edu/~demmel/cs267_Spr14/Lectures/lecture21_structured_jwd14_4pp.pdf}}, we can generate the heat equation matrix as $T = I - z*L$ with $z = \frac{C \Delta t}{h^2}$. $C$ is the heat diffusivity constant and $h$ as the position step size, or distance between two sample points.  $L$, the Laplacian matrix, assumes that the mesh in question is fully embedded within a larger superstructure, so that there are no true boundary positions. 
+
+The Laplacian matrix is defined as follows for a n-D space $S$ where $p_i$ is the coordinate of point $i$ of degree $n$ \footnote{\url{http://en.wikipedia.org/wiki/Laplacian_matrix}}\\
+\[
+S_{p_i, p_j} =
+  \begin{cases}
+  	2^n & \text{if } p_i = p_j\\
+	-1 & \text{if } ||p_ip_j||_1 = 1\\
+	0 & \text{otherwise}
+  \end{cases}
+\]
+We can thus express $S$ as a matrix of dimension $2n$, the first $n$ being $p_i$ and the second being $p_j$. To obtain our final 2D matrix, we can simply reshape by linearizing the first n dimensions and the last n.
+
+\end{document}  

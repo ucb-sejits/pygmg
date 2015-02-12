@@ -6,6 +6,10 @@
 #only works for linear/square/cubic grids, but can be generalized to rectangular/prism grids
 
 from mesh import Mesh
+from space import Coord
+
+import itertools
+import numpy as np
 
 
 #generates lapalacian matrix for solving poisson problem with 1d n sized mesh
@@ -80,6 +84,41 @@ def gen3DHeatMatrixT(n, C, delta, h):
     L = gen3DHeatMatrixL(n)
     z=C*delta/(h*h)
     return np.identity(n*n*n) - z*L
+
+################################
+#Generating N-D Laplacian matrix
+def laplacian(n, ndim):
+    """
+    :param n: length in each dimension of space
+    :param ndim: number of dimensions of space
+    :return: 2n-D reshaped to 2-D mesh, as per the matrix generation note
+    """
+    m = Mesh((n, )*ndim*2)
+    reference_mesh = Mesh((n, )*ndim)
+    diagonal_entry = np.exp2(ndim)
+    for coord in reference_mesh.indices():
+        for other in reference_mesh.space.neighbors(coord, 1):
+            target = Coord(tuple(coord) + tuple(other)) #concatenates them into a single coord with coord first and other second
+            m[target] = -1
+        diagonal_target = Coord(tuple(coord)*2)
+        m[diagonal_target] = diagonal_entry
+
+    return m.reshape((n**ndim,)*2)
+
+def heat_matrix(n, C, delta, h, ndim):
+    """
+    :param n: length in each dimension
+    :param C: Heat diffusivity constant
+    :param delta: Timestep
+    :param h: Gap between samples
+    :param ndim: Number of dimensions
+    :return: Matrix for parameters above
+    """
+    z = C * delta / (h*h)
+    return np.identity(n**ndim) - z * laplacian(n, ndim)
+
+
+
 
 
 
