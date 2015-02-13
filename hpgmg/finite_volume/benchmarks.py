@@ -48,8 +48,10 @@ def smoother_benchmark(A, b, x, iterations, repeats):
 if __name__ == '__main__':
     length = int(sys.argv[1])
     iterations = int(sys.argv[2])
-    repeats = eval(sys.argv[3])
-    ndim = 3
+    ndim = int(sys.argv[3])
+    repeats = eval(sys.argv[4])
+    print()
+    print("Length:", length, "iterations:", iterations, "ndim:", ndim, "repeats:", repeats, sep="\t")
     delta = 1
     C = 0.2
     h = 1/length

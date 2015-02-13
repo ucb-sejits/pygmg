@@ -95,15 +95,16 @@ def laplacian(n, ndim):
     """
     m = Mesh((n, )*ndim*2)
     reference_mesh = Mesh((n, )*ndim)
-    diagonal_entry = np.exp2(ndim)
+    diagonal_entry = 2 * ndim
     for coord in reference_mesh.indices():
         for other in reference_mesh.space.neighbors(coord, 1):
             target = Coord(tuple(coord) + tuple(other)) #concatenates them into a single coord with coord first and other second
             m[target] = -1
         diagonal_target = Coord(tuple(coord)*2)
         m[diagonal_target] = diagonal_entry
-
     return m.reshape((n**ndim,)*2)
+
+
 
 def heat_matrix(n, C, delta, h, ndim):
     """
@@ -116,6 +117,21 @@ def heat_matrix(n, C, delta, h, ndim):
     """
     z = C * delta / (h*h)
     return np.identity(n**ndim) - z * laplacian(n, ndim)
+
+
+class LaplacianStencil(object):
+
+    def __mul__(self, other):
+        output = Mesh(other.space)
+        for index in other.indices():
+            for neighbor_coord in other.space.neighbors(index, 1):
+                output[index] += -1*other[neighbor_coord]
+            output[index] *= 2 * other.ndim * other[index]
+        return output
+
+    __rmul__ = __mul__
+
+
 
 
 
