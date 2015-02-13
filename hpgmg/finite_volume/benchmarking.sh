@@ -4,9 +4,9 @@ do
 for length in 5 9 17
 
 do
-    for iterations in 10 20 40 80
+    for iterations in 40 60 80
     do
-        ipython benchmarks.py $length $iterations $ndim 50
+        ipython benchmarks.py $length $iterations $ndim 3
     done
 done
 done
