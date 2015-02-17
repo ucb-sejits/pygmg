@@ -94,9 +94,6 @@ class Space(Vector):
             return tuple.__new__(cls, args)
         return tuple.__new__(cls, args[0])
 
-    def to_tuple(self):
-        """legacy support"""
-        return self
 
     @property
     def ndim(self):

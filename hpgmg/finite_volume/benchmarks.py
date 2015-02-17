@@ -8,9 +8,8 @@ import smoothers
 import THeatgenerator
 
 import timeit
-import cProfile
 import itertools
-import sys, os
+import sys
 
 
 def error(A, b, x):
@@ -26,8 +25,8 @@ def benchmark(A, b, x, iterations, repeats):
         f = lambda: solver(A, b, x)
         total_time = timeit.Timer(f).timeit(repeats)
         result = f()
-        timings.append((smooth.__name__, restrict.__name__, interpolate.__name__, total_time, error(A, b, result)))
-    return timings
+        yield (smooth.__name__, restrict.__name__, interpolate.__name__, total_time, error(A, b, result))
+    
 
 def numpy_benchmark(A, b, x, iterations, repeats):
     results = []
@@ -35,39 +34,43 @@ def numpy_benchmark(A, b, x, iterations, repeats):
         f = lambda: solver(A, b.flatten())
         total_time = timeit.Timer(f).timeit(repeats)
         result = f()
-        results.append((solver.__name__, None, None, total_time, error(A, b, result)))
-    return results
+        yield (solver.__name__, None, None, total_time, error(A, b, result))
+    
 
 def smoother_benchmark(A, b, x, iterations, repeats):
     smooths = (smoothers.gauss_siedel,)
-    timings = []
     for smooth in smooths:
         f = lambda: smooth(A, b, x, iterations)
         total_time = timeit.Timer(f).timeit(repeats)
         result = f()
-        timings.append((smooth.__name__, None, None, total_time, error(A, b, result)))
-    return timings
+        yield (smooth.__name__, None, None, total_time, error(A, b, result))
 
 if __name__ == '__main__':
     length = int(sys.argv[1])
     iterations = int(sys.argv[2])
-    repeats = eval(sys.argv[3])
-    ndim = 3
+    ndim = int(sys.argv[3])
+    repeats = eval(sys.argv[4])
+    print()
+    print("Length:", length, "iterations:", iterations, "ndim:", ndim, "repeats:", repeats, sep="\t")
     delta = 1
     C = 0.2
     h = 1/length
     shape = (length,) * ndim
-    A = THeatgenerator.gen3DHeatMatrixT(length, C, delta, h)
+    A = THeatgenerator.heat_matrix(length, C, delta, h, ndim)
 
     b = np.random.random((shape[0],))
     b = np.random.random((length,)*ndim)
     x = np.zeros_like(b)
     results = []
-    for bench in (numpy_benchmark, benchmark, smoother_benchmark):
-        results.extend(bench(A, b, x, iterations, repeats))
+    print("Starting Benchmarks")
     print("Smoother".ljust(20), "Interpolate".ljust(20), "Restrict".ljust(20), "Time/run".ljust(20), "Error".ljust(20), sep='\t')
     print("-"*120)
-    for result in results:
-        print(*[str(i).ljust(20) for i in result], sep="\t")
+    for bench in (benchmark, numpy_benchmark, smoother_benchmark):
+
+        results = bench(A, b, x, iterations, repeats)
+        for result in results:
+            print(*[str(i).ljust(20) for i in result], sep="\t")
+
+
 
 
