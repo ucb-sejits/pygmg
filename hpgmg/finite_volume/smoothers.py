@@ -39,7 +39,7 @@ def gauss_siedel_inplace(A, b, x, iter = 10):
 
 # Chebyshev smoother THIS DOES NOT WORK YET
 @flatten_args
-def chebyshev(A, b, x, iter=10):
+def chebyshevbad(A, b, x, iter=10):
     
     for k in range(iter):
         r=b-A.dot(x)
@@ -55,6 +55,19 @@ def chebyshev(A, b, x, iter=10):
 
     # FIXME: This method is non-functional at the moment
     return None
+
+def chebyshev(A,b, x, iterations=9, delta=1, theta=1):
+    r = b - np.dot(A,x)
+    sigma = float(delta)/theta
+    rho = 1./sigma
+    d = (1./theta)*r
+    for _ in range(iterations):
+        x = x + d
+        r = r - np.dot(A, d)
+        rho1 = 1./(2*sigma - rho)
+        d = rho*rho1*d - (2.*rho1/delta)*r
+        rho = rho1
+    return x
 
 def get_smoother(type):
     smoother = globals().get
@@ -89,8 +102,20 @@ if __name__=="__main__":
                   [0.0, 3., -1., 8.]])
     b = np.array([6., 25., -11., 15.])
     x = np.zeros_like(b)
-    print gauss_siedel(A, b, x, 10)
+    eigenvalues=np.linalg.eig(A)[0]
+    alpha= min(eigenvalues)
+    beta = max(eigenvalues)
+    theta = float(beta+alpha)/2
+    delta = float(beta-alpha)/2
+    print "eigenvalues", alpha, beta
+    print "cheby", chebyshev(A,b,x, 9, delta, theta)
+
+
+
+
     b = np.array([6., 25., -11., 15.])
     x = np.zeros_like(b)
-    print "in place "
-    print gauss_siedel_inplace(A, b, x, 10)
+    print "gs", gauss_siedel(A, b, x, 10)
+    b = np.array([6., 25., -11., 15.])
+    x = np.zeros_like(b)
+    print "in place ", gauss_siedel_inplace(A, b, x, 10)
