@@ -1,4 +1,5 @@
 import numpy as np
+import scipy as sp
 import functools
 
 def flatten_args(func):
@@ -14,7 +15,6 @@ def flatten_args(func):
     return f
 
 # Gauss Siedel solver.
-
 @flatten_args
 def gauss_siedel(A, b, x, iter = 10):
     L = np.tril(A)  # lower triangular matrix of A, includes diagonal
@@ -36,27 +36,8 @@ def gauss_siedel_inplace(A, b, x, iter = 10):
             x[i] = (b[i] - s1 - s2) / A[i, i]
     return x
  
-
-# Chebyshev smoother THIS DOES NOT WORK YET
-@flatten_args
-def chebyshevbad(A, b, x, iter=10):
-    
-    for k in range(iter):
-        r=b-A.dot(x)
-        if  k==0:
-            alpha=1/d
-        elif k==1:
-            alpha=2*d*(1/(2*d*d-c*c))
-        elif k>1:
-            alpha=1/((d-alpha*c*c)/4)
-    beta=alpha*d-1
-    p=alpha*r+beta*p
-    x=x+p
-
-    # FIXME: This method is non-functional at the moment
-    return None
-
-def chebyshev(A,b, x, iterations=9, delta=1, theta=1):
+ #saad's algorithm for chebychev: does not work
+def chebyshevbad(A,b, x, diag, diaginv, iterations=9, delta=1, theta=1):
     r = b - np.dot(A,x)
     sigma = float(delta)/theta
     rho = 1./sigma
@@ -69,9 +50,47 @@ def chebyshev(A,b, x, iterations=9, delta=1, theta=1):
         rho = rho1
     return x
 
+
+# Chebychev acceleration 
+def chebyshev(A, b1, x1, diag, diaginv, iterations, c,d):
+    '''
+    This method uses chebyshev acceleration to smooth solution to Ax=b
+
+    :param A: The operator matrix in the Ax=b equation, as a numpy array
+    :param b1: The solution matrix in the Ax=b equation, as a numpy array
+    :param x1: The input matrix in the Ax=b equation, as a numpy array
+    :param diag: A with all but diagonal entries stripped away
+    :param diaginv: inverse of diag
+    :param iterations: The number of iterations the smoothing is to be applied for
+    :param c: half-width of range of spectrum of A
+    :param d: average of range of spectrum of A
+    :return: a smoothed version of the input matrix x, the same shape as it was inputted in as.
+    '''
+    x=x1.flatten()
+    b=b1.flatten()
+
+    r = b - np.dot(A,x)
+    for i in range(0,iterations):
+        z = np.dot(diaginv,r)
+        if i==0:
+            rho = z
+            alpha = 2. / d
+        else:
+            beta = (c * alpha / (2.)) * (c * alpha / (2.))
+            alpha = 1. / (d - beta)
+            rho = z + beta * rho
+        x = x + alpha * rho
+        r = b - np.dot(A,x)
+    return x.reshape(x1.shape)
+
+" Uses Gershgorin circle theorem to approximate spectrum of A"
+def apprxspectrum(A):
+    a=2
+
+
 def get_smoother(type):
     smoother = globals().get
-    return smoother("gauss_siedel")
+    return smoother(type)
 
 def smooth_matrix(A, b, x, iterations = 10, smooth_func=gauss_siedel):
     '''
@@ -100,22 +119,28 @@ if __name__=="__main__":
                   [-1., 11., -1., 3.],
                   [2., -1., 10., -1.],
                   [0.0, 3., -1., 8.]])
+
+    print "A:"
+    print A 
     b = np.array([6., 25., -11., 15.])
     x = np.zeros_like(b)
-    eigenvalues=np.linalg.eig(A)[0]
-    alpha= min(eigenvalues)
-    beta = max(eigenvalues)
-    theta = float(beta+alpha)/2
-    delta = float(beta-alpha)/2
-    print "eigenvalues", alpha, beta
-    print "cheby", chebyshev(A,b,x, 9, delta, theta)
+    diag = np.diag(np.diag(A))
+    dinv=np.linalg.inv(diag)
+    eigenvalues=np.linalg.eig(diag)
 
-
+    alpha= min(eigenvalues[0])
+    beta = max(eigenvalues[0])
+    c = float(beta-alpha)/2.
+    d = float(beta+alpha)/2.
+    r=get_smoother("gauss_siedel")
+    print "chebychev", chebyshev(A, b , x ,diag, dinv, 100, c,d)
 
 
     b = np.array([6., 25., -11., 15.])
     x = np.zeros_like(b)
-    print "gs", gauss_siedel(A, b, x, 10)
+    print "gs", r(A, b, x, 10)
     b = np.array([6., 25., -11., 15.])
     x = np.zeros_like(b)
-    print "in place ", gauss_siedel_inplace(A, b, x, 10)
+    #print "gs in place ", gauss_siedel_inplace(A, b, x, 10)
+
+
