@@ -89,13 +89,12 @@ def dominant_eigen(A):
     for i in range(0, A.shape[0]):
         rowsum = np.sum(np.absolute(A[i]))-abs(A[i][i])
         upper = A[i][i] + rowsum
-        if upper>maxupper:
-            maxupper=upper
+        print upper,rowsum
+        if upper+rowsum>maxupper:
+            maxupper=upper+rowsum
     return maxupper
 
     
-
-
 def get_smoother(type):
     smoother = globals().get
     return smoother(type)
@@ -134,18 +133,13 @@ if __name__=="__main__":
     x = np.zeros_like(b)
     diag = np.diag(np.diag(A))
     dinv=np.linalg.inv(diag)
-    eigenvalues, eigenvectors = np.linalg.eig(diag)
-    print eigenvalues 
-    print dominant_eigen(diag)
 
-    #alpha= min(eigenvalues)
-    #beta = max(eigenvalues)
-    alpha = dominant_eigen(diag)
+    alpha = dominant_eigen(A)
     beta = .125 * alpha  #Sam does this, but it seems like a hack 
     c = float(beta-alpha)/2.
     d = float(beta+alpha)/2.
     r=get_smoother("gauss_siedel")
-    print "chebychev", chebyshev(A, b , x ,diag, dinv, 18, c,d)
+    print "chebychev", chebyshev(A, b , x ,diag, dinv, 100, c,d)
 
 
     b = np.array([6., 25., -11., 15.])
