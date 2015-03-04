@@ -16,14 +16,35 @@ def flatten_args(func):
 
 # Gauss Siedel solver.
 @flatten_args
-def gauss_siedel(A, b, x, iter = 10):
+def gauss_siedel(A, b, x, iters = 10):
     L = np.tril(A)  # lower triangular matrix of A, includes diagonal
     Linv = np.linalg.inv(L)  # inverse of L
     U = A-L  # strictly upper triangular matrix of A
-    for _ in range(iter):
+    for _ in range(iters):
         x = (Linv.dot(b-(U.dot(x))))     #iterate
         #print x
     return x
+
+#Jacobi smoother
+@flatten_args
+def jacobi(A, b, x, iters = 10):
+    D = np.diag(np.diag(A))
+    R = A - D
+    Dinv = np.linalg.inv(D) 
+    for _ in range(iters):
+        x = Dinv.dot(b - R.dot(x))
+    return x
+
+#weighted jacobi smoother 
+@flatten_args
+def weighted_jacobi(A, b, x, iters = 10, weight = 2./3):
+    D = np.diag(np.diag(A))
+    R = A - D
+    Dinv = np.linalg.inv(D) 
+    for _ in range(iters):
+        x = weight*(Dinv.dot(b - R.dot(x))) + (1-weight)*x
+    return x
+
 
 # Gauss Siedel which requires only one storage array
 # From Wikipedia page on Gauss-Siedel smoothing
@@ -69,7 +90,7 @@ def chebyshev(A, b1, x1, iterations=50, diag=None, diag_inv=None, c=None, d=None
     x=x1.flatten()
     b=b1.flatten()
 
-    if not diag_inv:
+    if diag_inv is None:
         diag = np.diag(np.diag(A))
         diag_inv = np.linalg.inv(diag)
         alpha = dominant_eigen(A)
@@ -79,7 +100,7 @@ def chebyshev(A, b1, x1, iterations=50, diag=None, diag_inv=None, c=None, d=None
 
 
     r = b - np.dot(A,x)
-    for i in range(0,iterations):
+    for i in range(iterations):
         z = np.dot(diag_inv,r)
         if i==0:
             rho = z
@@ -98,7 +119,6 @@ def dominant_eigen(A):
     for i in range(0, A.shape[0]):
         rowsum = np.sum(np.absolute(A[i]))-abs(A[i][i])
         upper = A[i][i] + rowsum
-        # print upper,rowsum
         if upper+rowsum>maxupper:
             maxupper=upper+rowsum
     return maxupper
@@ -147,12 +167,21 @@ if __name__=="__main__":
     beta = .125 * alpha  #Sam does this, but it seems like a hack 
     c = float(beta-alpha)/2.
     d = float(beta+alpha)/2.
-    r=get_smoother("gauss_siedel")
-    print "chebychev", chebyshev(A, b , x ,diag, dinv, 100, c,d)
 
-
+    print "cheby100", chebyshev(A, b , x, 100, diag, dinv, c,d)
     b = np.array([6., 25., -11., 15.])
     x = np.zeros_like(b)
+
+    print "weighted_jacobi", weighted_jacobi(A, b , x, 9)
+    b = np.array([6., 25., -11., 15.])
+    x = np.zeros_like(b)
+    print "jacobi", jacobi(A, b , x, 9)
+
+#A, b1, x1, iterations=50, diag=None, diag_inv=None, c=None, d=None
+    b = np.array([6., 25., -11., 15.])
+    x = np.zeros_like(b)
+
+    r=get_smoother("gauss_siedel")
     print "gs", r(A, b, x, 10)
     b = np.array([6., 25., -11., 15.])
     x = np.zeros_like(b)
