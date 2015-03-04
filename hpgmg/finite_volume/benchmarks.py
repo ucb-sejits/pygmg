@@ -88,11 +88,11 @@ def smoother_benchmark(A, b, x, iterations, repeats):
 
 if __name__ == '__main__':
     
-    #length = int(sys.argv[1])
-    #iterations = int(sys.argv[2])
-    #ndim = int(sys.argv[3])
-    #repeats = eval(sys.argv[4])
     
+    global smoother_choice
+    smoother_choice = smoothers.gauss_siedel
+
+
     args = get_args()
     smoother_enum = int(args.cheby) + 2*int(args.gs) + 3*int(args.j)
 
@@ -104,6 +104,12 @@ if __name__ == '__main__':
                 3:smoothers.jacobi
     }
     smoother_choice = smoother_options[smoother_enum]
+
+
+    length = args.length
+    iterations = args.iterations
+    ndim = args.ndim
+    repeats = eval(args.repeats)
 
     print()
     print("Length:", length, "iterations:", iterations, "ndim:", ndim, "repeats:", repeats, sep="\t")
