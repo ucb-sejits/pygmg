@@ -93,10 +93,6 @@ if __name__ == '__main__':
     #ndim = int(sys.argv[3])
     #repeats = eval(sys.argv[4])
     
-    global smoother_choice
-    smoother_choice = smoothers.gauss_siedel
-
-
     args = get_args()
     smoother_enum = int(args.cheby) + 2*int(args.gs) + 3*int(args.j)
 
