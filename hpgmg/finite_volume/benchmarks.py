@@ -79,7 +79,8 @@ def numpy_benchmark(A, b, x, iterations, repeats):
     
 
 def smoother_benchmark(A, b, x, iterations, repeats):
-    smooths = (smoothers.gauss_siedel,)
+    #smooths = (smoothers.gauss_siedel,)
+    smooths = (smoother_choice,)
     for smooth in smooths:
         f = lambda: smooth(A, b, x, iterations)
         total_time = timeit.Timer(f).timeit(repeats)
@@ -88,10 +89,6 @@ def smoother_benchmark(A, b, x, iterations, repeats):
 
 if __name__ == '__main__':
     
-    
-    global smoother_choice
-    smoother_choice = smoothers.gauss_siedel
-
 
     args = get_args()
     smoother_enum = int(args.cheby) + 2*int(args.gs) + 3*int(args.j)
