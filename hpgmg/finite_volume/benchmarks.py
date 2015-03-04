@@ -10,13 +10,54 @@ import THeatgenerator
 import timeit
 import itertools
 import sys
+import argparse
+import os
+import logging
 
+
+
+log = logging
+log.root.setLevel(logging.INFO)
+
+
+
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('length', help='The length of the box taken log 2(length-1)', default=6, type=int)
+
+    parser.add_argument('iterations', help='iterations', default=6, type=int)
+
+    parser.add_argument('ndim', help='number of dimensions of grid', default=6, type=int)
+
+    parser.add_argument('repeats', help='repeats', default=6, type=str)
+
+    if False: #FIX ME !!!!!!
+        parser.add_argument('-m', '--max_coarse-dim',
+                            help='Maximum coarse dim',
+                            #default=int(os.environ.get('MAX_COARSE_DIM', 11)),
+                            type=int,
+                            dest='max_coarse_dim')
+
+    parser.add_argument('--DUSE_CHEBY', dest='cheby', action='store_true')
+    parser.add_argument('--DUSE_GS', dest='gs', action='store_true')
+    parser.add_argument('--DUSE_JACOBI', dest='j', action='store_true')
+
+
+    args = parser.parse_args()
+
+
+    smoother_xor= int(args.cheby) + int(args.gs) + int(args.j) 
+    if(smoother_xor != 1 ):
+        log.error('Must choose one smoother (CHEBY, GS, or JACOBI')
+        exit(0)
+    return args
 
 def error(A, b, x):
     return np.linalg.norm(np.dot(A, x.flatten()) - b.flatten(), 1)
 
 def benchmark(A, b, x, iterations, repeats):
-    smooths = (smoothers.gauss_siedel,)
+    #smooths = (smoothers.gauss_siedel,)
+    smooths = (smoother_choice,)
     restrictions = (pymg3d.restrict, pymg3d.restrict_m, pymg3d.simple_restrict)
     interpolations = (pymg3d.interpolate, pymg3d.interpolate_m)
     timings = []
@@ -46,10 +87,28 @@ def smoother_benchmark(A, b, x, iterations, repeats):
         yield (smooth.__name__, None, None, total_time, error(A, b, result))
 
 if __name__ == '__main__':
-    length = int(sys.argv[1])
-    iterations = int(sys.argv[2])
-    ndim = int(sys.argv[3])
-    repeats = eval(sys.argv[4])
+    
+    #length = int(sys.argv[1])
+    #iterations = int(sys.argv[2])
+    #ndim = int(sys.argv[3])
+    #repeats = eval(sys.argv[4])
+    
+    global smoother_choice
+    smoother_choice = smoothers.gauss_siedel
+
+
+    args = get_args()
+    smoother_enum = int(args.cheby) + 2*int(args.gs) + 3*int(args.j)
+
+
+    global smoother_choice
+    smoother_options={
+                1:smoothers.chebyshev, 
+                2:smoothers.gauss_siedel,
+                3:smoothers.jacobi
+    }
+    smoother_choice = smoother_options[smoother_enum]
+
     print()
     print("Length:", length, "iterations:", iterations, "ndim:", ndim, "repeats:", repeats, sep="\t")
     delta = 1
