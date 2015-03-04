@@ -52,7 +52,7 @@ def chebyshevbad(A,b, x, diag, diaginv, iterations=9, delta=1, theta=1):
 
 
 # Chebychev acceleration 
-def chebyshev(A, b1, x1, diag, diaginv, iterations, c,d):
+def chebyshev(A, b1, x1, iterations=50, diag=None, diag_inv=None, c=None, d=None):
     '''
     This method uses chebyshev acceleration to smooth solution to Ax=b
 
@@ -60,7 +60,7 @@ def chebyshev(A, b1, x1, diag, diaginv, iterations, c,d):
     :param b1: The solution matrix in the Ax=b equation, as a numpy array
     :param x1: The input matrix in the Ax=b equation, as a numpy array
     :param diag: A with all but diagonal entries stripped away
-    :param diaginv: inverse of diag
+    :param diag_inv: inverse of diag
     :param iterations: The number of iterations the smoothing is to be applied for
     :param c: half-width of range of spectrum of A
     :param d: average of range of spectrum of A
@@ -69,9 +69,18 @@ def chebyshev(A, b1, x1, diag, diaginv, iterations, c,d):
     x=x1.flatten()
     b=b1.flatten()
 
+    if not diag_inv:
+        diag = np.diag(np.diag(A))
+        diag_inv = np.linalg.inv(diag)
+        alpha = dominant_eigen(A)
+        beta = .125 * alpha  #Sam does this, but it seems like a hack
+        c = float(beta-alpha)/2.
+        d = float(beta+alpha)/2.
+
+
     r = b - np.dot(A,x)
     for i in range(0,iterations):
-        z = np.dot(diaginv,r)
+        z = np.dot(diag_inv,r)
         if i==0:
             rho = z
             alpha = 2. / d
@@ -89,7 +98,7 @@ def dominant_eigen(A):
     for i in range(0, A.shape[0]):
         rowsum = np.sum(np.absolute(A[i]))-abs(A[i][i])
         upper = A[i][i] + rowsum
-        print upper,rowsum
+        # print upper,rowsum
         if upper+rowsum>maxupper:
             maxupper=upper+rowsum
     return maxupper

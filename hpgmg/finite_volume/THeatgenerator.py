@@ -95,7 +95,7 @@ def laplacian(n, ndim):
     """
     m = Mesh((n, )*ndim*2)
     reference_mesh = Mesh((n, )*ndim)
-    diagonal_entry = 2 * ndim
+    diagonal_entry = -2 * ndim
     for coord in reference_mesh.indices():
         for other in reference_mesh.space.neighbors(coord, 1):
             target = Coord(tuple(coord) + tuple(other)) #concatenates them into a single coord with coord first and other second
