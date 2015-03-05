@@ -66,9 +66,6 @@ def benchmark(A, b, x, iterations, repeats):
         f = lambda: solver(A, b, x, "V")
         total_time = timeit.Timer(f).timeit(repeats)
         result = f()
-        #print ("stuff")
-        #print (b)
-        #print (result)
         yield (smooth.__name__+"F", restrict.__name__, interpolate.__name__, total_time, error(A, b, result))
     
 
@@ -82,7 +79,6 @@ def numpy_benchmark(A, b, x, iterations, repeats):
     
 
 def smoother_benchmark(A, b, x, iterations, repeats):
-    #smooths = (smoothers.gauss_siedel,)
     smooths = (smoother_choice,)
     for smooth in smooths:
         f = lambda: smooth(A, b, x, iterations)
