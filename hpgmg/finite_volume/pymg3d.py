@@ -132,14 +132,15 @@ class MultigridSolver(object):
         self.smooth = smooth
         self.smooth_iterations = smooth_iterations
 
-    def __call__(self, A, b, x):
+
+    #V cycle
+    def MGV(self, A, b, x):
         """
         :param A: A in Ax=b
         :param b: b in Ax=b
         :param x: guess for x
         :return: refined guess for X in Ax = b
         """
-
         if min(b.shape) <= 3: # minimum size, so we compute exact
             return np.linalg.solve(A, b.flatten()).reshape(x.shape)
 
@@ -149,7 +150,70 @@ class MultigridSolver(object):
         diff = self.interpolate(self(self._evolve(A, b.ndim), restricted_residual, np.zeros_like(restricted_residual)))
         x -= diff
         result = self.smooth(A, b, x, self.smooth_iterations)
-        return result
+        return result    
+
+
+    #Full Multi-Grid
+    def FMG(self, A, b, x=None):
+        """
+        :param A: A in Ax=b
+        :param b: b in Ax=b
+        :param x: guess for x
+        :return: refined guess for X in Ax = b
+        """
+        matrices = []
+        Amatrices = []
+        b_restrict = b[:]
+        A_restrict = A[:]
+        matrices.append(b_restrict)
+        Amatrices.append(A_restrict)
+
+        #continuously restrict b, and store all intermediate b's in list
+        while(not (min(b_restrict.shape) <= 3)):
+            b_restrict = self.restrict(b_restrict)
+            A_restrict = self._evolve(A_restrict, b.ndim)
+            matrices.append(b_restrict)
+            Amatrices.append(A_restrict)
+
+        #base case
+        shape = b_restrict.shape
+        x = ( np.linalg.solve(A_restrict, b_restrict.flatten()) )
+        x = x.reshape(shape)
+
+        for i in range(len(matrices)-2,-1,-1):
+            x = self.MGV(Amatrices[i], matrices[i], interpolate(x))
+        return x
+
+
+
+
+    def __call__(self, A, b, x, cycle="V"):
+        if cycle=="V":
+            return self.MGV(A, b, x) #FIXME
+        elif cycle=="F":
+            return self.FMG(A, b, x) #FIXME
+
+        #too lazy to comment out all of this below
+        if False:
+            """
+            :param A: A in Ax=b
+            :param b: b in Ax=b
+            :param x: guess for x
+            :return: refined guess for X in Ax = b
+            """
+
+            if min(b.shape) <= 3: # minimum size, so we compute exact
+                return np.linalg.solve(A, b.flatten()).reshape(x.shape)
+
+            x = self.smooth(A, b, x, self.smooth_iterations)
+            residual = (np.dot(A, x.flatten()) - b.flatten()).reshape(x.shape)
+            restricted_residual = self.restrict(residual)
+            diff = self.interpolate(self(self._evolve(A, b.ndim), restricted_residual, np.zeros_like(restricted_residual)))
+            x -= diff
+            result = self.smooth(A, b, x, self.smooth_iterations)
+            return result
+
+
 
 
     @staticmethod

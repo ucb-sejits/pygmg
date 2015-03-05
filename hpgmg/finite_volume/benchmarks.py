@@ -63,10 +63,13 @@ def benchmark(A, b, x, iterations, repeats):
     timings = []
     for smooth, restrict, interpolate in itertools.product(smooths, restrictions, interpolations):
         solver = pymg3d.MultigridSolver(interpolate, restrict, smooth, iterations//2)
-        f = lambda: solver(A, b, x)
+        f = lambda: solver(A, b, x, "V")
         total_time = timeit.Timer(f).timeit(repeats)
         result = f()
-        yield (smooth.__name__, restrict.__name__, interpolate.__name__, total_time, error(A, b, result))
+        #print ("stuff")
+        #print (b)
+        #print (result)
+        yield (smooth.__name__+"F", restrict.__name__, interpolate.__name__, total_time, error(A, b, result))
     
 
 def numpy_benchmark(A, b, x, iterations, repeats):
@@ -92,7 +95,6 @@ if __name__ == '__main__':
 
     args = get_args()
     smoother_enum = int(args.cheby) + 2*int(args.gs) + 3*int(args.j)
-
 
     global smoother_choice
     smoother_options={
@@ -126,6 +128,7 @@ if __name__ == '__main__':
     for bench in (benchmark, numpy_benchmark, smoother_benchmark):
 
         results = bench(A, b, x, iterations, repeats)
+
         for result in results:
             print(*[str(i).ljust(20) for i in result], sep="\t")
 
