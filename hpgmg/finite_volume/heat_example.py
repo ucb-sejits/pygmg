@@ -58,7 +58,7 @@ for ti in range(0, 20):
     t = ti / 0.5
     # Loop through times and decay each initial component
     Phi = C0V.dot(np.exp(-eigen_values*t))  # Exponential decay for each component
-    Phi = eigen_vectors * Phi  # Transform from eigenvector coordinate system to original coordinate system
+    Phi = eigen_vectors.dot(Phi)  # Transform from eigenvector coordinate system to original coordinate system
     print("Phi.shape {} average {}".format(Phi.shape, np.average(Phi)))
 
     if ti % 5 == 4:
