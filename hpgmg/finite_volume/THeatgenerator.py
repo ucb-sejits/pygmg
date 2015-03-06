@@ -44,6 +44,33 @@ def gen2DHeatMatrixL(n):
     return T
 
 
+def generate_2d_laplacian(n):
+    """
+    See http://en.wikipedia.org/wiki/Laplacian_matrix#Example_of_the_Operator_on_a_Grid
+    :param n:
+    :return:
+    """
+    adjacency = np.zeros([n*n, n*n])
+    # dx = [-1, 0, 1, -1, 1, -1, 0, 1]
+    # dy = [-1, 0, 1, -1, 1, -1, 0, 1]
+    dx = [-1, 0, 1, 0]
+    dy = [0, -1, 0, 1]
+    for x in range(n):
+        for y in range(n):
+            # index = (x - 1) * n + y
+            index = x * n + y
+            for ne in range(len(dx)):
+                new_x = x + dx[ne]
+                new_y = y + dy[ne]
+                if 0 <= new_x < n and 0 <= new_y < n:
+                    # index2 = (new_x - 1) * n + new_y
+                    index2 = new_x * n + new_y
+                    adjacency[index, index2] = 1
+                elif
+
+    degree = np.diag(sum(adjacency, 2))  # Compute the degree matrix
+    laplacian_operator = degree - adjacency  # Compute the laplacian matrix in terms of the degree and adjacency matrices
+    return laplacian_operator
 
 # sample indexing for 3x3x3
 #     / 24 25 26 /
@@ -86,16 +113,16 @@ def gen3DHeatMatrixT(n, C, delta, h):
     return np.identity(n*n*n) - z*L
 
 ################################
-#Generating N-D Laplacian matrix
+#Generating N-eigen_values Laplacian matrix
 def laplacian(n, ndim):
     """
     :param n: length in each dimension of space
     :param ndim: number of dimensions of space
-    :return: 2n-D reshaped to 2-D mesh, as per the matrix generation note
+    :return: 2n-eigen_values reshaped to 2-eigen_values mesh, as per the matrix generation note
     """
     m = Mesh((n, )*ndim*2)
     reference_mesh = Mesh((n, )*ndim)
-    diagonal_entry = -2 * ndim
+    diagonal_entry = 2 * ndim
     for coord in reference_mesh.indices():
         for other in reference_mesh.space.neighbors(coord, 1):
             target = Coord(tuple(coord) + tuple(other)) #concatenates them into a single coord with coord first and other second
@@ -105,6 +132,25 @@ def laplacian(n, ndim):
     return m.reshape((n**ndim,)*2)
 
 
+def naive_laplacian(n, ndim):
+    m = Mesh([n for _ in range(ndim)])
+    diag_value = 4.0
+    off_diag_value = -1.0
+
+    for i, j in m.indices():
+        if i == j:
+            m[i, j] = diag_value
+            if 0 < j < n-2:
+                m[i, j-1] = off_diag_value
+                m[i, j+1] = off_diag_value
+            elif j < 1:
+                m[i, n-1] = off_diag_value
+                m[i, j+1] = off_diag_value
+            elif j >= n-2:
+                m[i, j-1] = off_diag_value
+                m[i, 0] = off_diag_value
+
+    return m
 
 def heat_matrix(n, C, delta, h, ndim):
     """

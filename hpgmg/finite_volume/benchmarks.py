@@ -63,7 +63,7 @@ def benchmark(A, b, x, iterations, repeats):
     timings = []
     for smooth, restrict, interpolate in itertools.product(smooths, restrictions, interpolations):
         solver = pymg3d.MultigridSolver(interpolate, restrict, smooth, iterations//2)
-        f = lambda: solver(A, b, x, "V")
+        f = lambda: solver(A, b, x, "eigen_vectors")
         total_time = timeit.Timer(f).timeit(repeats)
         result = f()
         yield (smooth.__name__+"F", restrict.__name__, interpolate.__name__, total_time, error(A, b, result))

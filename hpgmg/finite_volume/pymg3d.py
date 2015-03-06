@@ -133,7 +133,7 @@ class MultigridSolver(object):
         self.smooth_iterations = smooth_iterations
 
 
-    #V cycle
+    #eigen_vectors cycle
     def MGV(self, A, b, x):
         """
         :param A: A in Ax=b
@@ -187,8 +187,8 @@ class MultigridSolver(object):
 
 
 
-    def __call__(self, A, b, x, cycle="V"):
-        if cycle=="V":
+    def __call__(self, A, b, x, cycle="eigen_vectors"):
+        if cycle=="eigen_vectors":
             return self.MGV(A, b, x) #FIXME
         elif cycle=="F":
             return self.FMG(A, b, x) #FIXME

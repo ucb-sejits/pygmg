@@ -4,7 +4,7 @@ import functools
 
 def flatten_args(func):
     """
-    :param func: function to wrap, flattens all of the args to 2-D, 1D, 1D
+    :param func: function to wrap, flattens all of the args to 2-eigen_values, 1D, 1D
     :return: wrapped function
     """
     @functools.wraps(func)
