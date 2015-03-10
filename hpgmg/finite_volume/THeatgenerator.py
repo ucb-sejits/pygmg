@@ -82,6 +82,18 @@ def generate_2d_laplacian(n, neighborhood=4, torus=False):
     return laplacian_operator
 
 
+def demmel_laplacian(n):
+    t = np.zeros([n*n, n*n])
+    for i in range(n*n):
+        t[i, i] = 2
+        if 0 < i:
+            t[i, i-1] = -1.0
+        if i < n-2:
+            t[i, i+1] = -1.0
+
+    L = np.kron(t, np.identity(n*n)) + np.kron(np.identity(n*n), t)
+    return L
+
 def gen3DHeatMatrixL(n):
     """
     generates laplacian matrix for solving poisson problem with 3d nxnxn mesh
@@ -166,6 +178,7 @@ def is_cholesky_factorizable(matrix):
 
 
 if __name__ == '__main__':
+    l = demmel_laplacian(17)
     print gen3DHeatMatrixT(3, .4, .7, 2)
 
 

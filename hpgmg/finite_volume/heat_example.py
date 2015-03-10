@@ -1,4 +1,5 @@
 from __future__ import print_function
+import stencil_code
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
@@ -13,6 +14,19 @@ import numpy as np
 from matplotlib import pyplot as plt
 import matplotlib.image as mpimg
 
+
+from stencil_code.stencil_kernel import Stencil, product
+from stencil_code.neighborhood import Neighborhood
+
+
+class LaplacianKernel(Stencil):
+    neighborhoods = [Neighborhood.von_neuman_neighborhood(radius=1, dim=2, include_origin=False)]
+
+    def kernel(self, in_grid, out_grid):
+        for x in self.interior_points(in_grid):
+            out_grid[x] = -4 * in_grid[x]
+            for y in self.neighbors(x, 0):
+                out_grid[x] += in_grid[y]
 
 #The number of pixels along a dimension of the image
 N = 20
@@ -53,15 +67,24 @@ C0 = C0[:]
 print("eigen_vector shape {}".format(eigen_vectors.shape))
 print("c0 shape {}".format(C0.shape))
 C0V = eigen_vectors.T.dot(C0.flatten())  # Transform the initial condition into the coordinate system
+
+plt.imshow(C0, cmap='gray')
+plt.title("iteration {} avg {}".format(0, np.average(C0)))
+plt.show()
+
 # of the eigenvectors
-for ti in range(0, 20):
+for ti in range(0, 1):
     t = ti / 0.5
     # Loop through times and decay each initial component
     Phi = C0V.dot(np.exp(-eigen_values*t))  # Exponential decay for each component
     Phi = eigen_vectors.dot(Phi)  # Transform from eigenvector coordinate system to original coordinate system
     print("Phi.shape {} average {}".format(Phi.shape, np.average(Phi)))
 
-    if ti % 5 == 4:
-        plt.imshow(Phi, cmap='gray')
-        plt.title("iteration {} avg {}".format(ti, np.average(Phi)))
-        plt.show()
+    # if ti % 5 == 4:
+    #     plt.imshow(Phi, cmap='gray')
+    #     plt.title("iteration {} avg {}".format(ti, np.average(Phi)))
+    #     plt.show()
+
+plt.imshow(Phi, cmap='gray')
+plt.title("iteration {} avg {}".format(ti, np.average(Phi)))
+plt.show()
