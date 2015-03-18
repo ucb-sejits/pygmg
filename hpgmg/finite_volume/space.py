@@ -58,16 +58,18 @@ class Vector(tuple):
 
     def __div__(self, other):
         if isinstance(other, numbers.Number):
-            return self * 1/other
+            return self * (1//other)
         if isinstance(other, collections.Iterable):
-            return type(self)(i/j for i,j in itertools.izip_longest(self, other, fillvalue=0))
+            return type(self)(i/j for i, j in itertools.izip_longest(self, other, fillvalue=0))
         return NotImplemented
+
+    __truediv__ = __div__
 
     def __floordiv__(self, other):
         if isinstance(other, numbers.Number):
             return type(self)(i//other for i in self)
         elif isinstance(other, collections.Iterable):
-            return type(self)(i//j for i,j in itertools.izip_longest(self, other, fillvalue=0))
+            return type(self)(i//j for i, j in itertools.izip_longest(self, other, fillvalue=0))
         return NotImplemented
 
     def in_space(self, space):
@@ -128,18 +130,6 @@ class Space(Vector):
         if isinstance(other, int):
             return self * other
         return NotImplemented
-
-    def __div__(self, other):
-        """
-        performs integer division only. Can't have decimal dimensions
-        """
-        if isinstance(other, int):
-            return Space((dim - 1)//other + 1 for dim in self)
-        if isinstance(other, collections.Iterable):
-            return Space((dim - 1) // scale for dim, scale in itertools.izip_longest(self, other, fillvalue=0))
-        return NotImplemented
-
-    __truediv__ = __floordiv__ = __div__
 
     def __add__(self, other):
         if isinstance(other, int):
