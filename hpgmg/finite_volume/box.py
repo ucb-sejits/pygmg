@@ -4,8 +4,7 @@ import numpy
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 
-from space import Space, Coord
-import level
+from hpgmg.finite_volume.space import Space, Coord
 
 
 class Box(object):
@@ -19,12 +18,11 @@ class Box(object):
         :param ghost_zone_size:
         :return:
         """
-        assert isinstance(level, level.Level)
         assert isinstance(coord, Coord)
 
         self.level = level
         self.coord = coord
-        self.global_box_id = self.level.dim.index_3d_to_1d(self.coord)
+        self.global_box_id = self.level.dim.index_to_1d(self.coord)
 
         self.num_vectors = num_vectors
         self.box_dim_size = box_dim_size
@@ -34,7 +32,7 @@ class Box(object):
         self.i_stride = self.j_stride * (self.box_dim_size + 2 * self.ghost_zone_size)
 
         self.volume = (box_dim_size + 2 * self.ghost_zone_size) * self.i_stride
-        self.low = Space()
+        self.low = Space(coord)
 
         try:
             self.vectors = numpy.zeros([self.num_vectors]).astype(numpy.float64)

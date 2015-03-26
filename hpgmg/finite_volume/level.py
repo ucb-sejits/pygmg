@@ -5,11 +5,11 @@ import numpy
 import math
 
 from collections import namedtuple
-from operators.stencil_27_pt import stencil_get_radius
-from space import Space, Coord
-from box import Box
-from boundary_condition import BoundaryCondition
-from block_copy import GridCoordinate
+from hpgmg.finite_volume.operators.stencil_27_pt import stencil_get_radius
+from hpgmg.finite_volume.space import Space, Coord
+from hpgmg.finite_volume.box import Box
+from hpgmg.finite_volume.boundary_condition import BoundaryCondition
+from hpgmg.finite_volume.block_copy import GridCoordinate
 
 BLOCK_COPY_TILE_I = 10000
 BLOCK_COPY_TILE_J = 8
@@ -122,7 +122,7 @@ class Level(object):
 
     def build_boxes(self):
         num_my_boxes = 0
-        for index in self.boxes_in.foreach():
+        for index in self.boxes_in.points:
             if self.rank_of_box[index] == self.my_rank:
                 num_my_boxes += 1
 
@@ -132,8 +132,8 @@ class Level(object):
             raise("Level build_boxes failed trying to create my_boxes num={}".format(self.num_my_boxes))
 
         box_index = 0
-        for index in self.boxes_in.foreach():
-            index_1d = self.boxes_in.index_3d_to_1d(index)
+        for index in self.boxes_in.points:
+            index_1d = self.boxes_in.index_to_1d(index)
             if self.rank_of_box[index] == self.my_rank:
                 box = Box(self, index, self.box_vectors, self.box_dim_size, self.box_ghost_size)
                 box.low = index * self.box_dim_size
@@ -149,8 +149,8 @@ class Level(object):
 
     def decompose_level_lex(self, ranks):
         for index in self.boxes_in.points:
-            index_1d = self.boxes_in.index_3d_to_1d(index)
-            self.rank_of_box[index] = (ranks * index_1d) / self.boxes_in.volume()
+            index_1d = self.boxes_in.index_to_1d(index)
+            self.rank_of_box[index] = (ranks * index_1d) / self.boxes_in.volume
 
     def decompose_level_bisection_special(self, num_ranks):
         raise Exception("decompose_level_bisection_special not implemented. Level shape {}".format(self.shape))
