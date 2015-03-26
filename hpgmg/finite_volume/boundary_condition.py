@@ -29,6 +29,15 @@ class BoundaryCondition(object):
     PERIODIC = 0
     DIRICHLET = 1
 
+    @staticmethod
+    def get(item):
+        return {
+            "periodic": BoundaryCondition.PERIODIC,
+            "dirichlet": BoundaryCondition.DIRICHLET,
+            "p": BoundaryCondition.PERIODIC,
+            "d": BoundaryCondition.DIRICHLET,
+        }[item]
+
     Faces = [
         0, 0, 0, 0, 1, 0, 0, 0, 0,
         0, 1, 0, 1, 0, 1, 0, 1, 0,

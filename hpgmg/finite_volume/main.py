@@ -1,5 +1,6 @@
 from __future__ import print_function, division
 from textwrap import dedent
+from hpgmg.finite_volume.boundary_condition import BoundaryCondition
 
 __author__ = 'nzhang-dev'
 
@@ -9,6 +10,7 @@ import logging
 
 from level import Level
 from operators.stencil_27_pt import stencil_get_radius
+from hpgmg.finite_volume.constants import Constants
 
 log = logging
 log.root.setLevel(logging.INFO)
@@ -18,7 +20,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('log2_box_dim', help='The dimensions of the box taken log 2', default=6, type=int)
     parser.add_argument('target_boxes_per_rank', help='number of boxes per rank', type=int)
-    parser.add_argument('-bc', '--boundary-conditions',
+    parser.add_argument('-bc', '--boundary-conditions', dest='boundary_condition',
                         help="Type of boundary condition. Use p for Periodic and d for Dirichlet. Default is d",
                         default=('p' if os.environ.get('USE_PERIODIC_BC', 0) else 'd'),
                         choices=['p', 'd'])
@@ -66,7 +68,12 @@ if __name__ == '__main__':
         exit(0)
 
     ghosts = stencil_get_radius()
-    calc_level = Level(boxes_in_i, box_dim, ghosts, )
+    boundary_condition = BoundaryCondition.get(command_line_args.boundary_condition)
+    calc_level = Level(
+        boxes_in_i, box_dim, ghosts,
+        Constants.VECTORS_RESERVED,
+        boundary_condition,
+        )
 
     #conditional setup for Helmholtz and Poisson
     if command_line_args.eq == 'h':

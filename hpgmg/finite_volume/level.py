@@ -58,7 +58,7 @@ class Level(object):
     the my_rank of the level
     """
     def __init__(self, boxes_in_i, box_dim_size, box_ghost_size, box_vectors,
-                 domain_boundary_condition, my_rank, num_ranks):
+                 domain_boundary_condition, my_rank=0, num_ranks=1):
         """
         create a level, initialize everything you can
         :param boxes_in_i: number of boxes on an axis, appears to be used for all axes
@@ -147,7 +147,7 @@ class Level(object):
             self.append_block_to_list(box.dim, )
 
     def decompose_level_lex(self, ranks):
-        for index in self.boxes_in.foreach():
+        for index in self.boxes_in.indices():
             index_1d = self.boxes_in.index_3d_to_1d(index)
             self.rank_of_box[index] = (ranks * index_1d) / self.boxes_in.volume()
 
