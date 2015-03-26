@@ -91,6 +91,7 @@ class Level(object):
         self.num_ranks = num_ranks
         self.boundary_condition = BoundaryCondition(domain_boundary_condition)
         self.alpha_is_zero = -1
+        self.h = 0.0
 
         self.rank_of_box = self.build_rank_of_box()
 
@@ -147,7 +148,7 @@ class Level(object):
             self.append_block_to_list(box.dim, )
 
     def decompose_level_lex(self, ranks):
-        for index in self.boxes_in.indices():
+        for index in self.boxes_in.points:
             index_1d = self.boxes_in.index_3d_to_1d(index)
             self.rank_of_box[index] = (ranks * index_1d) / self.boxes_in.volume()
 

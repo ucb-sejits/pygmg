@@ -3,7 +3,7 @@ from __future__ import print_function
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 import unittest
-from hpgmg.finite_volume.space import Space,  Coord
+from hpgmg.finite_volume.space import Space,  Coord, Vector
 
 
 class TestSpace(unittest.TestCase):
@@ -14,7 +14,6 @@ class TestSpace(unittest.TestCase):
         space = Space(1, 2, 3)
         self.assertEqual(space, (1, 2, 3))
 
-    @unittest.skip("I don't know why 1d-nd index conversion is important. We should always be doing nd")
     def test_indexing(self):
         sizes = [
             (0, 0, 0),
@@ -25,10 +24,10 @@ class TestSpace(unittest.TestCase):
         ]
         for a, b, c in sizes:
             space = Space(a, b, c)
-            self.assertEqual(len(list(space.points())), space.volume())
-            for index in space.foreach():
-                index_1d = space.index_3d_to_1d(index)
-                index_3d = Space(space.index_1d_to_3d(index_1d))
+            self.assertEqual(len(list(space.points)), space.volume)
+            for index in space.points:
+                index_1d = space.index_to_1d(index)
+                index_3d = Space(space.index_from_1d(index_1d))
                 self.assertEqual(index, index_3d)
 
     def test_multiply(self):
@@ -53,3 +52,18 @@ class TestSpace(unittest.TestCase):
         self.assertEqual((len(list(space.neighbors(coord, 1)))), 6)
         self.assertEqual((len(list(space.neighbors(coord, 2)))), 12)
         self.assertEqual(((len(list(space.neighbors(coord, 3))))), 8)
+
+    def test_strides(self):
+        self.assertEqual(Space([5]).strides(), [1])
+        self.assertEqual(Space([7, 8]).strides(), [8, 1])
+        self.assertEqual(Space([99, 6, 5]).strides(), [30, 5, 1])
+
+    def test_index_dim_conversion(self):
+        space = Space([10, 10, 10])
+        for index3 in space.points:
+            index3 = Coord([1, 1, 1])
+            index1 = space.index_to_1d(index3)
+            new_index3 = space.index_from_1d(index1)
+            self.assertEqual(index3, new_index3)
+
+
