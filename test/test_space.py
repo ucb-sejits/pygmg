@@ -58,12 +58,4 @@ class TestSpace(unittest.TestCase):
         self.assertEqual(Space([7, 8]).strides(), [8, 1])
         self.assertEqual(Space([99, 6, 5]).strides(), [30, 5, 1])
 
-    def test_index_dim_conversion(self):
-        space = Space([10, 10, 10])
-        for index3 in space.points:
-            index3 = Coord([1, 1, 1])
-            index1 = space.index_to_1d(index3)
-            new_index3 = space.index_from_1d(index1)
-            self.assertEqual(index3, new_index3)
-
 

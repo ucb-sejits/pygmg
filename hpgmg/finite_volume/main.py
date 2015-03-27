@@ -1,6 +1,8 @@
 from __future__ import print_function, division
 from textwrap import dedent
 from hpgmg.finite_volume.boundary_condition import BoundaryCondition
+from hpgmg.finite_volume.operators import problem_sine
+from hpgmg.finite_volume.operators.problem_sine import ProblemInitializer
 
 __author__ = 'nzhang-dev'
 
@@ -69,7 +71,7 @@ if __name__ == '__main__':
 
     ghosts = stencil_get_radius()
     boundary_condition = BoundaryCondition.get(command_line_args.boundary_condition)
-    calc_level = Level(
+    fine_level = Level(
         boxes_in_i, box_dim, ghosts,
         Constants.VECTORS_RESERVED,
         boundary_condition,
@@ -77,11 +79,15 @@ if __name__ == '__main__':
 
     #conditional setup for Helmholtz and Poisson
     if command_line_args.eq == 'h':
-        a = b = 1
+        a = b = 1.0
         log.info('Creating Helmholtz (a={a}, b={b} test problem)'.format(a=a, b=b))
     elif command_line_args.eq == 'p':
-        a = 0
-        b = 1
+        a = 0.0
+        b = 1.0
         log.info('Creating Poisson (a={a}, b={b} test problem)'.format(a=a, b=b))
 
     h0 = 1 / (boxes_in_i * box_dim)
+    
+    ProblemInitializer.setup(fine_level, h0, a, b)
+    
+    
