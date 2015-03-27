@@ -1,52 +1,35 @@
-/* A simple test harness for memory alloction. */
+import numpy as np
+from abc import ABCMeta, abstractmethod
 
-#include "mm_alloc.h"
-#include <stdio.h>
+class Operator:
+  __metaclass__ = ABCMeta
+  @abstractmethod
+  def apply_op(self, i, j, k):
+    pass
 
+class ConstantCoefficent7pt(Operator):
+  def __init__(self, a,b, h2inv):
+    self.a = a
+    self.b = b
+    self.h2inv = h2inv
 
+  def apply_op(self, x, i, j, k):
+    jStride = len(x)**(1.0/3)
+    kStride = jStride**2
+    ijk = i + j*jStride + k*kStride          
+    return self.a*x[ijk] - self.b*self.h2inv*(    \
+      + x[ijk+1      ]             \
+      + x[ijk-1      ]             \
+      + x[ijk+jStride]             \
+      + x[ijk-jStride]             \
+      + x[ijk+kStride]             \
+      + x[ijk-kStride]             \
+      - x[ijk        ]*6.0         \
+    )     
 
-int main(int argc, char **argv)
-{
-	//sanity check
-    int *data;
-    data = (int*) mm_malloc(4);
-    data[0] = 1;
-    mm_free(data);
-    printf("malloc sanity test successful!\n");
+if __name__=="__main__":
 
-    //test linked list
-    struct s_block *root;   
-    root = (struct s_block *) malloc( sizeof(struct s_block) ); 
-    root->next =  0;
-    root->free = 5;
-    printf("linked list test should say 5: %i\n",root->free );
-    free(root);
+  xf = np.linspace(0.0, 63.0, num=64)
+  A = ConstantCoefficent7pt(1,2, .1)
+  print A.apply_op(xf, 1,1,1)
 
-    //test pad funciton
-    printf("should say 44+4: %i \n", pad(4));
-    printf("should say 48+4: %i \n", pad(7));
-
-
-    //test basic allocation
-    int size = 15; //56
-    flist free_list = {0};
-
-    if (free_list.head ==  NULL) {
-		free_list.head = sbrk(pad(size)); 
-		free_list.head->size = size; 
-		free_list.head->free=1; 
-	}
-	printf("should say %i: %i\n",size, free_list.head->size );
-	printf("should say 0: %i \n", free_list.head==FREE);
-
-	size = 
-
-
-
-
-
-	free(free_list);
-
-    
-    return 0;
-}
