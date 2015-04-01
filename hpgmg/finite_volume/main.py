@@ -1,7 +1,5 @@
 from __future__ import print_function, division
-from textwrap import dedent
 from hpgmg.finite_volume.boundary_condition import BoundaryCondition
-from hpgmg.finite_volume.operators import problem_sine
 from hpgmg.finite_volume.operators.problem_sine import ProblemInitializer
 from hpgmg.finite_volume.space import Space
 
@@ -11,9 +9,8 @@ import argparse
 import os
 import logging
 
-from level import Level
-from operators.stencil_27_pt import stencil_get_radius
-from hpgmg.finite_volume.constants import Constants
+from hpgmg.finite_volume.level import Level
+from hpgmg.finite_volume.operators.stencil_27_pt import stencil_get_radius
 
 log = logging
 log.root.setLevel(logging.INFO)
@@ -79,7 +76,7 @@ if __name__ == '__main__':
         boundary_condition,
         my_rank=0,
         num_ranks=8,
-        )
+    )
 
     #conditional setup for Helmholtz and Poisson
     if command_line_args.eq == 'h':
@@ -89,7 +86,13 @@ if __name__ == '__main__':
         a = 0.0
         b = 1.0
         log.info('Creating Poisson (a={a}, b={b} test problem)'.format(a=a, b=b))
+    else:
+        a = b = 0.0
+        print("must select either Helmoltz or Poisson")
+        exit(1)
 
     h0 = 1 / (boxes_in_i * box_dim)
     
     ProblemInitializer.setup(fine_level, h0, a, b, is_variable_coefficient=True)
+
+    print("Problem is setup")
