@@ -90,3 +90,6 @@ class BoundaryCondition(object):
         self.allocated_blocks = [0, 0]
         self.num_blocks = [0, 0]
         self.blocks = [[], []]
+
+    def is_periodic(self):
+        self.condition_type = BoundaryCondition.PERIODIC

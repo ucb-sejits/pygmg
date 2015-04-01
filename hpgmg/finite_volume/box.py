@@ -1,5 +1,5 @@
 from __future__ import print_function
-import numpy
+import numpy as np
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
@@ -8,7 +8,7 @@ from hpgmg.finite_volume.space import Space, Coord
 
 
 class Box(object):
-    def __init__(self, level, coord, num_vectors, box_dim_size, ghost_zone_size):
+    def __init__(self, level, coord, box_element_space):
         """
         creates a box, based on create_box from level.c
         currently we are not worrying about alignment in python
@@ -22,24 +22,8 @@ class Box(object):
 
         self.level = level
         self.coord = coord
-        self.global_box_id = self.level.dim.index_to_1d(self.coord)
-
-        self.num_vectors = num_vectors
-        self.box_dim_size = box_dim_size
-        self.ghost_zone_size = ghost_zone_size
-
-        self.j_stride = self.box_dim_size + 2 * self.ghost_zone_size
-        self.i_stride = self.j_stride * (self.box_dim_size + 2 * self.ghost_zone_size)
-
-        self.volume = (box_dim_size + 2 * self.ghost_zone_size) * self.i_stride
-        self.low = Space(coord)
-
-        try:
-            self.vectors = numpy.zeros([self.num_vectors]).astype(numpy.float64)
-            self.vectors_base = numpy.zeros([self.num_vectors]).astype(numpy.float64)
-        except Exception as exception:
-            raise Exception("Box create failed, num_vectors={} box_dim_size={}, ghost_depth={}".format(
-                self.num_vectors, self.box_dim_size, self.ghost_zone_size))
+        self.global_box_id = self.level.box_space.index_to_1d(self.coord)
+        self.elements = np.empty(box_element_space, dtype=object)
 
     def add_vectors(self, new_vectors):
         if new_vectors < 1:

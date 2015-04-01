@@ -1,4 +1,6 @@
 from __future__ import print_function
+from hpgmg.finite_volume.element import Element
+
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 import numpy
@@ -57,11 +59,11 @@ class Level(object):
     to label blocks with a rank, the level will only allocate boxes where the rank matches
     the my_rank of the level
     """
-    def __init__(self, boxes_in_i, box_dim_size, box_ghost_size, box_vectors,
+    def __init__(self, element_space, box_space, ghost_space,
                  domain_boundary_condition, my_rank=0, num_ranks=1):
         """
         create a level, initialize everything you can
-        :param boxes_in_i: number of boxes on an axis, appears to be used for all axes
+        :param element_space: number of boxes on an axis, appears to be used for all axes
         :param box_dim_size:
         :param box_ghost_size:
         :param box_vectors:
@@ -70,22 +72,27 @@ class Level(object):
         :param num_ranks:
         :return:
         """
+        assert(isinstance(element_space, Space))
+        assert(isinstance(box_space, Space))
+        assert(isinstance(ghost_space, Space))
+
+        for size in ghost_space:
+            if size < stencil_get_radius():
+                raise Exception("Level creation: ghosts {:d} must be >= stencil_get_radius() {:d}".format(
+                    ghost_space, stencil_get_radius()))
+
         if my_rank == 0:
-            print("\nattempting to create a {:d}^3 level (with {} BC) ".format(
-                boxes_in_i * box_dim_size,
+            print("\nCreating level, {} elements, {} boxes, with {} boundary ".format(
+                element_space, box_space,
                 "Dirichlet" if domain_boundary_condition == BoundaryCondition.DIRICHLET else "Periodic"), end="")
-            print("using a {:d}^3 grid of {:d}^3 boxes and {:d} tasks...\n".format(
-                box_dim_size*boxes_in_i, boxes_in_i, box_dim_size, num_ranks))
 
-        if box_ghost_size < stencil_get_radius():
-            raise Exception("Level creation: ghosts {:d} must be >= stencil_get_radius() {:d}".format(
-                box_ghost_size, stencil_get_radius()))
+        self.element_space = element_space
+        self.box_space = box_space
+        self.ghost_space = ghost_space
+        self.box_element_space = Space(
+            [elements/boxes for elements, boxes in zip(element_space, box_space)]
+        )
 
-        self.box_dim_size = box_dim_size
-        self.box_ghost_size = box_ghost_size
-        self.box_vectors = box_vectors
-        self.boxes_in = Space(boxes_in_i, boxes_in_i, boxes_in_i)
-        self.dim = self.boxes_in * self.box_dim_size
         self.is_active = True
         self.my_rank = my_rank
         self.num_ranks = num_ranks
@@ -93,7 +100,8 @@ class Level(object):
         self.alpha_is_zero = -1
         self.h = 0.0
 
-        self.rank_of_box = self.build_rank_of_box()
+        self.rank_of_box = numpy.zeros(self.box_space)
+        self.my_boxes = []
 
         if DecomposeLex:
             self.decompose_level_lex(num_ranks)
@@ -102,55 +110,40 @@ class Level(object):
         else:
             self.decompose_level_bisection(num_ranks)
 
-        self.my_boxes = self.build_boxes()
-        self.num_my_boxes = self.my_boxes.size
+        self.build_boxes()
 
-        self.blocks = numpy.empty(0, dtype=object)
-        self.tag = math.log2(self.boxes_in.i)  # todo: this is probably wrong
+        self.blocks = numpy.empty(0, dtype=object)  # empty gives us None
+        self.tag = math.log2(self.box_space.i)  # todo: this is probably wrong
 
         self.krylov_iterations = 0
         self.ca_krylov_formations_of_g = 0
         self.vcycles_from_this_level = 0
 
-    def build_rank_of_box(self):
-        try:
-            rank_of_box = numpy.empty(self.boxes_in).astype(numpy.int32)
-            rank_of_box.fill(-1)
-            return rank_of_box
-        except Exception:
-            raise Exception("Level create could not allocate rank_of_box")
-
     def build_boxes(self):
-        num_my_boxes = 0
-        for index in self.boxes_in.points:
+        """
+        run throw the rank_of_box table and find entries that match this threads rank,
+        build a box for each one of these
+        :return:
+        """
+        for index in self.box_space.points:
             if self.rank_of_box[index] == self.my_rank:
-                num_my_boxes += 1
+                self.my_boxes.append(Box(self, index, self.box_element_space))
 
-        try:
-            my_boxes = numpy.empty(num_my_boxes, dtype=object)
-        except Exception:
-            raise("Level build_boxes failed trying to create my_boxes num={}".format(self.num_my_boxes))
-
-        box_index = 0
-        for index in self.boxes_in.points:
-            index_1d = self.boxes_in.index_to_1d(index)
-            if self.rank_of_box[index] == self.my_rank:
-                box = Box(self, index, self.box_vectors, self.box_dim_size, self.box_ghost_size)
-                box.low = index * self.box_dim_size
-
-                my_boxes[box_index] = box
-                box_index += 1
-
-        return my_boxes
-
-    def create_initial_blocks(self):
+    def create_elements(self):
         for box in self.my_boxes:
-            self.append_block_to_list(box.dim, )
+            for element_index in self.box_element_space.points:
+                box.elements[element_index] = Element()
+
 
     def decompose_level_lex(self, ranks):
-        for index in self.boxes_in.points:
-            index_1d = self.boxes_in.index_to_1d(index)
-            self.rank_of_box[index] = (ranks * index_1d) / self.boxes_in.volume
+        """
+        simple lexicographical decomposition of the domain (i-j-k ordering)
+        :param ranks:
+        :return:
+        """
+        for index in self.box_space.points:
+            index_1d = self.box_space.index_to_1d(index)
+            self.rank_of_box[index] = (ranks * index_1d) / self.box_space.volume
 
     def decompose_level_bisection_special(self, num_ranks):
         raise Exception("decompose_level_bisection_special not implemented. Level shape {}".format(self.shape))
@@ -168,10 +161,10 @@ class Level(object):
             return
 
         print()
-        for i in range(self.boxes_in.i-1, 0, -1):
-            for j in range(self.boxes_in.k-1, 0, -1):
+        for i in range(self.box_shape.i-1, 0, -1):
+            for j in range(self.box_shape.k-1, 0, -1):
                 print(" "*j, end="")
-                for k in range(self.boxes_in.k):
+                for k in range(self.box_shape.k):
                     print("{:4d}".format(self.rank_of_box[(i, j, k)]), end="")
                 print()
             print()

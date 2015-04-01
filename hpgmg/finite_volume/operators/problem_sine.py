@@ -2,6 +2,10 @@ from __future__ import print_function
 from math import tanh, sin, cos
 import numpy as np
 
+import hpgmg.finite_volume.operators.misc as misc
+from hpgmg.finite_volume.element import Element
+from hpgmg.finite_volume.space import Vector
+
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 
@@ -34,19 +38,18 @@ class ProblemInitializer(object):
         ry = 0.5 * r2y * (r2 ** -0.5)
         rz = 0.5 * r2z * (r2 ** -0.5)
         # -------------------------
-        beta = c1+c2*tanh( c3*(r-0.25))
+        beta = c1+c2*tanh(c3*(r-0.25))
         beta_x = c2*c3*rx * (1 - (tanh(c3*(r-0.25))**2))
         beta_y = c2*c3*ry * (1 - (tanh(c3*(r-0.25))**2))
         beta_z = c2*c3*rz * (1 - (tanh(c3*(r-0.25))**2))
 
-        return beta, (beta_x, beta_y, beta_z)
+        return beta, Vector(beta_x, beta_y, beta_z)
 
     @staticmethod
-    def evaluate_u(coord, is_periodic):
+    def evaluate_u(coord):
         """
         compute the exact value of the function u for a given coordinate
         :param coord:
-        :param is_periodic: 
         :return: value of u and a tuple of u for each dimension
         """
         x, y, z = coord
@@ -71,11 +74,46 @@ class ProblemInitializer(object):
         u_yy += c2*c2*p * ((p-1)*(sin(c2*y)**(p-2)) * (cos(c2*y)**2) - sin(c2*y)**p) * (sin(c2*x)**p) * (sin(c2*z)**p)
         u_zz += c2*c2*p * ((p-1)*(sin(c2*z)**(p-2)) * (cos(c2*z)**2) - sin(c2*z)**p) * (sin(c2*x)**p) * (sin(c2*y)**p)
 
-        return u, (u_x, u_y, u_z), (u_xx, u_yy, u_zz)
+        return u, Vector(u_x, u_y, u_z), Vector(u_xx, u_yy, u_zz)
 
 
     @staticmethod
-    def setup(level, h_level, a, b):
+    def setup(level, h_level, a, b, is_variable_coefficient):
         level.h = h_level
+        half_cell = Vector([0.5 for _ in level.element_space])
+
+        for box in level.my_boxes:
+            for element_index in level.box_space.points:
+                absolute_position = (element_index + box.coord + half_cell) * level.h
+
+                alpha = 1.0
+
+                if is_variable_coefficient:
+                    beta_i, _ = ProblemInitializer.evaluate_beta(absolute_position-Vector(level.h*0.5, 0.0, 0.0))
+                    beta_j, _ = ProblemInitializer.evaluate_beta(absolute_position-Vector(0.0, level.h*0.5, 0.0))
+                    beta_k, beta = ProblemInitializer.evaluate_beta(absolute_position-Vector(0.0, 0.0, level.h*0.5))
+                    beta, beta_xyz = ProblemInitializer.evaluate_beta(absolute_position)
+                    beta_ijk = Vector(beta_i, beta_j, beta_k)
+                else:
+                    beta = 1.0
+                    beta_xyz = Vector(0.0, 0.0, 0.0)
+                    beta_ijk = Vector(1.0, 1.0, 1.0)
+
+                u, u_xyz, u_xxyyzz = ProblemInitializer.evaluate_u(absolute_position)
+                f = a * alpha * u - \
+                    b * ((beta_xyz.i * u_xyz.i + beta_xyz.j * u_xyz.j + beta_xyz.k * u_xyz.k) +
+                    beta * (u_xxyyzz.i + u_xxyyzz.j + u_xxyyzz.k))
+
+                box.elements[element_index] = Element(
+                    true_solution=u,
+                    original_right_hand_side=f,
+                    cell_centered_coefficient=alpha,
+                    face_centered_coefficient=beta_ijk,
+                )
+
+        if level.alpha_is_zero == -1:
+            level.alpha_is_zero = misc.dot(level, 'alpha', 'alpha')
+
+
 
 

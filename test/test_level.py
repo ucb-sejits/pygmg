@@ -14,7 +14,7 @@ class TestLevel(unittest.TestCase):
         num_ranks = 1
         ghost_zone_size = stencil_get_radius()
         level = Level(
-            boxes_in_i=8, box_dim_size=1 << 4, box_ghost_size=1,
+            element_space=8, box_dim_size=1 << 4, box_ghost_size=1,
             box_vectors=VECTORS_RESERVED,
             domain_boundary_condition=BoundaryCondition.DIRICHLET,
             my_rank=my_rank, num_ranks=2
