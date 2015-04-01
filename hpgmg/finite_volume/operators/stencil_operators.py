@@ -15,9 +15,10 @@ class ConstantCoefficent7pt(Operator):
 
 
   def apply_op(self, x, i, j, k):
-    jStride = int(round(pow(len(x),1.0/3)))
+
+    jStride = int(round(pow(len(x),1.0/3))) #dimension of grid with ghost regions
     kStride = jStride**2
-    ijk = i + j*jStride + k*kStride          
+    ijk = (1+i) + (1+j)*jStride + (1+k)*kStride #map i,j,k to ghost grid ijk
     return self.a*x[ijk] - self.b*self.h2inv*(    \
       + x[ijk+1      ]             \
       + x[ijk-1      ]             \
@@ -30,7 +31,9 @@ class ConstantCoefficent7pt(Operator):
 
   def D_inv(self, x, i, j, k):
     #FIX ME. should simply use mesh methods to retrieve number of neighbors
-    s = int(round(pow(len(x),1.0/3)))
+    jStride = int(round(pow(len(x),1.0/3))) #dimension of grid with ghost regions
+    kStride = jStride**2
+    ijk = (1+i) + (1+j)*jStride + (1+k)*kStride #map i,j,k to ghost grid ijk
     return 1.0 / (self.a - self.b*self.h2inv*(            \
              + valid[ijk-1      ]   \
              + valid[ijk-jStride]   \
