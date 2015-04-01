@@ -72,7 +72,6 @@ def add_ghost_regions(x):
       for k in range(0, old_dim):
         old_ijk = i + j*jStride + k*kStride 
         new_ijk =  (1+i) + (1+j)*new_jStride + (1+k)*new_kStride  
-        print old_ijk, new_ijk
         new_x[new_ijk] = x[old_ijk]
   return new_x
 
