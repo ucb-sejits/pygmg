@@ -31,5 +31,5 @@ if __name__=="__main__":
 
   xf = np.linspace(0.0, 63.0, num=64)
   A = ConstantCoefficent7pt(1,2, .1)
-  print A.apply_op(xf, 1,1,1)
+  print(A.apply_op(xf, 1,1,1))
 

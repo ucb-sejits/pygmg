@@ -1,9 +1,9 @@
 from __future__ import print_function
 from math import tanh, sin, cos
 import numpy as np
+from hpgmg.finite_volume.constants import Constants
 
 import hpgmg.finite_volume.operators.misc as misc
-from hpgmg.finite_volume.element import Element
 from hpgmg.finite_volume.space import Vector
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
@@ -76,7 +76,6 @@ class ProblemInitializer(object):
 
         return u, Vector(u_x, u_y, u_z), Vector(u_xx, u_yy, u_zz)
 
-
     @staticmethod
     def setup(level, h_level, a, b, is_variable_coefficient):
         level.h = h_level
@@ -104,16 +103,12 @@ class ProblemInitializer(object):
                     b * ((beta_xyz.i * u_xyz.i + beta_xyz.j * u_xyz.j + beta_xyz.k * u_xyz.k) +
                     beta * (u_xxyyzz.i + u_xxyyzz.j + u_xxyyzz.k))
 
-                box.elements[element_index] = Element(
-                    true_solution=u,
-                    original_right_hand_side=f,
-                    cell_centered_coefficient=alpha,
-                    face_centered_coefficient=beta_ijk,
-                )
+                box.vectors[Constants.VECTOR_UTRUE][element_index] = u
+                box.vectors[Constants.VECTOR_ALPHA][element_index] = alpha
+                box.vectors[Constants.VECTOR_F][element_index] = f
+                box.vectors[Constants.VECTOR_BETA_I][element_index] = beta_ijk.i
+                box.vectors[Constants.VECTOR_BETA_J][element_index] = beta_ijk.j
+                box.vectors[Constants.VECTOR_BETA_K][element_index] = beta_ijk.k
 
         if level.alpha_is_zero == -1:
-            level.alpha_is_zero = misc.dot(level, 'alpha', 'alpha')
-
-
-
-
+            level.alpha_is_zero = misc.dot(level, Constants.VECTOR_ALPHA, Constants.VECTOR_ALPHA)

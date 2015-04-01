@@ -22,3 +22,19 @@ class Constants(object):
     # ------------------------
     VECTORS_RESERVED = 12  # total number of grids and the starting location for any auxillary bottom solver grids
     # ------------------------
+
+    @classmethod
+    def vector_list(cls):
+        return [
+            cls.VECTOR_TEMP,
+            cls.VECTOR_UTRUE,
+            cls.VECTOR_F_MINUS_AV,
+            cls.VECTOR_U,
+            cls.VECTOR_ALPHA,
+            cls.VECTOR_BETA_I,
+            cls.VECTOR_BETA_J,
+            cls.VECTOR_BETA_K,
+            cls.VECTOR_DINV,
+            cls.VECTOR_L1INV,
+            cls.VECTOR_VALID,
+        ]
