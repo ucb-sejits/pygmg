@@ -13,7 +13,7 @@ class ProblemInitializer(object):
     @staticmethod
     def evaluate_beta(vector):
         """
-
+        :param vector: compute values for beta at point in vector
         :return:
         """
         
@@ -99,9 +99,12 @@ class ProblemInitializer(object):
                     beta_ijk = Vector(1.0, 1.0, 1.0)
 
                 u, u_xyz, u_xxyyzz = ProblemInitializer.evaluate_u(absolute_position)
-                f = a * alpha * u - \
-                    b * ((beta_xyz.i * u_xyz.i + beta_xyz.j * u_xyz.j + beta_xyz.k * u_xyz.k) +
-                    beta * (u_xxyyzz.i + u_xxyyzz.j + u_xxyyzz.k))
+                f = a * alpha * u - (
+                    b * (
+                        (beta_xyz.i * u_xyz.i + beta_xyz.j * u_xyz.j + beta_xyz.k * u_xyz.k) +
+                        beta * (u_xxyyzz.i + u_xxyyzz.j + u_xxyyzz.k)
+                    )
+                )
 
                 box.vectors[Constants.VECTOR_UTRUE][element_index] = u
                 box.vectors[Constants.VECTOR_ALPHA][element_index] = alpha

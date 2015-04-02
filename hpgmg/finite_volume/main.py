@@ -1,5 +1,7 @@
 from __future__ import print_function, division
+from hpgmg.finite_volume import VECTOR_F, VECTOR_UTRUE
 from hpgmg.finite_volume.boundary_condition import BoundaryCondition
+from hpgmg.finite_volume.operators import misc
 from hpgmg.finite_volume.operators.problem_sine import ProblemInitializer
 from hpgmg.finite_volume.space import Space
 
@@ -67,6 +69,7 @@ if __name__ == '__main__':
         log.error('failed to find an acceptable problem size')
         exit(0)
 
+    my_rank = 0
     ghosts = stencil_get_radius()
     boundary_condition = BoundaryCondition.get(command_line_args.boundary_condition)
     fine_level = Level(
@@ -74,7 +77,7 @@ if __name__ == '__main__':
         Space([boxes_in_i for _ in range(3)]),
         Space([ghosts for _ in range(3)]),
         boundary_condition,
-        my_rank=0,
+        my_rank=my_rank,
         num_ranks=8,
     )
 
@@ -96,3 +99,19 @@ if __name__ == '__main__':
     ProblemInitializer.setup(fine_level, h0, a, b, is_variable_coefficient=True)
 
     print("Problem is setup, level.alpha_is_zero {}".format(fine_level.alpha_is_zero))
+
+    if (a == 0.0 or fine_level.alpha_is_zero ) and fine_level.boundary_condition.is_periodic():
+        # Poisson with periodic
+        # nominally, u shifted by a constant is still a valid solution
+        # however by convention we assume u sums to zero
+        average_of_f = misc.mean(fine_level, VECTOR_UTRUE)
+        if my_rank == 0:
+            print("  average value of u_true = {:20.12e}... shifting u_true to ensure it sums to zero...".format(
+                average_of_f))
+            misc.shift_vector(fine_level, VECTOR_F, VECTOR_F, -average_of_f)
+
+    if fine_level.boundary_condition.is_periodic():
+
+        if average_of_f != 0.0:
+            print("WARNING: Periodica bouncary conditions")
+

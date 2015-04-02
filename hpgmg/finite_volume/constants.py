@@ -20,7 +20,7 @@ class Constants(object):
     VECTOR_L1INV = 10  # cell centered relaxation parameter (e.g. inverse of the L1 norm of each row)
     VECTOR_VALID = 11  # cell centered array noting which cells are actually present
     # ------------------------
-    VECTORS_RESERVED = 12  # total number of grids and the starting location for any auxillary bottom solver grids
+    VECTORS_RESERVED = 12  # total number of grids and the starting location for any auxiliary bottom solver grids
     # ------------------------
 
     @classmethod

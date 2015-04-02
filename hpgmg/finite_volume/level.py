@@ -1,4 +1,5 @@
 from __future__ import print_function
+from hpgmg.finite_volume.cycle_counter import CycleCounter
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
@@ -92,6 +93,7 @@ class Level(object):
         self.boundary_condition = BoundaryCondition(domain_boundary_condition)
         self.alpha_is_zero = None
         self.h = 0.0
+        self.cycles = CycleCounter()
 
         self.rank_of_box = numpy.zeros(self.box_space)
         self.my_boxes = []
