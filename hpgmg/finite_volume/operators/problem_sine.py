@@ -110,5 +110,5 @@ class ProblemInitializer(object):
                 box.vectors[Constants.VECTOR_BETA_J][element_index] = beta_ijk.j
                 box.vectors[Constants.VECTOR_BETA_K][element_index] = beta_ijk.k
 
-        if level.alpha_is_zero == -1:
-            level.alpha_is_zero = misc.dot(level, Constants.VECTOR_ALPHA, Constants.VECTOR_ALPHA)
+        if level.alpha_is_zero is None:
+            level.alpha_is_zero = misc.dot(level, Constants.VECTOR_ALPHA, Constants.VECTOR_ALPHA) == 0

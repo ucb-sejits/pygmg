@@ -9,7 +9,7 @@ from hpgmg.finite_volume.space import Coord
 
 
 class Box(object):
-    def __init__(self, level, coord, box_element_space):
+    def __init__(self, level, coord):
         """
         creates a box, based on create_box from level.c
         currently we are not worrying about alignment in python
@@ -24,6 +24,6 @@ class Box(object):
         self.coord = coord
         self.global_box_id = self.level.box_space.index_to_1d(self.coord)
         self.vectors = [
-            np.empty(box_element_space, dtype=np.float32)
+            np.empty(level.box_element_space, dtype=np.float32)
             for _ in Constants.vector_list()
         ]

@@ -95,4 +95,4 @@ if __name__ == '__main__':
     
     ProblemInitializer.setup(fine_level, h0, a, b, is_variable_coefficient=True)
 
-    print("Problem is setup")
+    print("Problem is setup, level.alpha_is_zero {}".format(fine_level.alpha_is_zero))

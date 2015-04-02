@@ -7,16 +7,9 @@ import math
 
 from collections import namedtuple
 from hpgmg.finite_volume.operators.stencil_27_pt import stencil_get_radius
-from hpgmg.finite_volume.space import Space
+from hpgmg.finite_volume.space import Space, Vector
 from hpgmg.finite_volume.box import Box
 from hpgmg.finite_volume.boundary_condition import BoundaryCondition
-
-BLOCK_COPY_TILE_I = 10000
-BLOCK_COPY_TILE_J = 8
-BLOCK_COPY_TILE_K = 8
-
-VECTORS_RESERVED = 12  # total number of grids and the starting location for any auxiliary bottom solver grids
-
 
 DecomposeLex = True  # todo: this should come from global configuration
 DecomposeBisectionSpecial = False  # todo: this should come from global configuration
@@ -57,12 +50,16 @@ class Level(object):
     to label blocks with a rank, the level will only allocate boxes where the rank matches
     the my_rank of the level
     """
+
+    BOX_ALIGNMENTS = Vector(1, 2, 8)
+    BLOCK_COPY_TILE = Vector(10000, 8, 8)
+
     def __init__(self, element_space, box_space, ghost_space,
                  domain_boundary_condition, my_rank=0, num_ranks=1):
         """
         create a level, initialize everything you can
         :param element_space: total number of finite vectors (cells) as vector
-        :param box_space: total number of boxes as vector
+        :param box_space: total number of boxes along each dimension vector
         :param ghost_space: total number of ghosts as vector
         :param domain_boundary_condition: DIRICHLET or PERIODIC
         :param my_rank:
@@ -81,20 +78,19 @@ class Level(object):
         if my_rank == 0:
             print("\nCreating level, {} vectors, {} boxes, with {} boundary ".format(
                 element_space, box_space,
-                "Dirichlet" if domain_boundary_condition == BoundaryCondition.DIRICHLET else "Periodic"), end="")
+                "Dirichlet" if domain_boundary_condition == BoundaryCondition.DIRICHLET else "Periodic"))
 
+        self.dimensions = len(element_space)
         self.element_space = element_space
         self.box_space = box_space
         self.ghost_space = ghost_space
-        self.box_element_space = Space(
-            [elements/boxes for elements, boxes in zip(element_space, box_space)]
-        )
+        self.box_element_space = self.create_compute_box_size()
 
         self.is_active = True
         self.my_rank = my_rank
         self.num_ranks = num_ranks
         self.boundary_condition = BoundaryCondition(domain_boundary_condition)
-        self.alpha_is_zero = -1
+        self.alpha_is_zero = None
         self.h = 0.0
 
         self.rank_of_box = numpy.zeros(self.box_space)
@@ -124,12 +120,7 @@ class Level(object):
         """
         for index in self.box_space.points:
             if self.rank_of_box[index] == self.my_rank:
-                self.my_boxes.append(Box(self, index, self.box_element_space))
-
-    def create_elements(self):
-        for box in self.my_boxes:
-            for element_index in self.box_element_space.points:
-                box.elements[element_index] = Element()
+                self.my_boxes.append(Box(self, index))
 
     def decompose_level_lex(self, ranks):
         """
@@ -165,3 +156,18 @@ class Level(object):
                 print()
             print()
         print()
+
+    def create_compute_box_size(self):
+        """
+        based on total elements and number of boxes in each dimension
+        compute the size, add in the ghost zones then align as necessary
+        :return:
+        """
+        def compute_best_size_for(dim):
+            size = ((self.element_space[dim]-1)//self.box_space[dim]) + 1
+            size += 2 * self.ghost_space[dim]
+            while size % Level.BOX_ALIGNMENTS[dim]:
+                size += 1
+            return size
+
+        return Space([compute_best_size_for(dim) for dim in range(self.dimensions)])
