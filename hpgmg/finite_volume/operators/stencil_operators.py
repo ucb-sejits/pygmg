@@ -127,7 +127,7 @@ def add_boundary1d(x):
 def add_boundary(x):
   old_dim = getSideLength(x)
   new_dim = old_dim+2
-  new_x = np.zeros((dim+1, dim+1, dim+1)) #dimensions of new cube
+  new_x = np.zeros((old_dim+1, old_dim+1, old_dim+1)) #dimensions of new cube
   for i in range(0, old_dim):
     for j in range(0, old_dim):
       for k in range(0, old_dim):
