@@ -124,7 +124,7 @@ def add_boundary1d(x):
 
 def add_boundary(x):
   old_dim = getSideLength(x)
-  new_dim = old_dim+2
+  new_dim = 1+old_dim+1 #there are ghost zones on both sides of cube
   new_x = np.zeros((new_dim, new_dim, new_dim)) #dimensions of new cube
   for i in range(0, old_dim):
     for j in range(0, old_dim):
