@@ -7,8 +7,6 @@ class Operator:
   def apply_op(self, i, j, k):
     pass
 
-
-
 class ConstantCoefficent7pt(Operator):
   def __init__(self, a,b, h2inv):
     self.a = a
@@ -100,7 +98,7 @@ def initialize_valid_region(x):
       for k in range(0, dim): 
         valid[i][j][k] = 0
 
-  for i in range(1, dim-1): #initialize non-ghost zone cells to 1
+  for i in range(1, dim-1): #initialize non-ghost zone cells to 1, assuming ghost zone has width of 1
     for j in range(1, dim-1):
       for k in range(1, dim-1):
         valid[i][j][k] = 1
@@ -132,7 +130,7 @@ def add_boundary(x):
     for j in range(0, old_dim):
       for k in range(0, old_dim):
         new_i, new_j, new_k = 1+i, 1+j, 1+k #map coordinate of old cube to new cube
-        new_x[new_i][new_j][new_k] = x[i,j,k]
+        new_x[new_i][new_j][new_k] = x[i][j][k]
   return new_x
 
 if __name__=="__main__":
