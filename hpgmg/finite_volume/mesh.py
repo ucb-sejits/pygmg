@@ -4,7 +4,7 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 import numpy as np
 
-from space import Coord, Space
+import hpgmg.finite_volume.space as space
 
 
 class Mesh(np.ndarray):
@@ -15,7 +15,7 @@ class Mesh(np.ndarray):
 
     @property
     def space(self):
-        return Space(self.shape)
+        return space.Space(self.shape)
 
     def indices(self):
         return self.space.points

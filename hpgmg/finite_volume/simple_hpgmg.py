@@ -4,7 +4,6 @@ implement a simple single threaded, variable coefficient gmg solver
 from __future__ import division, print_function
 import argparse
 import os
-from hpgmg.finite_volume.simple.level import Level
 from hpgmg.finite_volume.smoothers import gauss_siedel
 
 __author__ = 'nzhang-dev'
@@ -135,7 +134,38 @@ def simple_restrict(mesh):
     return mesh[slices]
 
 
-class MultigridSolver(object):
+class SimpleLevel(object):
+    FACE_I = 0
+    FACE_J = 0
+    FACE_K = 0
+
+    def __init__(self, space):
+        self.space = space
+        self.cell_values = Mesh(space)
+        self.beta_face_values = [
+            Mesh(space),
+            Mesh(space),
+            Mesh(space),
+        ]
+        self.true_solution = Mesh(space)
+
+        self.cell_size = 1.0 / space[0]
+
+    def h(self):
+        return self.cell_size
+
+    def print(self):
+        for i in range(self.space.i-1, -1, -1):
+            for j in range(self.space.j-1, -1, -1):
+                print(" "*j*4, end="")
+                for k in range(self.space.k):
+                    print("{:6.2f}".format(self.cell_values[(i, j, k)]), end="")
+                print()
+            print()
+            print()
+
+
+class SimpleMultigridSolver(object):
     def __init__(self, interpolate, restrict, smooth, smooth_iterations):
         self.interpolate = interpolate
         self.restrict = restrict
@@ -186,38 +216,18 @@ class MultigridSolver(object):
 
         #base case
         shape = b_restrict.shape
-        x = ( np.linalg.solve(A_restrict, b_restrict.flatten()) )
+        x = np.linalg.solve(A_restrict, b_restrict.flatten())
         x = x.reshape(shape)
 
         for i in range(len(matrices)-2,-1,-1):
             x = self.MGV(Amatrices[i], matrices[i], interpolate(x))
         return x
 
-    def __call__(self, A, b, x, cycle="eigen_vectors"):
-        if cycle=="eigen_vectors":
+    def __call__(self, level, cycle="eigen_vectors"):
+        if cycle == "eigen_vectors":
             return self.MGV(A, b, x)  # FIXME
-        elif cycle=="F":
+        elif cycle == "F":
             return self.FMG(A, b, x)  # FIXME
-
-        #too lazy to comment out all of this below
-        if False:
-            """
-            :param A: A in Ax=b
-            :param b: b in Ax=b
-            :param x: guess for x
-            :return: refined guess for X in Ax = b
-            """
-
-            if min(b.shape) <= 3:  # minimum size, so we compute exact
-                return np.linalg.solve(A, b.flatten()).reshape(x.shape)
-
-            x = self.smooth(A, b, x, self.smooth_iterations)
-            residual = (np.dot(A, x.flatten()) - b.flatten()).reshape(x.shape)
-            restricted_residual = self.restrict(residual)
-            diff = self.interpolate(self(self._evolve(A, b.ndim), restricted_residual, np.zeros_like(restricted_residual)))
-            x -= diff
-            result = self.smooth(A, b, x, self.smooth_iterations)
-            return result
 
     @staticmethod
     def _evolve(A, ndim):
@@ -241,7 +251,8 @@ if __name__ == '__main__':
     configuration = parser.parse_args()
 
     global_size = Space([2**configuration.log2_level_size for _ in range(3)])
-    fine_level = Level(global_size)
+    fine_level = SimpleLevel(global_size)
+    fine_level.print()
 
-    solver = MultigridSolver(interpolate_m, restrict_m, gauss_siedel, 4)
+    solver = SimpleMultigridSolver(interpolate_m, restrict_m, gauss_siedel, 4)
     print(solver(fine_level))

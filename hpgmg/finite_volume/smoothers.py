@@ -22,7 +22,7 @@ def gauss_siedel(A, b, x, iters = 10):
     U = A-L  # strictly upper triangular matrix of A
     for _ in range(iters):
         x = (Linv.dot(b-(U.dot(x))))     #iterate
-        #print x
+        #print(x)
     return x
 
 #Jacobi smoother
@@ -150,14 +150,14 @@ def smooth_matrix(A, b, x, iterations = 10, smooth_func=gauss_siedel):
     return expanded_smooth_x
 
 
-if __name__=="__main__":
+if __name__ == "__main__":
     A = np.array([[10., -1., 2., 0.],
                   [-1., 11., -1., 3.],
                   [2., -1., 10., -1.],
                   [0.0, 3., -1., 8.]])
 
-    print "A:"
-    print A 
+    print("A:")
+    print(A )
     b = np.array([6., 25., -11., 15.])
     x = np.zeros_like(b)
     diag = np.diag(np.diag(A))
@@ -168,23 +168,23 @@ if __name__=="__main__":
     c = float(beta-alpha)/2.
     d = float(beta+alpha)/2.
 
-    print "cheby100", chebyshev(A, b , x, 100, diag, dinv, c,d)
+    print("cheby100", chebyshev(A, b , x, 100, diag, dinv, c,d))
     b = np.array([6., 25., -11., 15.])
     x = np.zeros_like(b)
 
-    print "weighted_jacobi", weighted_jacobi(A, b , x, 9)
+    print("weighted_jacobi", weighted_jacobi(A, b , x, 9))
     b = np.array([6., 25., -11., 15.])
     x = np.zeros_like(b)
-    print "jacobi", jacobi(A, b , x, 9)
+    print("jacobi", jacobi(A, b , x, 9))
 
 #A, b1, x1, iterations=50, diag=None, diag_inv=None, c=None, d=None
     b = np.array([6., 25., -11., 15.])
     x = np.zeros_like(b)
 
     r=get_smoother("gauss_siedel")
-    print "gs", r(A, b, x, 10)
+    print("gs", r(A, b, x, 10))
     b = np.array([6., 25., -11., 15.])
     x = np.zeros_like(b)
-    #print "gs in place ", gauss_siedel_inplace(A, b, x, 10)
+    #print("gs in place ", gauss_siedel_inplace(A, b, x, 10))
 
 
