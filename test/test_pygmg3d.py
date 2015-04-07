@@ -1,4 +1,5 @@
 from __future__ import print_function
+from hpgmg.finite_volume.space import Space, Vector, Coord
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
@@ -77,6 +78,28 @@ class TestPygmg3d(unittest.TestCase):
 
         fine_mesh.print("Fine mesh")
 
-
     def test_implementation(self):
         pass
+
+    def test_mul_and_div(self):
+        s = Space(4, 4, 4)
+        print(s)
+        s /= 2
+        print(s)
+        self.assertEqual(s, Space(2, 2, 2))
+        self.assertTrue(isinstance(s[0], int))
+
+        v = Vector(4, 4, 4)
+        v /= 2
+        print(v)
+        self.assertEqual(v, (2.0, 2.0, 2.0))
+        self.assertTrue(isinstance(v[0], float))
+
+        c = Coord(2, 2, 2)
+        c = c/2
+        self.assertTrue(isinstance(c[0], int))
+        self.assertEqual(Coord(2, 2 , 2)*2, Coord(4, 4, 4))
+        print(c)
+
+
+
