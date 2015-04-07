@@ -19,16 +19,16 @@ class ConstantCoefficient7pt(Operator):
         self.h2inv = h2inv
 
     def apply_op1d(self, x, i, j, k):
-        jStride = int(round(pow(len(x), 1.0 / 3)))  # dimension of grid with ghost regions
-        kStride = jStride ** 2
-        ijk = (1 + i) + (1 + j) * jStride + (1 + k) * kStride  # map i,j,k to ghost grid ijk
+        j_stride = int(round(pow(len(x), 1.0 / 3)))  # dimension of grid with ghost regions
+        k_stride = j_stride ** 2
+        ijk = (1 + i) + (1 + j) * j_stride + (1 + k) * k_stride  # map i,j,k to ghost grid ijk
         return self.a * x[ijk] - self.b * self.h2inv * (
             + x[ijk + 1]
             + x[ijk - 1]
-            + x[ijk + jStride]
-            + x[ijk - jStride]
-            + x[ijk + kStride]
-            + x[ijk - kStride]
+            + x[ijk + j_stride]
+            + x[ijk - j_stride]
+            + x[ijk + k_stride]
+            + x[ijk - k_stride]
             - x[ijk] * 6.0
         )
 
@@ -45,38 +45,37 @@ class ConstantCoefficient7pt(Operator):
 
     def D_inv1d(self, x, i, j, k):
         # FIX ME. should simply use mesh methods to retrieve number of neighbors
-        jStride = int(round(pow(len(x), 1.0 / 3)))  #dimension of grid with ghost regions
-        kStride = jStride ** 2
-        ijk = (1 + i) + (1 + j) * jStride + (1 + k) * kStride  #map i,j,k to ghost grid ijk
+        j_stride = int(round(pow(len(x), 1.0 / 3)))  #dimension of grid with ghost regions
+        k_stride = j_stride ** 2
+        ijk = (1 + i) + (1 + j) * j_stride + (1 + k) * k_stride  #map i,j,k to ghost grid ijk
         return 1.0 / (self.a - self.b * self.h2inv * (
             + valid[ijk - 1]
-            + valid[ijk - jStride]
-            + valid[ijk - kStride]
+            + valid[ijk - j_stride]
+            + valid[ijk - k_stride]
             + valid[ijk + 1]
-            + valid[ijk + jStride]
-            + valid[ijk + kStride]
+            + valid[ijk + j_stride]
+            + valid[ijk + k_stride]
             - 12.0
         ))
-
 
     def D_inv(self, x, i, j, k):
         # FIX ME. should simply use mesh methods to retrieve number of neighbors
         i, j, k = i + 1, j + 1, k + 1
-        return 1.0 / (self.a - self.b * self.h2inv * ( \
-            + valid[i][j][k - 1] \
-            + valid[i][j][k + 1] \
-            + valid[i][j + 1][k] \
-            + valid[i][j - 1][k] \
-            + valid[i + 1][j][k] \
-            + valid[i - 1][j][k] \
-            - 12.0 \
-            ))
+        return 1.0 / (self.a - self.b * self.h2inv * (
+            + valid[i][j][k - 1]
+            + valid[i][j][k + 1]
+            + valid[i][j + 1][k]
+            + valid[i][j - 1][k]
+            + valid[i + 1][j][k]
+            + valid[i - 1][j][k]
+            - 12.0
+        ))
 
 
 def initialize_valid_region1d(x):
     dim = int(round(pow(len(x), 1.0 / 3)))
-    jStride = dim
-    kStride = dim ** 2
+    j_stride = dim
+    k_stride = dim ** 2
     valid = np.zeros(len(x))
 
     for ind in range(0, len(x)):
@@ -85,18 +84,18 @@ def initialize_valid_region1d(x):
     for i in range(1, dim - 1):
         for j in range(1, dim - 1):
             for k in range(1, dim - 1):
-                ijk = i + j * jStride + k * kStride
+                ijk = i + j * j_stride + k * k_stride
                 valid[ijk] = 1
     return valid
 
 
-def getSideLength(x):
+def get_side_length(x):
     assert x.shape[0] == x.shape[1] and x.shape[1] == x.shape[2], "Grid must be cubic"
     return x.shape[0]
 
 
 def initialize_valid_region(x):
-    dim = getSideLength(x)
+    dim = get_side_length(x)
     valid_shape = (dim + 1, dim + 1, dim + 1)  # dimensions of new valid cube
     valid = np.zeros(valid_shape)
 
@@ -114,25 +113,25 @@ def initialize_valid_region(x):
 
 def add_boundary1d(x):
     old_dim = int(round(pow(len(x), 1.0 / 3)))
-    jStride = old_dim
-    kStride = old_dim ** 2
+    j_stride = old_dim
+    k_stride = old_dim ** 2
 
     new_dim = old_dim + 2
-    new_jStride = new_dim
-    new_kStride = new_dim ** 2
+    new_j_stride = new_dim
+    new_k_stride = new_dim ** 2
 
     new_x = np.zeros(new_dim ** 3)
     for i in range(0, old_dim):
         for j in range(0, old_dim):
             for k in range(0, old_dim):
-                old_ijk = i + j * jStride + k * kStride
-                new_ijk = (1 + i) + (1 + j) * new_jStride + (1 + k) * new_kStride
+                old_ijk = i + j * j_stride + k * k_stride
+                new_ijk = (1 + i) + (1 + j) * new_j_stride + (1 + k) * new_k_stride
                 new_x[new_ijk] = x[old_ijk]
     return new_x
 
 
 def add_boundary(x):
-    old_dim = getSideLength(x)
+    old_dim = get_side_length(x)
     new_dim = 1 + old_dim + 1  # there are ghost zones on both sides of cube
     new_x = np.zeros((new_dim, new_dim, new_dim))  # dimensions of new cube
     for i in range(0, old_dim):
@@ -155,5 +154,3 @@ if __name__ == "__main__":
 
     xf = np.linspace(0.0, 7.0, 8)
     print(add_boundary1d(xf))
-
-
