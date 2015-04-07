@@ -68,8 +68,8 @@ class Vector(tuple):
         return other + -self
 
     def __div__(self, other):
-        if isinstance(other, numbers.Number):
-            return self * (1//other)
+        if isinstance(other, numbers.Real):
+            return self * (1/other)
         if isinstance(other, collections.Iterable):
             return type(self)(i/j for i, j in izip_longest(self, other, fillvalue=0))
         return NotImplemented
@@ -77,7 +77,7 @@ class Vector(tuple):
     __truediv__ = __div__
 
     def __floordiv__(self, other):
-        if isinstance(other, numbers.Number):
+        if isinstance(other, numbers.Real):
             return type(self)(i//other for i in self)
         elif isinstance(other, collections.Iterable):
             return type(self)(i//j for i, j in izip_longest(self, other, fillvalue=0))
@@ -93,10 +93,12 @@ class Vector(tuple):
 
 
 class Coord(Vector):
-    pass
+    def __new__(cls, *args):
+        args = args if len(args) > 1 else args[0]
+        return Vector.__new__(cls, map(int, args))
 
 
-class Space(Vector):
+class Space(Coord):
     """
     represents a multidimensional space, i.e. a 3x3x3 space would have indices
     0-2 in each dimension, created with Space(3,3,3).
@@ -135,8 +137,8 @@ class Space(Vector):
         return NotImplemented
 
     def __mul__(self, other):
-        if isinstance(other, int):
-            return Space((dim - 1) * other + 1 for dim in self)
+        if isinstance(other, numbers.Real):
+            return Space(int(dim * other) for dim in self)
         if isinstance(other, collections.Iterable):
             return Space((dim - 1) * scale + 1 for dim, scale in izip_longest(self, other, fillvalue=0))
         return NotImplemented
@@ -147,6 +149,13 @@ class Space(Vector):
         """
         if isinstance(other, int):
             return self * other
+        return NotImplemented
+
+    def __div__(self, other):
+        if isinstance(other, numbers.Real):
+            return self * (1/other)
+        if isinstance(other, collections.Iterable):
+            return type(self)(i/j for i, j in izip_longest(self, other, fillvalue=0))
         return NotImplemented
 
     def __add__(self, other):
