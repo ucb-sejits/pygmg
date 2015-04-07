@@ -1,15 +1,17 @@
 from __future__ import print_function
 from math import tanh, sin, cos
+
 import numpy as np
 from hpgmg.finite_volume.constants import Constants
 
 import hpgmg.finite_volume.operators.misc as misc
+from hpgmg.finite_volume.operators.problem import Problem
 from hpgmg.finite_volume.space import Vector
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 
-class ProblemInitializer(object):
+class ProblemInitializer(Problem):
     @staticmethod
     def evaluate_beta(vector):
         """
@@ -115,3 +117,43 @@ class ProblemInitializer(object):
 
         if level.alpha_is_zero is None:
             level.alpha_is_zero = misc.dot(level, Constants.VECTOR_ALPHA, Constants.VECTOR_ALPHA) == 0
+
+    @staticmethod
+    def symbolic_version(coord):
+        from sympy import diff, Symbol, sin
+        x, y, z = Symbol('x'), Symbol('y'), Symbol('z')
+        c1, c2, exp = Symbol('c1'), Symbol('c2'), Symbol('exp')
+
+        expr = sin(c1*x)**exp * sin(c1*y)**exp * sin(c1*z)**exp + \
+               sin(c2*x)**exp * sin(c2*y)**exp * sin(c2*z)**exp
+
+        d_dx = diff(expr, x)
+        d_dy = diff(expr, y)
+        d_dz = diff(expr, z)
+
+        d2_dx2 = diff(expr, x, 2)
+        d2_dy2 = diff(expr, y, 2)
+        d2_dz2 = diff(expr, z, 2)
+
+        print("d/dx    {}".format(d_dx))
+        print("d/dy    {}".format(d_dy))
+        print("d/dz    {}".format(d_dz))
+        print("d2/dx2  {}".format(d2_dx2))
+        print("d2/dy2  {}".format(d2_dy2))
+        print("d2/dz2  {}".format(d2_dz2))
+        # import ast
+        # t = ast.parse(s)
+        #
+        # print(ast.dump(t, include_attributes=True))
+
+        import math
+
+        pi4 = math.pi / 2.0
+        print("expr {}\nvalue {}".format(
+            expr,
+            expr.evalf(subs={c1: math.pi, c2: math.pi*6.0, exp: 13, x: pi4, y: pi4, z: pi4})
+        ))
+
+
+if __name__ == '__main__':
+    ProblemInitializer.symbolic_version(Vector(1,1,1))

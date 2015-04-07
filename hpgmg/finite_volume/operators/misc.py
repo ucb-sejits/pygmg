@@ -18,8 +18,6 @@ def dot(level, id_a, id_b):
             a_dot_b_block += grid_a[element_index] * grid_b[element_index]
         a_dot_b_level += a_dot_b_block
 
-    # todo: need the body translated here
-
     return a_dot_b_level
 
 

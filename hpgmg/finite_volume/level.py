@@ -173,3 +173,16 @@ class Level(object):
             return size
 
         return Space([compute_best_size_for(dim) for dim in range(self.dimensions)])
+
+
+class LevelManager(object):
+    def __init__(self, num_ranks, my_rank):
+        self.num_ranks = num_ranks
+        self.my_rank = my_rank
+
+        self.levels = []
+
+        self.build_cycles = 0.0
+        self.solve_cycles = 0.0
+
+        self.solves_performed = 0

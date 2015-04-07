@@ -11,7 +11,7 @@ import argparse
 import os
 import logging
 
-from hpgmg.finite_volume.level import Level
+from hpgmg.finite_volume.level import Level, LevelManager
 from hpgmg.finite_volume.operators.stencil_27_pt import stencil_get_radius
 
 log = logging
@@ -70,6 +70,7 @@ if __name__ == '__main__':
         exit(0)
 
     my_rank = 0
+    num_ranks = 8
     ghosts = stencil_get_radius()
     boundary_condition = BoundaryCondition.get(command_line_args.boundary_condition)
     fine_level = Level(
@@ -78,7 +79,7 @@ if __name__ == '__main__':
         Space([ghosts for _ in range(3)]),
         boundary_condition,
         my_rank=my_rank,
-        num_ranks=8,
+        num_ranks=num_ranks,
     )
 
     #conditional setup for Helmholtz and Poisson
@@ -104,14 +105,22 @@ if __name__ == '__main__':
         # Poisson with periodic
         # nominally, u shifted by a constant is still a valid solution
         # however by convention we assume u sums to zero
-        average_of_f = misc.mean(fine_level, VECTOR_UTRUE)
+        average_of_u = misc.mean(fine_level, VECTOR_UTRUE)
         if my_rank == 0:
             print("  average value of u_true = {:20.12e}... shifting u_true to ensure it sums to zero...".format(
-                average_of_f))
-            misc.shift_vector(fine_level, VECTOR_F, VECTOR_F, -average_of_f)
+                average_of_u))
+            misc.shift_vector(fine_level, VECTOR_UTRUE, VECTOR_UTRUE, -average_of_u)
 
     if fine_level.boundary_condition.is_periodic():
-
+        average_of_f = misc.mean(fine_level, VECTOR_F)
         if average_of_f != 0.0:
-            print("WARNING: Periodica bouncary conditions")
+            if my_rank == 0:
+                print(
+                    "  WARNING... Periodic boundary conditions, but f does not sum to zero... mean(f)={:e}".format(
+                    average_of_f
+                    ))
+        # shift_vector(&fine_grid,VECTOR_F,VECTOR_F,-average_value_of_f);
 
+    level_manager = LevelManager(num_ranks, my_rank)
+    minimum_coarse_dim = 1
+    misc.rebuild_operator(fine_level, None, a, b)

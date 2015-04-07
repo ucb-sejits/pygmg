@@ -124,6 +124,10 @@ class Space(Vector):
         """Iterates over the points in the space"""
         return (Coord(coord) for coord in itertools.product(*[range(i) for i in self]))
 
+    def interior_points(self, halo):
+        """Iterates over the points in the space"""
+        return (Coord(coord) for coord in itertools.product(*[range(g, i-g) for i, g in zip(self, halo)]))
+
     def __contains__(self, item):
         """Determines if the coordinate is in this space"""
         if isinstance(item, collections.Iterable):

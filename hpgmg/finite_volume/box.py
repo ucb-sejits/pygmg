@@ -15,7 +15,6 @@ class Box(object):
         currently we are not worrying about alignment in python
         :param level: parent level
         :param coord:
-        :param box_element_space: box spatial extent
         :return:
         """
         assert isinstance(coord, Coord)
@@ -27,3 +26,13 @@ class Box(object):
             np.empty(level.box_element_space, dtype=np.float32)
             for _ in Constants.vector_list()
         ]
+
+    def points(self):
+        for index in self.level.box_element_space.points:
+            yield index
+
+    def interior_points(self):
+        for index in self.level.box_element_space.interior_points(self.level.ghost_space):
+            yield index
+
+
