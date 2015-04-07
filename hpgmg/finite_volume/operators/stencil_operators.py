@@ -8,7 +8,7 @@ class Operator:
     __metaclass__ = ABCMeta
 
     @abstractmethod
-    def apply_op(self, i, j, k):
+    def apply_op(self, x, i, j, k):
         pass
 
 
