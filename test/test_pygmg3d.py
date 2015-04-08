@@ -114,8 +114,18 @@ class TestPygmg3d(unittest.TestCase):
         B = Sum6pt()
         s = Space(2, 2, 2)
         x = Mesh(s)
-        print(x)
         self.lin_fill(x)  # value of each element is its ijk index
         x = add_constant_boundary(x, 1)  # adding a constant boundary of 1 to mesh
+        print("Our mesh")
         print(x)
-        print (B*x)
+        result = B*x
+        print("result of summing all 6 neighbors operator, boundaries ignored")
+        print(result)
+        result_val = 10
+        for i in range(1, 3):
+            for j in range(1, 3):
+                for k in range(1, 3):
+                    self.assertEqual(result[i][j][k], result_val)
+                    result_val += 1
+
+
