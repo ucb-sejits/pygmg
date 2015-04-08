@@ -2,14 +2,45 @@ from __future__ import print_function
 
 import numpy as np
 from abc import ABCMeta, abstractmethod
+from hpgmg.finite_volume.mesh import Mesh
+from hpgmg.finite_volume.space import Space
 
+
+__author__ = 'Shiv Sundram shivsundram@berkeley.edu U.C. Berkeley'
 
 class Operator:
     __metaclass__ = ABCMeta
 
     @abstractmethod
-    def apply_op(self, i, j, k):
+    def apply_op(self, x, i, j, k):
         pass
+
+    def __mul__(self, x):
+        if isinstance(x, Mesh):
+            dim = x.space.dim
+            x_new = np.copy(x)
+            # FIX ME. currently x.space.dim return dimension-1, not dimension
+            for i in range(1, dim):  # FIX ME thus upper bds should eventually be dim-1, not dim
+                for j in range(1, dim):
+                    for k in range(1, dim):
+                        val = self.apply_op(x, i, j, k)
+                        x_new[i][j][k] = val
+
+            return x_new
+        return NotImplemented
+
+
+class Sum6pt(Operator):
+    def __init__(self):
+        pass
+
+    def apply_op(self, x, i, j, k):
+        return (x[i + 1][j][k] +
+            x[i - 1][j][k] +
+            x[i][j + 1][k] +
+            x[i][j - 1][k] +
+            x[i][j][k + 1] +
+            x[i][j][k - 1])
 
 
 class ConstantCoefficient7pt(Operator):
@@ -42,6 +73,7 @@ class ConstantCoefficient7pt(Operator):
             + x[i][j][k - 1]
             - x[i][j][k] * 6.0
         )
+
 
     def D_inv1d(self, x, i, j, k):
         # FIX ME. should simply use mesh methods to retrieve number of neighbors
@@ -99,7 +131,7 @@ def initialize_valid_region(x):
     valid_shape = (dim + 1, dim + 1, dim + 1)  # dimensions of new valid cube
     valid = np.zeros(valid_shape)
 
-    for i in range(0, dim):  # initialize all cells to 0/invalide
+    for i in range(0, dim):  # initialize all cells to 0/invalid
         for j in range(0, dim):
             for k in range(0, dim):
                 valid[i][j][k] = 0
@@ -111,7 +143,7 @@ def initialize_valid_region(x):
     return valid
 
 
-def add_boundary1d(x):
+def add_constant_boundary1d(x):
     old_dim = int(round(pow(len(x), 1.0 / 3)))
     j_stride = old_dim
     k_stride = old_dim ** 2
@@ -130,10 +162,18 @@ def add_boundary1d(x):
     return new_x
 
 
-def add_boundary(x):
+def add_periodic_boundary(x):
     old_dim = get_side_length(x)
     new_dim = 1 + old_dim + 1  # there are ghost zones on both sides of cube
-    new_x = np.zeros((new_dim, new_dim, new_dim))  # dimensions of new cube
+    new_x = Mesh((new_dim, new_dim, new_dim))  # dimensions of new cube
+    return NotImplemented
+
+
+def add_constant_boundary(x, value = 0):
+    old_dim = get_side_length(x)
+    new_dim = 1 + old_dim + 1  # there are ghost zones on both sides of cube
+    new_x = Mesh((new_dim, new_dim, new_dim))  # dimensions of new cube
+    new_x.fill(value)
     for i in range(0, old_dim):
         for j in range(0, old_dim):
             for k in range(0, old_dim):
@@ -153,4 +193,4 @@ if __name__ == "__main__":
     print(v)
 
     xf = np.linspace(0.0, 7.0, 8)
-    print(add_boundary1d(xf))
+    print(add_constant_boundary1d(xf))
