@@ -11,7 +11,7 @@ from hpgmg.finite_volume.space import Vector
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 
-class ProblemInitializer(Problem):
+class SineProblem(Problem):
     @staticmethod
     def evaluate_beta(vector):
         """
@@ -90,17 +90,17 @@ class ProblemInitializer(Problem):
                 alpha = 1.0
 
                 if is_variable_coefficient:
-                    beta_i, _ = ProblemInitializer.evaluate_beta(absolute_position-Vector(level.h*0.5, 0.0, 0.0))
-                    beta_j, _ = ProblemInitializer.evaluate_beta(absolute_position-Vector(0.0, level.h*0.5, 0.0))
-                    beta_k, beta = ProblemInitializer.evaluate_beta(absolute_position-Vector(0.0, 0.0, level.h*0.5))
-                    beta, beta_xyz = ProblemInitializer.evaluate_beta(absolute_position)
+                    beta_i, _ = SineProblem.evaluate_beta(absolute_position-Vector(level.h*0.5, 0.0, 0.0))
+                    beta_j, _ = SineProblem.evaluate_beta(absolute_position-Vector(0.0, level.h*0.5, 0.0))
+                    beta_k, beta = SineProblem.evaluate_beta(absolute_position-Vector(0.0, 0.0, level.h*0.5))
+                    beta, beta_xyz = SineProblem.evaluate_beta(absolute_position)
                     beta_ijk = Vector(beta_i, beta_j, beta_k)
                 else:
                     beta = 1.0
                     beta_xyz = Vector(0.0, 0.0, 0.0)
                     beta_ijk = Vector(1.0, 1.0, 1.0)
 
-                u, u_xyz, u_xxyyzz = ProblemInitializer.evaluate_u(absolute_position)
+                u, u_xyz, u_xxyyzz = SineProblem.evaluate_u(absolute_position)
                 f = a * alpha * u - (
                     b * (
                         (beta_xyz.i * u_xyz.i + beta_xyz.j * u_xyz.j + beta_xyz.k * u_xyz.k) +
@@ -156,4 +156,4 @@ class ProblemInitializer(Problem):
 
 
 if __name__ == '__main__':
-    ProblemInitializer.symbolic_version(Vector(1,1,1))
+    SineProblem.symbolic_version(Vector(1,1,1))

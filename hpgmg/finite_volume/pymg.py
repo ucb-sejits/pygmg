@@ -27,16 +27,17 @@ def interpolate(mat):
 
     return new_array
 
+
 def restrict(mat):
     s = mat.shape[0]
-    new_s = (s-1) // 2 + 1
-    new_matrix = np.zeros((new_s,)*2)
+    new_s = (s - 1) // 2 + 1
+    new_matrix = np.zeros((new_s,) * 2)
 
-    for i,j in itertools.product(range(new_s), repeat=2):
-        m, n = 2*i, 2*j
-        neighbors = [a for a in itertools.product((m-1, m, m+1), (n-1, n, n+1)) if a != (m,n)]
-        clamped = [(a,b) for a,b in neighbors if (a >= 0) and (b >= 0) and (a < s) and (b < s)]
-        new_matrix[i,j] = 0.5 * mat[m,n] + 0.5 * sum(mat[a,b] for a,b in clamped) / len(clamped)
+    for i, j in itertools.product(range(new_s), repeat=2):
+        m, n = 2 * i, 2 * j
+        neighbors = [a for a in itertools.product((m - 1, m, m + 1), (n - 1, n, n + 1)) if a != (m, n)]
+        clamped = [(a, b) for a, b in neighbors if (a >= 0) and (b >= 0) and (a < s) and (b < s)]
+        new_matrix[i, j] = 0.5 * mat[m, n] + 0.5 * sum(mat[a, b] for a, b in clamped) / len(clamped)
     return new_matrix
 
 
@@ -64,6 +65,5 @@ def multigridv(T, b, x):
 
 
 if __name__ == '__main__':
-    i = 4
     b = np.random.random((2**4,)*3)
     x = np.zeros(2**i)
