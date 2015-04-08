@@ -74,6 +74,7 @@ class ConstantCoefficient7pt(Operator):
             - x[i][j][k] * 6.0
         )
 
+
     def D_inv1d(self, x, i, j, k):
         # FIX ME. should simply use mesh methods to retrieve number of neighbors
         j_stride = int(round(pow(len(x), 1.0 / 3)))  #dimension of grid with ghost regions
@@ -159,6 +160,7 @@ def add_constant_boundary1d(x):
                 new_ijk = (1 + i) + (1 + j) * new_j_stride + (1 + k) * new_k_stride
                 new_x[new_ijk] = x[old_ijk]
     return new_x
+
 
 def add_periodic_boundary(x):
     old_dim = get_side_length(x)

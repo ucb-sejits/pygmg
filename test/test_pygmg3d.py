@@ -121,7 +121,7 @@ class TestPygmg3d(unittest.TestCase):
         result = B*x
         print("result of summing all 6 neighbors operator, boundaries ignored")
         print(result)
-        result_val = 10
+        result_val = 10 # 1+1+1+2+1+4, sum of neighbors of element (0,0,0) = 0 ie (1,1,1) in mesh w/ boundary
         for i in range(1, 3):
             for j in range(1, 3):
                 for k in range(1, 3):
