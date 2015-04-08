@@ -5,11 +5,11 @@ from __future__ import division, print_function
 import argparse
 import os
 import cProfile
+from hpgmg.finite_volume.operators.restriction import Restriction
 
 __author__ = 'nzhang-dev'
 
 import numpy as np
-import functools
 
 from hpgmg.finite_volume.space import Coord, Space, Vector
 from hpgmg.finite_volume.mesh import Mesh
@@ -17,119 +17,6 @@ from hpgmg.finite_volume.operators.problem_sine import SineProblem
 from hpgmg.finite_volume.smoothers import gauss_siedel
 
 
-def cache(func):
-    func_cache = {}
-    sentinel = object()
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        key = tuple(args) + tuple(sorted(kwargs.items()))
-        res = func_cache.get(key, sentinel)
-        if res is sentinel:
-            return func_cache.setdefault(key, func(*args, **kwargs))
-        return res
-    return wrapper
-
-
-def to_mesh(func):
-    @functools.wraps(func)
-    def wrapper(arg):
-        return func(arg.view(Mesh))
-    return wrapper
-
-
-@cache
-def interpolation_matrix(ndim):
-    """
-    :param ndim: Int, number of dimensions
-    :return: np.ndarray so of weights
-    """
-    weight_matrix = np.zeros((3,)*ndim).view(Mesh)
-    coord = Coord((1,)*ndim)  # center of matrix
-    for delta in weight_matrix.space.neighbor_deltas():
-        new_coord = coord + delta
-        norm = np.linalg.norm(delta, 1)
-        weight_matrix[new_coord] = np.exp2(-norm)
-    weight_matrix.setflags(write=False)
-    return weight_matrix
-
-
-@cache
-def restriction_matrix(ndim):
-    result = interpolation_matrix(ndim) / np.exp2(ndim)
-    result.setflags(write=False)
-    return result
-
-
-@to_mesh
-def interpolate(mesh):
-    new_mesh = Mesh(mesh.space * 2)
-
-    for index in mesh.indices():
-        new_coord = index*2
-        value = mesh[index]
-        for delta in new_mesh.space.neighbor_deltas():
-            target = new_coord + delta
-            if target in new_mesh:
-                norm = np.linalg.norm(delta, 1)
-                new_mesh[target] += (value * np.exp2(-norm))
-    return new_mesh
-
-
-@to_mesh
-def interpolate_m(mesh):
-    """
-    :param mesh: Mesh to be interpolate
-    :return: interpolated matrix
-
-    Using matrix embedding and multiply instead of neighbor iteration
-    """
-    new_matrix = np.zeros((mesh.space + 1)*2).view(Mesh)
-    inter_matrix = interpolation_matrix(mesh.ndim)
-    for coord in mesh.indices():
-        target = coord * 2 + 1
-        neighborhood_slice = new_matrix.space.neighborhood_slice(target)
-        new_matrix[neighborhood_slice] += mesh[coord] * inter_matrix
-    return new_matrix[(slice(1,-1),)*mesh.ndim]
-
-
-@to_mesh
-def restrict(mesh):
-    new_mesh = Mesh(mesh.space/2)
-    for index in new_mesh.indices():
-        target = index*2
-        weights = 0
-        value = 0
-        for delta in mesh.space.neighbor_deltas():
-            neighbor = target + delta
-            if neighbor in mesh.space:
-                weight = np.exp2(-(np.linalg.norm(delta, 1) + mesh.space.ndim))
-                value += mesh[neighbor] * weight
-                weights += weight
-        new_mesh[index] = value / weights
-    return new_mesh
-
-
-@to_mesh
-def restrict_m(mesh):
-    """
-    :param mesh: mesh to be restricted
-    :return: new mesh, with boundary conditions copied
-    """
-    new_mesh = Mesh(mesh.space/2)
-    ndim = len(new_mesh.space)
-    restriction_mat = restriction_matrix(ndim)
-    for index in new_mesh.indices():
-        target = index * 2
-        if new_mesh.space.is_boundary_point(index):
-            new_mesh[index] = mesh[target]
-        else:
-            sub_matrix = mesh[mesh.space.neighborhood_slice(target)]
-            new_value = np.tensordot(restriction_mat, sub_matrix, ndim)
-            new_mesh[index] = new_value
-    return new_mesh
-
-
-@to_mesh
 def simple_restrict(mesh):
     slices = tuple(slice(None, None, 2) for _ in range(mesh.ndim))
     return mesh[slices]
@@ -140,10 +27,12 @@ class SimpleLevel(object):
     FACE_J = 0
     FACE_K = 0
 
-    def __init__(self, space, configuration=None):
+    def __init__(self, space, level_number=0, configuration=None):
         self.space = space
+        self.configuration = configuration
         self.is_variable_coefficient = not configuration.fixed_beta
         self.problem_name = configuration.problem
+        self.level_number = level_number
         if self.problem_name == 'sine':
             self.problem = SineProblem
 
@@ -154,9 +43,14 @@ class SimpleLevel(object):
             Mesh(space),
             Mesh(space),
         ]
-        self.true_solution = Mesh(space)
+        if self.level_number == 0:
+            self.true_solution = Mesh(space)
 
         self.cell_size = 1.0 / space[0]
+
+    def make_coarser_level(self):
+        coarser_level = SimpleLevel(self.space//2, self.level_number+1, self.configuration)
+        return coarser_level
 
     @property
     def h(self):
@@ -195,7 +89,10 @@ class SimpleLevel(object):
             self.beta_face_values[SimpleLevel.FACE_J][element_index] = beta_j
             self.beta_face_values[SimpleLevel.FACE_K][element_index] = beta_k
 
-    def print(self):
+    def print(self, title=None):
+        if title:
+            print(title)
+
         for i in range(self.space.i-1, -1, -1):
             for j in range(self.space.j-1, -1, -1):
                 print(" "*j*4, end="")
@@ -207,11 +104,47 @@ class SimpleLevel(object):
 
 
 class SimpleMultigridSolver(object):
-    def __init__(self, interpolate_function, restrict_function, smooth_function, smooth_iterations):
-        self.interpolate = interpolate_function
-        self.restrict = restrict_function
-        self.smooth = smooth_function
+    def __init__(self, interpolate_function, restrict_function,
+                 bottom_solver_function, smooth_function, smooth_iterations):
+        self.interpolate_function = interpolate_function
+        self.restrict_function = restrict_function
+        self.bottom_solver_function = bottom_solver_function
+        self.smooth_function = smooth_function
         self.smooth_iterations = smooth_iterations
+
+    def v_cycle(self, level):
+        if min(level.space) < 3:
+            self.bottom_solver_function(level)
+            return
+
+        coarser_level = level.make_coarser_level()
+
+        # do all restrictions
+
+        self.restrict_function(coarser_level.cell_values, level.cell_values, Restriction.RESTRICT_CELL)
+        self.restrict_function(coarser_level.beta_face_values[SimpleLevel.FACE_I],
+                               level.beta_face_values[SimpleLevel.FACE_I], Restriction.RESTRICT_FACE_I)
+        self.restrict_function(coarser_level.beta_face_values[SimpleLevel.FACE_J],
+                               level.beta_face_values[SimpleLevel.FACE_J], Restriction.RESTRICT_FACE_J)
+        self.restrict_function(coarser_level.beta_face_values[SimpleLevel.FACE_K],
+                               level.beta_face_values[SimpleLevel.FACE_K], Restriction.RESTRICT_FACE_K)
+
+        coarser_level.print("Coarsened level {}".format(coarser_level.level_number))
+        for smooth_pass in range(self.smooth_iterations):
+            new_cell_values = Mesh(coarser_level.space)
+            self.smooth_function(new_cell_values, coarser_level.cell_values)
+            coarser_level.cell_values = new_cell_values
+
+        self.v_cycle(coarser_level)
+
+        self.interpolate_function(coarser_level.cell_values, level.cell_values, Restriction.RESTRICT_CELL)
+        self.interpolate_function(coarser_level.beta_face_values[SimpleLevel.FACE_I],
+                               level.beta_face_values[SimpleLevel.FACE_I], Restriction.RESTRICT_FACE_I)
+        self.interpolate_function(coarser_level.beta_face_values[SimpleLevel.FACE_J],
+                               level.beta_face_values[SimpleLevel.FACE_J], Restriction.RESTRICT_FACE_J)
+        self.interpolate_function(coarser_level.beta_face_values[SimpleLevel.FACE_K],
+                               level.beta_face_values[SimpleLevel.FACE_K], Restriction.RESTRICT_FACE_K)
+
 
     def MGV(self, A, b, x):
         """
@@ -296,12 +229,15 @@ if __name__ == '__main__':
     parser.add_argument('-fb', '--fixed_beta', dest='fixed_beta', action='store_true',
                         help="Use 1.0 as fixed value of beta, default is variable beta coefficient",
                         default=False, )
-    configuration = parser.parse_args()
+    command_line_configuration = parser.parse_args()
 
-    global_size = Space([2**configuration.log2_level_size for _ in range(3)])
-    fine_level = SimpleLevel(global_size, configuration)
+    global_size = Space([2**command_line_configuration.log2_level_size for _ in range(3)])
+
+    restrictor = Restriction().restrict
+
+    fine_level = SimpleLevel(global_size, 0, command_line_configuration)
     fine_level.initialize()
     fine_level.print()
 
-    solver = SimpleMultigridSolver(interpolate_m, restrict_m, gauss_siedel, 4)
-    print(solver(fine_level))
+    solver = SimpleMultigridSolver(interpolate_m, restrictor, None, gauss_siedel, 4)
+    print(solver.v_cycle(fine_level))

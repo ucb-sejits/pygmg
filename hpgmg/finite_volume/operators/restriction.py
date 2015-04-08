@@ -27,9 +27,10 @@ class Restriction(object):
             [Vector(0, 0, 0), Vector(0, 1, 0), Vector(1, 0, 0), Vector(1, 1, 0), ],
         ]
 
-    def restrict(self, target, source, target_point, restriction_type):
-        source_point = target_point * 2
-        target[target_point] = 0.0
-        for neighbor_offset in self.neighbor_offsets[restriction_type]:
-            target[target_point] += source[source_point + neighbor_offset]
-        target[target_point] *= (1.0 / len(self.neighbor_offsets[restriction_type]))
+    def restrict(self, target, source, restriction_type):
+        for target_point in target.space.points:
+            source_point = target_point * 2
+            target[target_point] = 0.0
+            for neighbor_offset in self.neighbor_offsets[restriction_type]:
+                target[target_point] += source[source_point + neighbor_offset]
+            target[target_point] *= (1.0 / len(self.neighbor_offsets[restriction_type]))
