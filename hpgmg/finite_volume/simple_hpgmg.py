@@ -4,16 +4,17 @@ implement a simple single threaded, variable coefficient gmg solver
 from __future__ import division, print_function
 import argparse
 import os
-from hpgmg.finite_volume.smoothers import gauss_siedel
+import cProfile
 
 __author__ = 'nzhang-dev'
 
 import numpy as np
 import functools
 
-from hpgmg.finite_volume.space import Coord, Space
+from hpgmg.finite_volume.space import Coord, Space, Vector
 from hpgmg.finite_volume.mesh import Mesh
-import cProfile
+from hpgmg.finite_volume.operators.problem_sine import SineProblem
+from hpgmg.finite_volume.smoothers import gauss_siedel
 
 
 def cache(func):
@@ -139,9 +140,15 @@ class SimpleLevel(object):
     FACE_J = 0
     FACE_K = 0
 
-    def __init__(self, space):
+    def __init__(self, space, configuration=None):
         self.space = space
+        self.is_variable_coefficient = configuration.fixed_beta
+        self.problem_name = configuration.problem
+        if self.problem_name == 'sine':
+            self.problem = SineProblem
+
         self.cell_values = Mesh(space)
+        self.alpha = Mesh(space)
         self.beta_face_values = [
             Mesh(space),
             Mesh(space),
@@ -153,6 +160,39 @@ class SimpleLevel(object):
 
     def h(self):
         return self.cell_size
+
+    def initialize(self, a=1.0, b=1.0):
+        alpha = 1.0
+        beta = 1.0
+        beta_xyz = Vector(0.0, 0.0, 0.0)
+        beta_i, beta_j, beta_k = 1.0, 1.0, 1.0
+
+        problem = self.problem
+
+        for element_index in self.space.points:
+            coord = half_cell = Vector([0.5 for _ in self.space])
+            absolute_position = (element_index + half_cell) * self.cell_size
+
+            if self.is_variable_coefficient:
+                beta_i, _ = problem.evaluate_beta(absolute_position-Vector(self.h*0.5, 0.0, 0.0))
+                beta_j, _ = problem.evaluate_beta(absolute_position-Vector(0.0, self.h*0.5, 0.0))
+                beta_k, beta = problem.evaluate_beta(absolute_position-Vector(0.0, 0.0, self.h*0.5))
+                beta, beta_xyz = problem.evaluate_beta(absolute_position)
+
+            u, u_xyz, u_xxyyzz = problem.evaluate_u(absolute_position)
+            f = a * alpha * u - (
+                    b * (
+                        (beta_xyz.i * u_xyz.i + beta_xyz.j * u_xyz.j + beta_xyz.k * u_xyz.k) +
+                        beta * (u_xxyyzz.i + u_xxyyzz.j + u_xxyyzz.k)
+                    )
+                )
+
+            self.cell_values[element_index] = u
+            self.true_solution[element_index] = a * alpha * u
+            self.alpha[element_index] = alpha
+            self.beta_face_values[SimpleLevel.FACE_I][element_index] = beta_i
+            self.beta_face_values[SimpleLevel.FACE_J][element_index] = beta_j
+            self.beta_face_values[SimpleLevel.FACE_K][element_index] = beta_k
 
     def print(self):
         for i in range(self.space.i-1, -1, -1):
@@ -166,10 +206,10 @@ class SimpleLevel(object):
 
 
 class SimpleMultigridSolver(object):
-    def __init__(self, interpolate, restrict, smooth, smooth_iterations):
-        self.interpolate = interpolate
-        self.restrict = restrict
-        self.smooth = smooth
+    def __init__(self, interpolate_function, restrict_function, smooth_function, smooth_iterations):
+        self.interpolate = interpolate_function
+        self.restrict = restrict_function
+        self.smooth = smooth_function
         self.smooth_iterations = smooth_iterations
 
     def MGV(self, A, b, x):
@@ -244,14 +284,22 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('log2_level_size', help='Size of space will be 3d, each dim will be of 2^(log2_level_size)',
                         default=6, type=int)
+    parser.add_argument('-p', '--problem',
+                        help="problem name, one of [sine]",
+                        default='sine',
+                        choices=['sine'], )
     parser.add_argument('-bc', '--boundary-conditions', dest='boundary_condition',
                         help="Type of boundary condition. Use p for Periodic and d for Dirichlet. Default is d",
                         default=('p' if os.environ.get('USE_PERIODIC_BC', 0) else 'd'),
-                        choices=['p', 'd'])
+                        choices=['p', 'd'], )
+    parser.add_argument('-fb', '--fixed_beta', dest='fixed_beta', action='store_true',
+                        help="Use 1.0 as fixed value of beta, default is variable beta coefficient",
+                        default=False, )
     configuration = parser.parse_args()
 
     global_size = Space([2**configuration.log2_level_size for _ in range(3)])
-    fine_level = SimpleLevel(global_size)
+    fine_level = SimpleLevel(global_size, configuration)
+    fine_level.initialize()
     fine_level.print()
 
     solver = SimpleMultigridSolver(interpolate_m, restrict_m, gauss_siedel, 4)
