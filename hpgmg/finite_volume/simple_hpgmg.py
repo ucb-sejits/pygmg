@@ -142,7 +142,7 @@ class SimpleLevel(object):
 
     def __init__(self, space, configuration=None):
         self.space = space
-        self.is_variable_coefficient = configuration.fixed_beta
+        self.is_variable_coefficient = not configuration.fixed_beta
         self.problem_name = configuration.problem
         if self.problem_name == 'sine':
             self.problem = SineProblem
@@ -158,6 +158,7 @@ class SimpleLevel(object):
 
         self.cell_size = 1.0 / space[0]
 
+    @property
     def h(self):
         return self.cell_size
 
@@ -171,7 +172,7 @@ class SimpleLevel(object):
 
         for element_index in self.space.points:
             coord = half_cell = Vector([0.5 for _ in self.space])
-            absolute_position = (element_index + half_cell) * self.cell_size
+            absolute_position = (Vector(element_index) + half_cell) * self.cell_size
 
             if self.is_variable_coefficient:
                 beta_i, _ = problem.evaluate_beta(absolute_position-Vector(self.h*0.5, 0.0, 0.0))
