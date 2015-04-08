@@ -1,4 +1,5 @@
 from __future__ import print_function
+from hpgmg.finite_volume.operators.stencil_operators import ConstantCoefficient7pt, add_constant_boundary, Sum6pt
 from hpgmg.finite_volume.space import Space, Vector, Coord
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
@@ -96,10 +97,35 @@ class TestPygmg3d(unittest.TestCase):
         self.assertTrue(isinstance(v[0], float))
 
         c = Coord(2, 2, 2)
-        c = c/2
+        c /= 2
         self.assertTrue(isinstance(c[0], int))
-        self.assertEqual(Coord(2, 2 , 2)*2, Coord(4, 4, 4))
+        self.assertEqual(Coord(2, 2, 2)*2, Coord(4, 4, 4))
         print(c)
 
+    def lin_fill(self, x):
+        assert isinstance(x, Mesh)
+        dim = x.shape[0]
+        for i in range(0, dim):
+            for j in range(0, dim):
+                for k in range(0, dim):
+                    x[i][j][k] = i*dim*dim + j*dim + k  # sam inverts ijk for some reason...this is the convention
+
+    def test_apply_op(self):
+        B = Sum6pt()
+        s = Space(2, 2, 2)
+        x = Mesh(s)
+        self.lin_fill(x)  # value of each element is its ijk index
+        x = add_constant_boundary(x, 1)  # adding a constant boundary of 1 to mesh
+        print("Our mesh")
+        print(x)
+        result = B*x
+        print("result of summing all 6 neighbors operator, boundaries ignored")
+        print(result)
+        result_val = 10 # 1+1+1+2+1+4, sum of neighbors of element (0,0,0) = 0 ie (1,1,1) in mesh w/ boundary
+        for i in range(1, 3):
+            for j in range(1, 3):
+                for k in range(1, 3):
+                    self.assertEqual(result[i][j][k], result_val)
+                    result_val += 1
 
 
