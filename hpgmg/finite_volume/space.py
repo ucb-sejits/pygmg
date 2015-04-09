@@ -55,7 +55,7 @@ class Vector(tuple):
         return self[2]
 
     @property
-    def dim(self):
+    def ndim(self):
         return len(self)
 
     def __neg__(self):
@@ -88,7 +88,7 @@ class Vector(tuple):
         return 0 <= self.i < space.i and 0 <= self.j < self.j and 0 <= self.k < space.k
 
     def to_1d(self, space):
-        assert self.dim == space.dim
+        assert self.ndim == space.ndim
         return sum([x * y for x, y in zip(self, space.strides())])
 
 
@@ -96,6 +96,37 @@ class Coord(Vector):
     def __new__(cls, *args):
         args = args if len(args) > 1 else args[0]
         return Vector.__new__(cls, map(int, args))
+
+    def __mul__(self, other):
+        """
+        element-wise multiplication
+        :param other:
+        :return:
+        """
+        if isinstance(other, numbers.Real):
+            return type(self)(int(dim * other) for dim in self)
+        if isinstance(other, collections.Iterable):
+            return type(self)(dim * scale for dim, scale in izip_longest(self, other, fillvalue=0))
+        return NotImplemented
+
+    def __rmul__(self, other):
+        """
+        only multiplying a space by an int makes sense
+        """
+        if isinstance(other, int):
+            return self * other
+        return NotImplemented
+
+    def __div__(self, other):
+        if isinstance(other, numbers.Real):
+            x = self * (1//other)
+            return x
+        if isinstance(other, collections.Iterable):
+            return type(self)(i//j for i, j in izip_longest(self, other, fillvalue=0))
+        return NotImplemented
+
+    def __sub__(self, other):
+        return self + -other
 
 
 class Space(Coord):
@@ -112,10 +143,6 @@ class Space(Coord):
         if len(args) > 1:
             return tuple.__new__(cls, args)
         return tuple.__new__(cls, args[0])
-
-    @property
-    def ndim(self):
-        return len(self)
 
     @property
     def volume(self):
@@ -135,38 +162,6 @@ class Space(Coord):
         if isinstance(item, collections.Iterable):
             return all(0 <= i < bound for i, bound in izip_longest(item, self, fillvalue=0))
         return NotImplemented
-
-    def __mul__(self, other):
-        if isinstance(other, numbers.Real):
-            return Space(int(dim * other) for dim in self)
-        if isinstance(other, collections.Iterable):
-            return Space((dim - 1) * scale + 1 for dim, scale in izip_longest(self, other, fillvalue=0))
-        return NotImplemented
-
-    def __rmul__(self, other):
-        """
-        only multiplying a space by an int makes sense
-        """
-        if isinstance(other, int):
-            return self * other
-        return NotImplemented
-
-    def __div__(self, other):
-        if isinstance(other, numbers.Real):
-            return self * (1/other)
-        if isinstance(other, collections.Iterable):
-            return type(self)(i/j for i, j in izip_longest(self, other, fillvalue=0))
-        return NotImplemented
-
-    def __add__(self, other):
-        if isinstance(other, int):
-            return Space(i + other for i in self)
-        return NotImplemented
-
-    __radd__ = __add__
-
-    def __sub__(self, other):
-        return self + -other
 
     def neighbor_deltas(self):
         return itertools.product((-1, 0, 1), repeat=len(self))

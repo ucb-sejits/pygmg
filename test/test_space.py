@@ -3,7 +3,7 @@ from __future__ import print_function
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 import unittest
-from hpgmg.finite_volume.space import Space,  Coord, Vector
+from hpgmg.finite_volume.space import Space, Coord, Vector
 
 
 class TestSpace(unittest.TestCase):
@@ -31,7 +31,7 @@ class TestSpace(unittest.TestCase):
                 self.assertEqual(index, index_3d)
 
     def test_multiply(self):
-        self.assertEqual(Space(2, 2, 2) * 4, Space(5, 5, 5))
+        self.assertEqual(Space(2, 2, 2) * 4, Space(8, 8, 8))
 
     def test_add(self):
         self.assertEqual(Coord(1, 1, 1) + Coord(1, 2, 3), Coord(2, 3, 4))
@@ -49,13 +49,21 @@ class TestSpace(unittest.TestCase):
         space = Space(4, 3, 4)
         self.assertEqual(len(list(space.neighbors(coord))), 27)
         self.assertEqual(len(list(space.neighbors(coord, 0))), 1)
-        self.assertEqual((len(list(space.neighbors(coord, 1)))), 6)
-        self.assertEqual((len(list(space.neighbors(coord, 2)))), 12)
-        self.assertEqual(((len(list(space.neighbors(coord, 3))))), 8)
+        self.assertEqual(len(list(space.neighbors(coord, 1))), 6)
+        self.assertEqual(len(list(space.neighbors(coord, 2))), 12)
+        self.assertEqual(len(list(space.neighbors(coord, 3))), 8)
 
     def test_strides(self):
         self.assertEqual(Space([5]).strides(), [1])
         self.assertEqual(Space([7, 8]).strides(), [8, 1])
         self.assertEqual(Space([99, 6, 5]).strides(), [30, 5, 1])
 
+    def test_coord_vs_vector(self):
+        self.assertEqual(Vector(1, 1, 1) / 2, Vector(.5, .5 ,.5), "vectors support real numbers")
+
+        self.assertEqual(Coord(1, 1, 1) / 2, Coord(0, 0, 0), "coords are only ints")
+        self.assertEqual(Coord(.5, .5, .5), Coord(0, 0, 0), "coords are silentl converted to ints")
+
+        self.assertEqual(Vector(1, 2, 3) * Vector(3, 4, 5), 26, "vector vector multiply is dot")
+        self.assertEqual(Coord(1, 2, 3) * Coord(3, 4, 5), Coord(3, 8, 15), "coord coord multiply is element-wise")
 
