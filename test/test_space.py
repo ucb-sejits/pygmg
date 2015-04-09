@@ -31,7 +31,7 @@ class TestSpace(unittest.TestCase):
                 self.assertEqual(index, index_3d)
 
     def test_multiply(self):
-        self.assertEqual(Space(2, 2, 2) * 4, Space(5, 5, 5))
+        self.assertEqual(Space(2, 2, 2) * 4, Space(8, 8, 8))
 
     def test_add(self):
         self.assertEqual(Coord(1, 1, 1) + Coord(1, 2, 3), Coord(2, 3, 4))
@@ -49,9 +49,9 @@ class TestSpace(unittest.TestCase):
         space = Space(4, 3, 4)
         self.assertEqual(len(list(space.neighbors(coord))), 27)
         self.assertEqual(len(list(space.neighbors(coord, 0))), 1)
-        self.assertEqual((len(list(space.neighbors(coord, 1)))), 6)
-        self.assertEqual((len(list(space.neighbors(coord, 2)))), 12)
-        self.assertEqual(((len(list(space.neighbors(coord, 3))))), 8)
+        self.assertEqual(len(list(space.neighbors(coord, 1))), 6)
+        self.assertEqual(len(list(space.neighbors(coord, 2))), 12)
+        self.assertEqual(len(list(space.neighbors(coord, 3))), 8)
 
     def test_strides(self):
         self.assertEqual(Space([5]).strides(), [1])

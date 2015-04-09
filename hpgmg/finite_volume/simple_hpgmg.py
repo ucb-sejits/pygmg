@@ -138,12 +138,7 @@ class SimpleMultigridSolver(object):
         self.v_cycle(coarser_level)
 
         self.interpolate_function(coarser_level.cell_values, level.cell_values, Restriction.RESTRICT_CELL)
-        self.interpolate_function(coarser_level.beta_face_values[SimpleLevel.FACE_I],
-                               level.beta_face_values[SimpleLevel.FACE_I], Restriction.RESTRICT_FACE_I)
-        self.interpolate_function(coarser_level.beta_face_values[SimpleLevel.FACE_J],
-                               level.beta_face_values[SimpleLevel.FACE_J], Restriction.RESTRICT_FACE_J)
-        self.interpolate_function(coarser_level.beta_face_values[SimpleLevel.FACE_K],
-                               level.beta_face_values[SimpleLevel.FACE_K], Restriction.RESTRICT_FACE_K)
+
 
 
     def MGV(self, A, b, x):
@@ -239,5 +234,5 @@ if __name__ == '__main__':
     fine_level.initialize()
     fine_level.print()
 
-    solver = SimpleMultigridSolver(interpolate_m, restrictor, None, gauss_siedel, 4)
+    solver = SimpleMultigridSolver(None, restrictor, None, gauss_siedel, 4)
     print(solver.v_cycle(fine_level))
