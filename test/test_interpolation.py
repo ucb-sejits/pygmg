@@ -1,9 +1,10 @@
 from __future__ import print_function
+from hpgmg.finite_volume.mesh import Mesh
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 import unittest
-from hpgmg.finite_volume.operators.interpolation import InterpolatorPQ
+from hpgmg.finite_volume.operators.interpolation import InterpolatorPQ, InterpolatorPC
 from hpgmg.finite_volume.space import Space, Coord, Vector
 
 
@@ -40,3 +41,36 @@ class TestInterpolationPQ(unittest.TestCase):
         self.assertEqual(all_even_offset.i, k_odd_offset.i)
         self.assertEqual(all_even_offset.j, k_odd_offset.j)
         self.assertNotEqual(all_even_offset.k, k_odd_offset.k)
+
+
+class TestInterpolationPC(unittest.TestCase):
+    def test_interpolation_on_uniform_space(self):
+        mesh = Mesh(Space(2, 2, 2))
+        for point in mesh.indices():
+            mesh[point] = 1.0
+
+        finer_mesh = Mesh(mesh.space*2)
+
+        interpolator = InterpolatorPC(0.0)
+
+        interpolator.interpolate(finer_mesh, mesh)
+
+        finer_mesh.print("Finer mesh")
+
+        for point in finer_mesh.indices():
+            self.assertEqual(finer_mesh[point], 1.0)
+
+    def test_interpolation_on_singularity(self):
+        mesh = Mesh(Space(2, 2, 2))
+        mesh[Coord(1, 1, 1)] = 1.0
+
+        finer_mesh = Mesh(mesh.space*2)
+
+        interpolator = InterpolatorPC(0.0)
+
+        interpolator.interpolate(finer_mesh, mesh)
+
+        finer_mesh.print("Finer mesh")
+
+        for point in finer_mesh.indices():
+            self.assertEqual(finer_mesh[point], 1.0 if point.i > 1 and point.j > 1 and point.k > 1 else 0.0)
