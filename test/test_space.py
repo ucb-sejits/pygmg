@@ -58,4 +58,8 @@ class TestSpace(unittest.TestCase):
         self.assertEqual(Space([7, 8]).strides(), [8, 1])
         self.assertEqual(Space([99, 6, 5]).strides(), [30, 5, 1])
 
+    def test_coord_vs_vector(self):
+        self.assertEqual(Vector(1, 1, 1) / 2, Vector(.5, .5 ,.5), "vectors support real numbers")
+        self.assertEqual(Coord(1, 1, 1) / 2, Coord(.5, .5 ,.5), "vectors support real numbers")
+
 
