@@ -104,9 +104,9 @@ class Coord(Vector):
         :return:
         """
         if isinstance(other, numbers.Real):
-            return Space(int(dim * other) for dim in self)
+            return type(self)(int(dim * other) for dim in self)
         if isinstance(other, collections.Iterable):
-            return Space(dim * scale for dim, scale in izip_longest(self, other, fillvalue=0))
+            return type(self)(dim * scale for dim, scale in izip_longest(self, other, fillvalue=0))
         return NotImplemented
 
     def __rmul__(self, other):
@@ -119,9 +119,10 @@ class Coord(Vector):
 
     def __div__(self, other):
         if isinstance(other, numbers.Real):
-            return self * (1/other)
+            x = self * (1//other)
+            return x
         if isinstance(other, collections.Iterable):
-            return type(self)(i/j for i, j in izip_longest(self, other, fillvalue=0))
+            return type(self)(i//j for i, j in izip_longest(self, other, fillvalue=0))
         return NotImplemented
 
     def __sub__(self, other):
