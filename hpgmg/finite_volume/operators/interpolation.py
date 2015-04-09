@@ -6,7 +6,7 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 from stencil_code.neighborhood import Neighborhood
 
 
-class Interpolator(object):
+class InterpolatorPQ(object):
     def __init__(self, prescale=1.0):
         self.pre_scale = prescale
         #
@@ -46,11 +46,12 @@ class Interpolator(object):
         # to do this we we convert each coord above into an array of 8 coords where each index is flipped
         # depending on the evenness of the source interpolation point
 
-        self.neighbor_directions = [Interpolator.compute_neighbor_direction(point) for point in Space(2, 2, 2).points]
+        self.neighbor_directions = [InterpolatorPQ.compute_neighbor_direction(point) for point in Space(2, 2, 2).points]
         self.convolution = [
-            [(row[0], [row[1] * neighbor_direction for neighbor_direction in self.neighbor_directions])]
+            (row[0], [row[1] * neighbor_direction for neighbor_direction in self.neighbor_directions])
             for row in self.convolution
         ]
+        self.one_over_32_cubed = 1.0/(32**3)
 
     @staticmethod
     def compute_neighbor_direction(coord):
@@ -63,12 +64,14 @@ class Interpolator(object):
     def interpolate(self, target_level, target_mesh, source_level, source_mesh, ):
         for target_index in target_mesh.space.points:
             source_index = target_index // 2
-            neighbor_index_offset = Interpolator.compute_neighbor_index(target_index)
+            target_mesh[target_index] *= self.pre_scale
+            which_neighbor = InterpolatorPQ.compute_neighbor_index(target_index)
+
+            accumulator = 0
             for coefficient, neighbor_index_offsets in self.convolution:
-                target_mesh[target_index] *= self.pre_scale
-                target_mesh[target_index] += coefficient * source_mesh[
-                    source_index + neighbor_index_offsets[neighbor_index_offset]
-                ]
+                accumulator += coefficient * source_mesh[source_index + neighbor_index_offsets[which_neighbor]]
+
+            target_mesh[target_index] += self.one_over_32_cubed * accumulator
 
 
 if __name__ == '__main__':
@@ -84,7 +87,7 @@ if __name__ == '__main__':
     # for i in n:
     #     print(i)
 
-    interpolator = Interpolator(1.0)
+    interpolator = InterpolatorPQ(1.0)
     print("nd {}".format([(x, i) for x, i in enumerate(interpolator.neighbor_directions)]))
     print(interpolator.convolution[0])
     print(interpolator.convolution[1])
