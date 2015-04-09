@@ -4,22 +4,15 @@ implement a simple single threaded, variable coefficient gmg solver
 from __future__ import division, print_function
 import argparse
 import os
-import cProfile
+from hpgmg.finite_volume.operators.interpolation import InterpolatorPC
 from hpgmg.finite_volume.operators.restriction import Restriction
 
 __author__ = 'nzhang-dev'
 
-import numpy as np
-
-from hpgmg.finite_volume.space import Coord, Space, Vector
+from hpgmg.finite_volume.space import Space, Vector
 from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.operators.problem_sine import SineProblem
 from hpgmg.finite_volume.smoothers import gauss_siedel
-
-
-def simple_restrict(mesh):
-    slices = tuple(slice(None, None, 2) for _ in range(mesh.ndim))
-    return mesh[slices]
 
 
 class SimpleLevel(object):
@@ -65,7 +58,7 @@ class SimpleLevel(object):
         problem = self.problem
 
         for element_index in self.space.points:
-            coord = half_cell = Vector([0.5 for _ in self.space])
+            half_cell = Vector([0.5 for _ in self.space])
             absolute_position = (Vector(element_index) + half_cell) * self.cell_size
 
             if self.is_variable_coefficient:
@@ -76,14 +69,14 @@ class SimpleLevel(object):
 
             u, u_xyz, u_xxyyzz = problem.evaluate_u(absolute_position)
             f = a * alpha * u - (
-                    b * (
-                        (beta_xyz.i * u_xyz.i + beta_xyz.j * u_xyz.j + beta_xyz.k * u_xyz.k) +
-                        beta * (u_xxyyzz.i + u_xxyyzz.j + u_xxyyzz.k)
-                    )
+                b * (
+                    (beta_xyz.i * u_xyz.i + beta_xyz.j * u_xyz.j + beta_xyz.k * u_xyz.k) +
+                    beta * (u_xxyyzz.i + u_xxyyzz.j + u_xxyyzz.k)
                 )
+            )
 
             self.cell_values[element_index] = u
-            self.true_solution[element_index] = a * alpha * u
+            self.true_solution[element_index] = f
             self.alpha[element_index] = alpha
             self.beta_face_values[SimpleLevel.FACE_I][element_index] = beta_i
             self.beta_face_values[SimpleLevel.FACE_J][element_index] = beta_j
@@ -137,76 +130,7 @@ class SimpleMultigridSolver(object):
 
         self.v_cycle(coarser_level)
 
-        self.interpolate_function(coarser_level.cell_values, level.cell_values, Restriction.RESTRICT_CELL)
-
-
-
-    def MGV(self, A, b, x):
-        """
-        eigen_vectors cycle
-
-        :param A: A in Ax=b
-        :param b: b in Ax=b
-        :param x: guess for x
-        :return: refined guess for X in Ax = b
-        """
-        if min(b.shape) <= 3: # minimum size, so we compute exact
-            return np.linalg.solve(A, b.flatten()).reshape(x.shape)
-
-        x = self.smooth(A, b, x, self.smooth_iterations)
-        residual = (np.dot(A, x.flatten()) - b.flatten()).reshape(x.shape)
-        restricted_residual = self.restrict(residual)
-        diff = self.interpolate(self(self._evolve(A, b.ndim), restricted_residual, np.zeros_like(restricted_residual)))
-        x -= diff
-        result = self.smooth(A, b, x, self.smooth_iterations)
-        return result    
-
-    def FMG(self, A, b, x=None):
-        """
-        Perform full multi-grid
-        :param A: A in Ax=b
-        :param b: b in Ax=b
-        :param x: guess for x
-        :return: refined guess for X in Ax = b
-        """
-        matrices = []
-        Amatrices = []
-        b_restrict = b[:]
-        A_restrict = A[:]
-        matrices.append(b_restrict)
-        Amatrices.append(A_restrict)
-
-        #continuously restrict b, and store all intermediate b's in list
-        while(not (min(b_restrict.shape) <= 3)):
-            b_restrict = self.restrict(b_restrict)
-            A_restrict = self._evolve(A_restrict, b.ndim)
-            matrices.append(b_restrict)
-            Amatrices.append(A_restrict)
-
-        #base case
-        shape = b_restrict.shape
-        x = np.linalg.solve(A_restrict, b_restrict.flatten())
-        x = x.reshape(shape)
-
-        for i in range(len(matrices)-2,-1,-1):
-            x = self.MGV(Amatrices[i], matrices[i], interpolate(x))
-        return x
-
-    def __call__(self, level, cycle="eigen_vectors"):
-        if cycle == "eigen_vectors":
-            return self.MGV(A, b, x)  # FIXME
-        elif cycle == "F":
-            return self.FMG(A, b, x)  # FIXME
-
-    @staticmethod
-    def _evolve(A, ndim):
-        n = int(round((A.shape[0])**(1/ndim)))
-        n = int((n + 1)/2)
-        slices = tuple(slice(0, n**ndim) for _ in range(A.ndim))
-        return A[slices]
-
-    def profiled_call(self, A, b, x):
-        cProfile.runctx('self(A, b, x)', {'self': self, 'A':A, 'b':b, 'x':x}, {})
+        self.interpolate_function(coarser_level.cell_values, level.cell_values)
 
 
 if __name__ == '__main__':
@@ -229,6 +153,7 @@ if __name__ == '__main__':
     global_size = Space([2**command_line_configuration.log2_level_size for _ in range(3)])
 
     restrictor = Restriction().restrict
+    interpolator = InterpolatorPC(pre_scale=0.0).interpolate
 
     fine_level = SimpleLevel(global_size, 0, command_line_configuration)
     fine_level.initialize()

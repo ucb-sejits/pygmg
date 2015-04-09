@@ -62,7 +62,7 @@ class TestSpace(unittest.TestCase):
         self.assertEqual(Vector(1, 1, 1) / 2, Vector(.5, .5 ,.5), "vectors support real numbers")
 
         self.assertEqual(Coord(1, 1, 1) / 2, Coord(0, 0, 0), "coords are only ints")
-        self.assertEqual(Coord(.5, .5, .5), Coord(0, 0, 0), "coords are silentl converted to ints")
+        self.assertEqual(Coord(.5, .5, .5), Coord(0, 0, 0), "coords are silently converted to ints")
 
         self.assertEqual(Vector(1, 2, 3) * Vector(3, 4, 5), 26, "vector vector multiply is dot")
         self.assertEqual(Coord(1, 2, 3) * Coord(3, 4, 5), Coord(3, 8, 15), "coord coord multiply is element-wise")
