@@ -42,6 +42,16 @@ class Sum6pt(Operator):
             x[i][j][k + 1] +
             x[i][j][k - 1])
 
+    def diagonal_element(self, x, i, j, k, valid):
+        return self.a * alpha[ijk] - self.b*self.h2inv*(
+                         valid[ijk-1      ] + \
+                         valid[ijk-jStride] +\
+                         valid[ijk-kStride] +\
+                         valid[ijk+1      ] +\
+                         valid[ijk+jStride] +\
+                         valid[ijk+kStride] - 12.0
+                      );
+
 
 class ConstantCoefficient7pt(Operator):
     def __init__(self, a, b, h2inv):

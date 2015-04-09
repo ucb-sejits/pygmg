@@ -72,6 +72,15 @@ def chebyshevbad(A,b, x, diag, diaginv, iterations=9, delta=1, theta=1):
         rho = rho1
     return x
 
+def jacobi_stencil(A, b, x, iters=10, weight = 2./3):
+    x_new = np.copy(x)
+    dim = x.space.dim
+    for i in range(1, dim - 1):
+        for j in range(1, dim - 1):
+            for k in range(1, dim - 1):
+                Ax_n = apply(x, i, j, k)
+                x_new[i][j][k] = x[i][j][k] + weight*(2./3)
+
 
 
 def chebyshev(A, b1, x1, iterations=50, diag=None, diag_inv=None, c=None, d=None):
