@@ -3,10 +3,23 @@ from hpgmg.finite_volume.space import Space, Coord
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
-from stencil_code.neighborhood import Neighborhood
+
+class Interpolator(object):
+    pass
 
 
-class InterpolatorPQ(object):
+class InterpolatorPC(Interpolator):
+    def __init__(self, pre_scale):
+        self.pre_scale = pre_scale
+
+    def interpolate(self, target_mesh, source_mesh):
+        for target_index in target_mesh.space.points:
+            source_index = target_index // 2
+            target_mesh[target_index] *= self.pre_scale
+            target_mesh[target_index] += source_mesh[source_index]
+
+
+class InterpolatorPQ(Interpolator):
     def __init__(self, prescale=1.0):
         self.pre_scale = prescale
         #
@@ -75,8 +88,6 @@ class InterpolatorPQ(object):
 
 
 if __name__ == '__main__':
-    n = Neighborhood.moore_neighborhood(radius=1, dim=3)
-
     def compute_neighbor_index(vector):
         return (vector.i % 2) * 4 + (vector.j % 2) * 2 + (vector.k % 2)
 
