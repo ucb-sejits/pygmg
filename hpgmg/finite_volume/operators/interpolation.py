@@ -78,11 +78,11 @@ class InterpolatorPQ(Interpolator):
         for target_index in target_mesh.space.points:
             source_index = target_index // 2
             target_mesh[target_index] *= self.pre_scale
-            which_neighbor = InterpolatorPQ.compute_neighbor_index(target_index)
+            oddness_index = InterpolatorPQ.compute_neighbor_index(target_index)
 
             accumulator = 0
             for coefficient, neighbor_index_offsets in self.convolution:
-                accumulator += coefficient * source_mesh[source_index + neighbor_index_offsets[which_neighbor]]
+                accumulator += coefficient * source_mesh[source_index + neighbor_index_offsets[oddness_index]]
 
             target_mesh[target_index] += self.one_over_32_cubed * accumulator
 

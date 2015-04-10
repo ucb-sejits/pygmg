@@ -5,6 +5,8 @@ from abc import ABCMeta, abstractmethod
 from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.space import Space
 
+from stencil_code.neighborhood import Neighborhood
+
 
 __author__ = 'Shiv Sundram shivsundram@berkeley.edu U.C. Berkeley'
 
@@ -48,6 +50,9 @@ class ConstantCoefficient7pt(Operator):
         self.a = a
         self.b = b
         self.h2inv = h2inv
+        self.neighborhood = [
+            Coord(x) for x in Neighborhood.von_neuman_neighborhood(radius=1, dim=3, include_origin=False)
+        ]
 
     def apply_op1d(self, x, i, j, k):
         j_stride = int(round(pow(len(x), 1.0 / 3)))  # dimension of grid with ghost regions
@@ -102,6 +107,22 @@ class ConstantCoefficient7pt(Operator):
             + valid[i - 1][j][k]
             - 12.0
         ))
+
+    def rebuild_operator(self, target_level, source_level, a, b):
+        h2_inv = 1.0 / level.h**2
+
+        for index in target_level.indices:
+            sum_abs_a_ij = abs(b * h2_inv) * sum(
+                [1 of neighbor```s in target_level.cell_values else 0 for neighbor in self.neighborhood]
+            )
+                + valid[i][j][k - 1]
+                + valid[i][j][k + 1]
+                + valid[i][j + 1][k]
+                + valid[i][j - 1][k]
+                + valid[i + 1][j][k]
+                + valid[i - 1][j][k]
+
+            )
 
 
 def initialize_valid_region1d(x):

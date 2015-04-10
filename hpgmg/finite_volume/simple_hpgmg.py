@@ -36,6 +36,10 @@ class SimpleLevel(object):
             Mesh(space),
             Mesh(space),
         ]
+        self.d_inverse = Mesh(space)
+        self.l1_inverse = Mesh(space)
+        self.dominant_eigen_value_of_d_inv_a = 0.0
+
         if self.level_number == 0:
             self.true_solution = Mesh(space)
 
@@ -130,7 +134,7 @@ class SimpleMultigridSolver(object):
 
         self.v_cycle(coarser_level)
 
-        self.interpolate_function(coarser_level.cell_values, level.cell_values)
+        self.interpolate_function.interpolate(coarser_level.cell_values, level.cell_values)
 
 
 if __name__ == '__main__':
@@ -153,7 +157,7 @@ if __name__ == '__main__':
     global_size = Space([2**command_line_configuration.log2_level_size for _ in range(3)])
 
     restrictor = Restriction().restrict
-    interpolator = InterpolatorPC(pre_scale=0.0).interpolate
+    interpolator = InterpolatorPC(pre_scale=0.0)
 
     fine_level = SimpleLevel(global_size, 0, command_line_configuration)
     fine_level.initialize()

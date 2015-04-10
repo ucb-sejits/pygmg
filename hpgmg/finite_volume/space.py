@@ -160,7 +160,7 @@ class Space(Coord):
     def __contains__(self, item):
         """Determines if the coordinate is in this space"""
         if isinstance(item, collections.Iterable):
-            return all(0 <= i < bound for i, bound in izip_longest(item, self, fillvalue=0))
+            return all(0 <= item[dim]) < self[dim] for dim in self.ndim)
         return NotImplemented
 
     def neighbor_deltas(self):
