@@ -5,6 +5,8 @@ from abc import ABCMeta, abstractmethod
 from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.space import Space
 
+from stencil_code.neighborhood import Neighborhood
+
 
 __author__ = 'Shiv Sundram shivsundram@berkeley.edu U.C. Berkeley'
 
@@ -58,6 +60,9 @@ class ConstantCoefficient7pt(Operator):
         self.a = a
         self.b = b
         self.h2inv = h2inv
+        self.neighborhood = [
+            Coord(x) for x in Neighborhood.von_neuman_neighborhood(radius=1, dim=3, include_origin=False)
+        ]
 
     def apply_op1d(self, x, i, j, k):
         j_stride = int(round(pow(len(x), 1.0 / 3)))  # dimension of grid with ghost regions
