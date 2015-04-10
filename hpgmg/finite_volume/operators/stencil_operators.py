@@ -108,22 +108,6 @@ class ConstantCoefficient7pt(Operator):
             - 12.0
         ))
 
-    def rebuild_operator(self, target_level, source_level, a, b):
-        h2_inv = 1.0 / level.h**2
-
-        for index in target_level.indices:
-            sum_abs_a_ij = abs(b * h2_inv) * sum(
-                [1 of neighbor```s in target_level.cell_values else 0 for neighbor in self.neighborhood]
-            )
-                + valid[i][j][k - 1]
-                + valid[i][j][k + 1]
-                + valid[i][j + 1][k]
-                + valid[i][j - 1][k]
-                + valid[i + 1][j][k]
-                + valid[i - 1][j][k]
-
-            )
-
 
 def initialize_valid_region1d(x):
     dim = int(round(pow(len(x), 1.0 / 3)))
