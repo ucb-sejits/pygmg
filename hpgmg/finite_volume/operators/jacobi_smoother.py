@@ -1,6 +1,6 @@
 from __future__ import print_function
 from hpgmg.finite_volume.mesh import Mesh
-from hpgmg.finite_volume.space import Space
+from hpgmg.finite_volume.space import Space, Coord
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
@@ -25,19 +25,47 @@ class Jacobi3D(Stencil):
                 out_grid[x] += self.beta * in_grid[y]
 
 
+class AlternateJacobi(object):
+    neighbors = Neighborhood.von_neuman_neighborhood(radius=1, dim=3, include_origin=False)
+
+    @staticmethod
+    def smooth(in_grid, out_grid, a, b):
+        # for index in out_grid.space.interior_points(Coord(1, 1, 1)):
+        for index in out_grid.indices():
+            out_grid[index] = a * in_grid[index]
+
+            for neighbor_offset in AlternateJacobi.neighbors:
+                neighbor_index = out_grid.space.clamp(index + neighbor_offset)
+                out_grid[index] += b * in_grid[neighbor_index]
+
 if __name__ == '__main__':
-    import logging
-    logging.basicConfig(level=0)
+    if True:
+        j = AlternateJacobi()
+        mesh = Mesh(Space(4, 4, 4))
+        for index in mesh.indices():
+            mesh[index] = sum(list(index))
+        mesh.print("mesh")
 
-    j = Jacobi3D(0.0, 1.0/6.0)
+        smoothed_mesh = Mesh(mesh.space)
 
-    mesh = Mesh(Space(4, 4, 4))
+        AlternateJacobi.smooth(mesh, smoothed_mesh, 0.0, 1.0/6.0)
 
-    for index in mesh.indices():
-        mesh[index] = sum(list(index))
+        smoothed_mesh.print("smoothed mesh")
+    else:
+        import logging
+        logging.basicConfig(level=0)
 
-    mesh.print("old mesh")
+        j = Jacobi3D(0.0, 1.0/6.0)
 
-    new_mesh = j(mesh).view(Mesh)
+        mesh = Mesh(Space(4, 4, 4))
 
-    new_mesh.print("New mesh")
+        for index in mesh.indices():
+            mesh[index] = sum(list(index))
+
+        mesh.print("old mesh")
+
+        new_mesh = Mesh(mesh.space)
+
+        j(mesh, new_mesh)
+
+        new_mesh.print("New mesh")
