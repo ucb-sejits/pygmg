@@ -8,9 +8,9 @@ from stencil_code.neighborhood import Neighborhood
 from stencil_code.stencil_kernel import Stencil
 
 
-class Jacobi3D(Stencil):
+class SejitsJacobiSmoother(Stencil):
     def __init__(self, alpha, beta):
-        super(Jacobi3D, self).__init__(
+        super(SejitsJacobiSmoother, self).__init__(
             backend='c',
             boundary_handling='clamp',
             neighborhoods=[Neighborhood.von_neuman_neighborhood(radius=1, dim=3, include_origin=False)]
@@ -25,7 +25,7 @@ class Jacobi3D(Stencil):
                 out_grid[x] += self.beta * in_grid[y]
 
 
-class AlternateJacobi(object):
+class JacobiSmoother(object):
     neighbors = Neighborhood.von_neuman_neighborhood(radius=1, dim=3, include_origin=False)
 
     @staticmethod
@@ -34,13 +34,13 @@ class AlternateJacobi(object):
         for index in out_grid.indices():
             out_grid[index] = a * in_grid[index]
 
-            for neighbor_offset in AlternateJacobi.neighbors:
+            for neighbor_offset in JacobiSmoother.neighbors:
                 neighbor_index = out_grid.space.clamp(index + neighbor_offset)
                 out_grid[index] += b * in_grid[neighbor_index]
 
 if __name__ == '__main__':
     if True:
-        j = AlternateJacobi()
+        j = JacobiSmoother()
         mesh = Mesh(Space(4, 4, 4))
         for index in mesh.indices():
             mesh[index] = sum(list(index))
@@ -48,14 +48,14 @@ if __name__ == '__main__':
 
         smoothed_mesh = Mesh(mesh.space)
 
-        AlternateJacobi.smooth(mesh, smoothed_mesh, 0.0, 1.0/6.0)
+        JacobiSmoother.smooth(mesh, smoothed_mesh, 0.0, 1.0/6.0)
 
         smoothed_mesh.print("smoothed mesh")
     else:
         import logging
         logging.basicConfig(level=0)
 
-        j = Jacobi3D(0.0, 1.0/6.0)
+        j = SejitsJacobiSmoother(0.0, 1.0/6.0)
 
         mesh = Mesh(Space(4, 4, 4))
 
