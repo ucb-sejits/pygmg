@@ -5,7 +5,7 @@ from abc import ABCMeta, abstractmethod
 from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.space import Space
 
-from stencil_code.neighborhood import Neighborhood
+#from stencil_code.neighborhood import Neighborhood
 
 
 __author__ = 'Shiv Sundram shivsundram@berkeley.edu U.C. Berkeley'
@@ -19,12 +19,12 @@ class Operator:
 
     def __mul__(self, x):
         if isinstance(x, Mesh):
-            dim = x.space.dim
+            dim = x.space[0]
             x_new = np.copy(x)
             # FIX ME. currently x.space.dim return dimension-1, not dimension
-            for i in range(1, dim):  # FIX ME thus upper bds should eventually be dim-1, not dim
-                for j in range(1, dim):
-                    for k in range(1, dim):
+            for i in range(1, dim-1):  # FIX ME thus upper bds should eventually be dim-1, not dim
+                for j in range(1, dim-1):
+                    for k in range(1, dim-1):
                         val = self.apply_op(x, i, j, k)
                         x_new[i][j][k] = val
 
@@ -44,16 +44,25 @@ class Sum6pt(Operator):
             x[i][j][k + 1] +
             x[i][j][k - 1])
 
-    def diagonal_element(self, x, i, j, k, valid):
-        return self.a * alpha[ijk] - self.b*self.h2inv*(
-                         valid[ijk-1      ] + \
-                         valid[ijk-jStride] +\
-                         valid[ijk-kStride] +\
-                         valid[ijk+1      ] +\
-                         valid[ijk+jStride] +\
-                         valid[ijk+kStride] - 12.0
-                      );
+    def sumAbsAij(self, valid, i, j, k):
+        return (
+            + valid[i][j][k - 1]
+            + valid[i][j][k + 1]
+            + valid[i][j + 1][k]
+            + valid[i][j - 1][k]
+            + valid[i + 1][j][k]
+            + valid[i - 1][j][k])
 
+    def Aii(self, valid, i, j, k):
+        return 0
+
+    def constructMatrix(self, x):
+        length = x.space[0]
+        shape = (length, length)
+        matrix = Mesh(shape)
+        lin_space(matrix)
+        print (matrix)
+        return matrix
 
 class ConstantCoefficient7pt(Operator):
     def __init__(self, a, b, h2inv):
@@ -196,6 +205,15 @@ def add_constant_boundary(x, value = 0):
                 new_x[new_i][new_j][new_k] = x[i][j][k]
     return new_x
 
+def lin_space(x):
+    c = 0
+    dim = x.shape[0]
+    for i in range(0, dim):
+        for j in range(0, dim):
+            for k in range(0, dim):
+                x[i][j][k] = c
+                c += 1
+
 
 if __name__ == "__main__":
     # xf = np.linspace(0.0, 63.0, num=64)
@@ -203,9 +221,22 @@ if __name__ == "__main__":
     #print(A.apply_op1d(xf, 1,1,1))
 
     #print x
-    xf = np.linspace(0.0, 63.0, 64)
-    v = initialize_valid_region1d(xf)
-    print(v)
+    #xf = np.linspace(0.0, 63.0, 64)
+    #v = initialize_valid_region1d(xf)
+    #print(v)
 
-    xf = np.linspace(0.0, 7.0, 8)
-    print(add_constant_boundary1d(xf))
+    #xf = np.linspace(0.0, 7.0, 8)
+    #print(add_constant_boundary1d(xf))
+
+    S = Sum6pt()
+    xm = Mesh((2, 2, 2))
+    lin_space(xm)
+    #print(xm)
+    #print (xm.space[0])
+    xm = add_constant_boundary(xm, .1)
+    #.1 for every boun
+    #print(xm)
+    #print (S*xm)
+    #print (xm.space[0])
+
+    print(S.constructMatrix(xm))
