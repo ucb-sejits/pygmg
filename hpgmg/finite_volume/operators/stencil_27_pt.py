@@ -64,13 +64,13 @@ class Stencil27(object):
                 abs(b * 8.0 * self.corner_coefficient)
             ) * inverse_of_h_squared
             # center of Gershgorin disc is the diagonal element...
-            a_ii = a - ( b * inverse_of_h_squared * self.center_coefficient)
+            a_ii = a - (b * inverse_of_h_squared * self.center_coefficient)
 
-            self.d_inverse[index] = 1.0 / a_ii
-            if a_ii if a_ii >= 1.5 * sum_abs_a_ij:
-                self.l1_inverse[index] = 1.0 / a_ii
+            target_level.d_inverse[index] = 1.0 / a_ii
+            if a_ii >= 1.5 * sum_abs_a_ij:
+                target_level.l1_inverse[index] = 1.0 / a_ii
             else:
-                self.l1_inverse[index] = 1.0 / ( a_ii + 0.5 * sum_abs_a_ij)
+                target_level.l1_inverse[index] = 1.0 / ( a_ii + 0.5 * sum_abs_a_ij)
 
             di = (a_ii + sum_abs_a_ij) / a_ii
             if di > block_eigen_value:
