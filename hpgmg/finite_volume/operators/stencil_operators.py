@@ -3,7 +3,7 @@ from __future__ import print_function
 import numpy as np
 from abc import ABCMeta, abstractmethod
 from hpgmg.finite_volume.mesh import Mesh
-from hpgmg.finite_volume.space import Space
+from hpgmg.finite_volume.space import Space, Coord
 
 #from stencil_code.neighborhood import Neighborhood
 
@@ -32,37 +32,66 @@ class Operator:
         return NotImplemented
 
 
-class Sum6pt(Operator):
+class Sum6pt2d(Operator):
     def __init__(self):
         pass
 
-    def apply_op(self, x, i, j, k):
-        return (x[i + 1][j][k] +
-            x[i - 1][j][k] +
-            x[i][j + 1][k] +
-            x[i][j - 1][k] +
-            x[i][j][k + 1] +
-            x[i][j][k - 1])
+    def apply_op(self, x, i, j):
+        return (x[i + 1][j] +
+            x[i - 1][j] +
+            x[i][j + 1] +
+            x[i][j - 1]
+            )
 
-    def sumAbsAij(self, valid, i, j, k):
+    def sumAbsAij(self, valid, i, j):
         return (
-            + valid[i][j][k - 1]
-            + valid[i][j][k + 1]
-            + valid[i][j + 1][k]
-            + valid[i][j - 1][k]
-            + valid[i + 1][j][k]
-            + valid[i - 1][j][k])
+            + valid[i][j + 1]
+            + valid[i][j - 1]
+            + valid[i + 1][j]
+            + valid[i - 1][j])
 
-    def Aii(self, valid, i, j, k):
+    def Aii(self, valid, i, j):
         return 0
 
     def constructMatrix(self, x):
         length = x.space[0]
-        shape = (length, length)
-        matrix = Mesh(shape)
-        lin_space(matrix)
-        print (matrix)
+        print (length)
+        matrix = Mesh((length**2, length**2))
+        matrix.fill(0)
+        for i in range(0, length):
+            for j in range(0, length):
+                ij = i*length +j
+                if not  ((0<i and i<length-1) and (0<j and j<length-1) ):
+                    matrix[ij][ij] = 1
+                else:
+                    neighbors = neighbors2d(i, j)
+                    print(neighbors)
+                    for neighbor in neighbors:
+                        ij1 = length*neighbor.i + neighbor.j
+                        matrix[ij][ij1] = 1
         return matrix
+
+
+    def __mul__(self, x):
+        if isinstance(x, Mesh):
+            dim = x.space[0]
+            x_new = np.copy(x)
+            # FIX ME. currently x.space.dim return dimension-1, not dimension
+            for i in range(1, dim-1):  # FIX ME thus upper bds should eventually be dim-1, not dim
+                for j in range(1, dim-1):
+                        val = self.apply_op(x, i, j)
+                        x_new[i][j] = val
+
+            return x_new
+        return NotImplemented
+
+def neighbors2d(i, j):
+    orgin = Coord(i, j)
+    neighbs = [Coord] * 4
+    deltas = [Coord(0, 1), Coord(1, 0), Coord(-1, 0), Coord(0, -1)]
+    for i in range(0, len(deltas)):
+        neighbs[i] = orgin+deltas[i]
+    return neighbs
 
 class ConstantCoefficient7pt(Operator):
     def __init__(self, a, b, h2inv):
@@ -146,7 +175,7 @@ def initialize_valid_region1d(x):
 
 
 def get_side_length(x):
-    assert x.shape[0] == x.shape[1] and x.shape[1] == x.shape[2], "Grid must be cubic"
+    #assert x.shape[0] == x.shape[1] and x.shape[1] == x.shape[2], "Grid must be cubic"
     return x.shape[0]
 
 
@@ -205,6 +234,18 @@ def add_constant_boundary(x, value = 0):
                 new_x[new_i][new_j][new_k] = x[i][j][k]
     return new_x
 
+def add_constant_2d_boundary(x, value = 0):
+    old_dim = get_side_length(x)
+    new_dim = 1 + old_dim + 1  # there are ghost zones on both sides of cube
+    new_x = Mesh((new_dim, new_dim))  # dimensions of new cube
+    new_x.fill(value)
+    for i in range(0, old_dim):
+        for j in range(0, old_dim):
+                new_i, new_j= 1 + i, 1 + j  # map coordinate of old cube to new cube
+                new_x[new_i][new_j] = x[i][j]
+    return new_x
+
+
 def lin_space(x):
     c = 0
     dim = x.shape[0]
@@ -214,6 +255,13 @@ def lin_space(x):
                 x[i][j][k] = c
                 c += 1
 
+def lin_space2d(x):
+    c = 0
+    dim = x.shape[0]
+    for i in range(0, dim):
+        for j in range(0, dim):
+                x[i][j] = c
+                c += 1
 
 if __name__ == "__main__":
     # xf = np.linspace(0.0, 63.0, num=64)
@@ -228,15 +276,30 @@ if __name__ == "__main__":
     #xf = np.linspace(0.0, 7.0, 8)
     #print(add_constant_boundary1d(xf))
 
-    S = Sum6pt()
-    xm = Mesh((2, 2, 2))
-    lin_space(xm)
-    #print(xm)
-    #print (xm.space[0])
-    xm = add_constant_boundary(xm, .1)
-    #.1 for every boun
-    #print(xm)
-    #print (S*xm)
-    #print (xm.space[0])
+    S = Sum6pt2d()
+    xm = Mesh((2, 2))
+    lin_space2d(xm)
+    print("initial mesh without boundary")
+    print(xm)
+    xmb = add_constant_2d_boundary(xm, .1)
+    #.1 for every boundary
+    print("with boundary (xmb) of 1")
+    print(xmb)
+    Sm = S.constructMatrix(xmb)
+    print("matrix of operator")
+    print(Sm)
+    print("result of applying stencil operator to mesh with boundary")
+    stencil_result = S*xmb
+    print (stencil_result)
 
-    print(S.constructMatrix(xm))
+
+    print ("result of applying matrix operator to mesh with boundary")
+    matrix_mult_result = np.dot(Sm, xmb.flatten()).reshape(4, 4)
+    print(matrix_mult_result)
+
+    print("the two results should be the same")
+
+
+
+
+
