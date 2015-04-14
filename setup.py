@@ -12,7 +12,8 @@ setup(
     packages=['hpgmg', 'hpgmg.finite_volume', 'hpgmg.finite_volume.operators', 'test', ],
 
     install_requires=[
-        'numpy'
+        'numpy',
+        'sympy',
     ]
 
 )
