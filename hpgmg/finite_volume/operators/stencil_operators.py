@@ -3,6 +3,7 @@ from __future__ import print_function
 import numpy as np
 from abc import ABCMeta, abstractmethod
 from hpgmg.finite_volume.mesh import Mesh
+from hpgmg.finite_volume.smoothers import jacobi
 from hpgmg.finite_volume.space import Space, Coord
 
 #from stencil_code.neighborhood import Neighborhood
@@ -31,6 +32,67 @@ class Operator:
             return x_new
         return NotImplemented
 
+# this class adds -4*x[i][j] to the sum so as to make the laplacian diagonally dominant
+class Weird6ptSum2d(Operator):
+    def apply_op(self, x, i, j):
+        return (x[i + 1][j] +
+            x[i - 1][j] +
+            x[i][j + 1] +
+            x[i][j - 1] -
+            x[i][j]*4
+            )
+
+    def sumAbsAij(self, valid, i, j):
+        return (
+            + valid[i][j + 1]
+            + valid[i][j - 1]
+            + valid[i + 1][j]
+            + valid[i - 1][j])
+
+    def Aii(self, x, i, j):
+        length = x.space[0]
+        return -4
+
+    def Dinv(self, x, i, j):
+        length = x.space[0]
+        if (not ((0<i and i<length-1) and (0<j and j<length-1) )):
+            return 1
+        else:
+            return float(1) / (-4)
+
+
+    def constructMatrix(self, x):
+        length = x.space[0]
+        #print (length)
+        matrix = Mesh((length**2, length**2))
+        matrix.fill(0)
+        for i in range(0, length):
+            for j in range(0, length):
+                ij = i*length +j
+                if not  ((0<i and i<length-1) and (0<j and j<length-1) ):
+                    matrix[ij][ij] = 1
+                else:
+                    neighbors = neighbors2d(i, j)
+                    #print(neighbors)
+                    for neighbor in neighbors:
+                        ij1 = length*neighbor.i + neighbor.j
+                        matrix[ij][ij1] = 1
+                    matrix[ij][ij] = -4
+        return matrix
+
+    def __mul__(self, x):
+        if isinstance(x, Mesh):
+            dim = x.space[0]
+            x_new = np.copy(x)
+            # FIX ME. currently x.space.dim return dimension-1, not dimension
+            for i in range(1, dim-1):  # FIX ME thus upper bds should eventually be dim-1, not dim
+                for j in range(1, dim-1):
+                        val = self.apply_op(x, i, j)
+                        x_new[i][j] = val
+
+            return x_new
+        return NotImplemented
+
 
 class Sum6pt2d(Operator):
     def __init__(self):
@@ -55,7 +117,7 @@ class Sum6pt2d(Operator):
 
     def constructMatrix(self, x):
         length = x.space[0]
-        print (length)
+        #print (length)
         matrix = Mesh((length**2, length**2))
         matrix.fill(0)
         for i in range(0, length):
@@ -65,7 +127,7 @@ class Sum6pt2d(Operator):
                     matrix[ij][ij] = 1
                 else:
                     neighbors = neighbors2d(i, j)
-                    print(neighbors)
+                    #print(neighbors)
                     for neighbor in neighbors:
                         ij1 = length*neighbor.i + neighbor.j
                         matrix[ij][ij1] = 1
@@ -276,12 +338,12 @@ if __name__ == "__main__":
     #xf = np.linspace(0.0, 7.0, 8)
     #print(add_constant_boundary1d(xf))
 
-    S = Sum6pt2d()
+    S = Weird6ptSum2d()
     xm = Mesh((2, 2))
     lin_space2d(xm)
     print("initial mesh without boundary")
     print(xm)
-    xmb = add_constant_2d_boundary(xm, .1)
+    xmb = add_constant_2d_boundary(xm, 0)
     #.1 for every boundary
     print("with boundary (xmb) of 1")
     print(xmb)
@@ -297,7 +359,24 @@ if __name__ == "__main__":
     matrix_mult_result = np.dot(Sm, xmb.flatten()).reshape(4, 4)
     print(matrix_mult_result)
 
+    b = np.zeros_like(xmb.flatten())
+    jacobi_np_result = jacobi(Sm, b, xmb.flatten(), 1)
+
+    b = np.zeros_like(xmb)
+    print("numpy jacobi result")
+    print(jacobi_np_result.reshape(4,4))
+    dim = xmb.space[0]
+    x_temp = np.zeros_like((xmb))
+    for i in range(1, dim-1):
+        for j in range(1, dim-1):
+            Ax_n = S.apply_op(xmb, i, j)
+            x_temp[i][j] = xmb[i][j] + S.Dinv(xmb, i, j)*(b[i][j]-Ax_n)
+    print("stencil jacobi result")
+    print(x_temp)
+
+
     print("the two results should be the same")
+
 
 
 
