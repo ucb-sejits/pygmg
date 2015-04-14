@@ -36,6 +36,17 @@ def jacobi(A, b, x, iters = 10):
         x = Dinv.dot(b - R.dot(x))
     return x
 
+def jacobi_stencil(S, b, xmb, iters = 10):
+    dim = xmb.space[0]
+    for _ in range(0, iters):
+        x_temp = np.zeros_like((xmb))
+        for i in range(1, dim-1):
+            for j in range(1, dim-1):
+                Ax_n = S.apply_op(xmb, i, j)
+                x_temp[i][j] = xmb[i][j] + S.Dinv(xmb, i, j)*(b[i][j]-Ax_n)
+        xmb = x_temp
+    return xmb
+
 #weighted jacobi smoother 
 @flatten_args
 def weighted_jacobi(A, b, x, iters = 10, weight = 2./3):
@@ -71,15 +82,6 @@ def chebyshevbad(A,b, x, diag, diaginv, iterations=9, delta=1, theta=1):
         d = rho*rho1*d - (2.*rho1/delta)*r
         rho = rho1
     return x
-
-def jacobi_stencil(A, b, x, iters=10, weight = 2./3):
-    x_new = np.copy(x)
-    dim = x.space.dim
-    for i in range(1, dim - 1):
-        for j in range(1, dim - 1):
-            for k in range(1, dim - 1):
-                Ax_n = apply(x, i, j, k)
-                x_new[i][j][k] = x[i][j][k] + weight*(2./3)
 
 
 

@@ -1,5 +1,7 @@
 from __future__ import print_function
-from hpgmg.finite_volume.operators.stencil_operators import ConstantCoefficient7pt, add_constant_boundary, Sum6pt
+from hpgmg.finite_volume.operators.stencil_operators import ConstantCoefficient7pt, add_constant_boundary, \
+    Sum6pt2d, lin_space2d, add_constant_2d_boundary, Weird6ptSum2d
+from hpgmg.finite_volume.smoothers import jacobi, jacobi_stencil
 from hpgmg.finite_volume.space import Space, Vector, Coord
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
@@ -7,6 +9,7 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 import unittest
 from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.pymg3d import interpolate, restrict
+import numpy as np
 
 
 class TestPygmg3d(unittest.TestCase):
@@ -111,21 +114,48 @@ class TestPygmg3d(unittest.TestCase):
                     x[i][j][k] = i*dim*dim + j*dim + k  # sam inverts ijk for some reason...this is the convention
 
     def test_apply_op(self):
-        B = Sum6pt()
-        s = Space(2, 2, 2)
-        x = Mesh(s)
-        self.lin_fill(x)  # value of each element is its ijk index
-        x = add_constant_boundary(x, 1)  # adding a constant boundary of 1 to mesh
-        print("Our mesh")
-        print(x)
-        result = B*x
-        print("result of summing all 6 neighbors operator, boundaries ignored")
-        print(result)
-        result_val = 10 # 1+1+1+2+1+4, sum of neighbors of element (0,0,0) = 0 ie (1,1,1) in mesh w/ boundary
-        for i in range(1, 3):
-            for j in range(1, 3):
-                for k in range(1, 3):
-                    self.assertEqual(result[i][j][k], result_val)
-                    result_val += 1
+        S = Sum6pt2d()
+        xm = Mesh((2, 2))
+        lin_space2d(xm)
+        print("initial mesh without boundary")
+        print(xm)
+        xmb = add_constant_2d_boundary(xm, .1)
+        #.1 for every boundary
+        print("with boundary (xmb) of 1")
+        print(xmb)
+        Sm = S.constructMatrix(xmb)
+        print("matrix of operator")
+        print(Sm)
+        print("result of applying stencil operator to mesh with boundary")
+        stencil_result = S*xmb
+        print (stencil_result)
 
+        print ("result of applying matrix operator to mesh with boundary")
+        matrix_mult_result = np.dot(Sm, xmb.flatten()).reshape(4, 4)
+        print(matrix_mult_result)
+        print("the two results should be the same")
 
+    def test_Jacobi(self):
+        S = Weird6ptSum2d()
+        xm = Mesh((2, 2))
+        lin_space2d(xm)
+        print("initial mesh without boundary")
+        print(xm)
+        xmb = add_constant_2d_boundary(xm, 0)
+        #.1 for every boundary
+        print("with boundary (xmb) of 0")
+        print(xmb)
+        Sm = S.constructMatrix(xmb)
+
+        b = np.zeros_like(xmb.flatten())
+        jacobi_np_result = jacobi(Sm, b, xmb.flatten(), 2)
+
+        b = np.zeros_like(xmb)
+        print("numpy jacobi result")
+        print(jacobi_np_result.reshape(4, 4))
+
+        jacobi_stencil_result = jacobi_stencil(S, b, xmb)
+        print("stencil jacobi result")
+        print(jacobi_stencil_result)
+
+        print("the two results should be the same")
