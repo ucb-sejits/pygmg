@@ -38,7 +38,7 @@ def jacobi(A, b, x, iters = 10):
 
 def jacobi_stencil(S, b, xmb, iters = 10):
     dim = xmb.space[0]
-    for _ in range(0, 2):
+    for _ in range(0, iters):
         x_temp = np.zeros_like((xmb))
         for i in range(1, dim-1):
             for j in range(1, dim-1):

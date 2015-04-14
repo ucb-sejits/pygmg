@@ -51,7 +51,11 @@ class Weird6ptSum2d(Operator):
 
     def Aii(self, x, i, j):
         length = x.space[0]
-        return -4
+        if (not ((0<i and i<length-1) and (0<j and j<length-1) )):
+            return 1
+        else:
+            return -4
+
 
     def Dinv(self, x, i, j):
         length = x.space[0]
@@ -360,13 +364,13 @@ if __name__ == "__main__":
     print(matrix_mult_result)
 
     b = np.zeros_like(xmb.flatten())
-    jacobi_np_result = jacobi(Sm, b, xmb.flatten(), 2)
+    jacobi_np_result = jacobi(Sm, b, xmb.flatten(), 3)
 
     b = np.zeros_like(xmb)
     print("numpy jacobi result")
     print(jacobi_np_result.reshape(4, 4))
 
-    jacobi_stencil_result = jacobi_stencil(S, b, xmb)
+    jacobi_stencil_result = jacobi_stencil(S, b, xmb, 3)
     print("stencil jacobi result")
     print(jacobi_stencil_result)
 
