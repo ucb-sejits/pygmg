@@ -3,7 +3,7 @@ from __future__ import print_function
 import numpy as np
 from abc import ABCMeta, abstractmethod
 from hpgmg.finite_volume.mesh import Mesh
-from hpgmg.finite_volume.smoothers import jacobi
+from hpgmg.finite_volume.smoothers import jacobi, jacobi_stencil
 from hpgmg.finite_volume.space import Space, Coord
 
 #from stencil_code.neighborhood import Neighborhood
@@ -360,20 +360,15 @@ if __name__ == "__main__":
     print(matrix_mult_result)
 
     b = np.zeros_like(xmb.flatten())
-    jacobi_np_result = jacobi(Sm, b, xmb.flatten(), 1)
+    jacobi_np_result = jacobi(Sm, b, xmb.flatten(), 2)
 
     b = np.zeros_like(xmb)
     print("numpy jacobi result")
-    print(jacobi_np_result.reshape(4,4))
-    dim = xmb.space[0]
-    x_temp = np.zeros_like((xmb))
-    for i in range(1, dim-1):
-        for j in range(1, dim-1):
-            Ax_n = S.apply_op(xmb, i, j)
-            x_temp[i][j] = xmb[i][j] + S.Dinv(xmb, i, j)*(b[i][j]-Ax_n)
-    print("stencil jacobi result")
-    print(x_temp)
+    print(jacobi_np_result.reshape(4, 4))
 
+    jacobi_stencil_result = jacobi_stencil(S, b, xmb)
+    print("stencil jacobi result")
+    print(jacobi_stencil_result)
 
     print("the two results should be the same")
 

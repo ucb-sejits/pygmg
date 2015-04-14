@@ -1,7 +1,7 @@
 from __future__ import print_function
 from hpgmg.finite_volume.operators.stencil_operators import ConstantCoefficient7pt, add_constant_boundary, \
     Sum6pt2d, lin_space2d, add_constant_2d_boundary, Weird6ptSum2d
-from hpgmg.finite_volume.smoothers import jacobi
+from hpgmg.finite_volume.smoothers import jacobi, jacobi_stencil
 from hpgmg.finite_volume.space import Space, Vector, Coord
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
@@ -148,19 +148,14 @@ class TestPygmg3d(unittest.TestCase):
         Sm = S.constructMatrix(xmb)
 
         b = np.zeros_like(xmb.flatten())
-        jacobi_np_result = jacobi(Sm, b, xmb.flatten(), 1)
+        jacobi_np_result = jacobi(Sm, b, xmb.flatten(), 2)
 
         b = np.zeros_like(xmb)
         print("numpy jacobi result")
-        print(jacobi_np_result.reshape(4,4))
-        dim = xmb.space[0]
-        x_temp = np.zeros_like((xmb))
-        for i in range(1, dim-1):
-            for j in range(1, dim-1):
-                Ax_n = S.apply_op(xmb, i, j)
-                x_temp[i][j] = xmb[i][j] + S.Dinv(xmb, i, j)*(b[i][j]-Ax_n)
-        print("stencil jacobi result")
-        print(x_temp)
+        print(jacobi_np_result.reshape(4, 4))
 
+        jacobi_stencil_result = jacobi_stencil(S, b, xmb)
+        print("stencil jacobi result")
+        print(jacobi_stencil_result)
 
         print("the two results should be the same")
