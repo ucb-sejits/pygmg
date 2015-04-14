@@ -1,5 +1,6 @@
 from __future__ import print_function
 from hpgmg.finite_volume.mesh import Mesh
+from hpgmg.finite_volume.smoothers import jacobi_stencil
 from hpgmg.finite_volume.space import Space, Coord
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
@@ -7,6 +8,15 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 from stencil_code.neighborhood import Neighborhood
 from stencil_code.stencil_kernel import Stencil
 
+
+class ShivJacobi(object):
+    def __init__(self, op, iterations=10):
+        self.operator = op
+        self.iterations = iterations
+
+    def smooth(self, lhs_mesh, rhs_mesh):
+        for i in range(self.iterations):
+            jacobi_stencil(self.operator, lhs_mesh, rhs_mesh)
 
 class SejitsJacobiSmoother(Stencil):
     def __init__(self, alpha, beta):

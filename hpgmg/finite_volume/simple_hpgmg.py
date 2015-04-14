@@ -5,15 +5,16 @@ from __future__ import division, print_function
 import argparse
 import os
 from hpgmg.finite_volume.operators.interpolation import InterpolatorPC
-from hpgmg.finite_volume.operators.jacobi_smoother import JacobiSmoother
+from hpgmg.finite_volume.operators.jacobi_smoother import JacobiSmoother, ShivJacobi
 from hpgmg.finite_volume.operators.restriction import Restriction
+from hpgmg.finite_volume.operators.stencil_operators import ConstantCoefficient7pt
 
 __author__ = 'nzhang-dev'
 
 from hpgmg.finite_volume.space import Space, Vector
 from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.operators.problem_sine import SineProblem
-from hpgmg.finite_volume.smoothers import gauss_siedel
+from hpgmg.finite_volume.smoothers import gauss_siedel, jacobi_stencil
 
 
 class SimpleLevel(object):
@@ -39,6 +40,7 @@ class SimpleLevel(object):
         ]
         self.d_inverse = Mesh(space)
         self.l1_inverse = Mesh(space)
+        self.temp = Mesh(space)
         self.dominant_eigen_value_of_d_inv_a = 0.0
 
         if self.level_number == 0:
@@ -102,20 +104,39 @@ class SimpleLevel(object):
 
 
 class SimpleMultigridSolver(object):
-    def __init__(self, interpolate_function, restrict_function,
-                 bottom_solver_function, smooth_function, smooth_iterations):
-        self.interpolate_function = interpolate_function
-        self.restrict_function = restrict_function
-        self.bottom_solver_function = bottom_solver_function
-        self.smooth_function = smooth_function
-        self.smooth_iterations = smooth_iterations
+    def __init__(self, configuration, fine_level):
+        if configuration.equation == 'h':
+            self.a = 1.0
+            self.b = 1.0
+        else:
+            self.a = 0.0
+            self.b = 1.0
+
+        self.interpolator = InterpolatorPC(pre_scale=0.0)
+        self.restrictor = Restriction().restrict
+        self.problem_operator = ConstantCoefficient7pt(self.a, self.b)
+
+        if configuration.smoother == 'j':
+            self.smoother = ShivJacobi(self.problem_operator, 6)
+        else:
+            raise Exception()
+
+        self.bottom_solver = IdentityBottomSolver().solve
+
+    def compute_residual(self):
+        residual_operator = ConstantCoefficient7pt()
 
     def v_cycle(self, level):
         if min(level.space) < 3:
             self.bottom_solver_function(level)
             return
 
+        level.cell_values = self.smoother(level.true_solution, level.cell_values)
+        
+
         coarser_level = level.make_coarser_level()
+
+
 
         # do all restrictions
 
@@ -157,6 +178,12 @@ if __name__ == '__main__':
                         help="Type of boundary condition. Use p for Periodic and d for Dirichlet. Default is d",
                         default=('p' if os.environ.get('USE_PERIODIC_BC', 0) else 'd'),
                         choices=['p', 'd'], )
+    parser.add_argument('-eq', '--equation',
+                        help="Type of equation, h for helmholtz orp for poisson",
+                        default='p' )
+    parser.add_argument('-sm', '--smoother',
+                        help="Type of smoother, j for jacobi",
+                        default='j' )
     parser.add_argument('-fb', '--fixed_beta', dest='fixed_beta', action='store_true',
                         help="Use 1.0 as fixed value of beta, default is variable beta coefficient",
                         default=False, )
@@ -164,14 +191,9 @@ if __name__ == '__main__':
 
     global_size = Space([2**command_line_configuration.log2_level_size for _ in range(3)])
 
-    restrictor = Restriction().restrict
-    interpolator = InterpolatorPC(pre_scale=0.0)
-    smoother = JacobiSmoother().smooth
-    bottom_solver = IdentityBottomSolver().solve
-
     fine_level = SimpleLevel(global_size, 0, command_line_configuration)
     fine_level.initialize()
     fine_level.print()
 
-    solver = SimpleMultigridSolver(interpolator, restrictor, bottom_solver, smoother, 4)
-    print(solver.v_cycle(fine_level))
+    solver = SimpleMultigridSolver(command_line_configuration, fine_level)
+    solver.solve()

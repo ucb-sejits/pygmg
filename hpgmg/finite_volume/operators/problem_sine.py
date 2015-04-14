@@ -12,6 +12,9 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 
 class SineProblem(Problem):
+    alpha = 1.0
+    beta = 1.0
+
     @staticmethod
     def evaluate_beta(vector):
         """
@@ -87,7 +90,8 @@ class SineProblem(Problem):
             for element_index in level.box_space.points:
                 absolute_position = (element_index + box.coord + half_cell) * level.h
 
-                alpha = 1.0
+                alpha = SineProblem.alpha
+                beta = SineProblem.beta
 
                 if is_variable_coefficient:
                     beta_i, _ = SineProblem.evaluate_beta(absolute_position-Vector(level.h*0.5, 0.0, 0.0))
@@ -96,7 +100,6 @@ class SineProblem(Problem):
                     beta, beta_xyz = SineProblem.evaluate_beta(absolute_position)
                     beta_ijk = Vector(beta_i, beta_j, beta_k)
                 else:
-                    beta = 1.0
                     beta_xyz = Vector(0.0, 0.0, 0.0)
                     beta_ijk = Vector(1.0, 1.0, 1.0)
 
