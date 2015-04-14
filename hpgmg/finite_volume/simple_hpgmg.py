@@ -5,6 +5,7 @@ from __future__ import division, print_function
 import argparse
 import os
 from hpgmg.finite_volume.operators.interpolation import InterpolatorPC
+from hpgmg.finite_volume.operators.jacobi_smoother import JacobiSmoother
 from hpgmg.finite_volume.operators.restriction import Restriction
 
 __author__ = 'nzhang-dev'
@@ -129,12 +130,19 @@ class SimpleMultigridSolver(object):
         coarser_level.print("Coarsened level {}".format(coarser_level.level_number))
         for smooth_pass in range(self.smooth_iterations):
             new_cell_values = Mesh(coarser_level.space)
-            self.smooth_function(new_cell_values, coarser_level.cell_values)
+            self.smooth_function(new_cell_values, coarser_level.cell_values, 0.5, 1.0/12.0)
             coarser_level.cell_values = new_cell_values
 
         self.v_cycle(coarser_level)
 
         self.interpolate_function.interpolate(coarser_level.cell_values, level.cell_values)
+
+        level.print("Interpolated level {}".format(level.level_number))
+
+
+class IdentityBottomSolver(object):
+    def solve(self, level):
+        pass
 
 
 if __name__ == '__main__':
@@ -158,10 +166,12 @@ if __name__ == '__main__':
 
     restrictor = Restriction().restrict
     interpolator = InterpolatorPC(pre_scale=0.0)
+    smoother = JacobiSmoother().smooth
+    bottom_solver = IdentityBottomSolver().solve
 
     fine_level = SimpleLevel(global_size, 0, command_line_configuration)
     fine_level.initialize()
     fine_level.print()
 
-    solver = SimpleMultigridSolver(None, restrictor, None, gauss_siedel, 4)
+    solver = SimpleMultigridSolver(interpolator, restrictor, bottom_solver, smoother, 4)
     print(solver.v_cycle(fine_level))
