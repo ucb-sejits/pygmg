@@ -8,15 +8,11 @@ from hpgmg.finite_volume.Simple7PointOperator import SimpleConstantCoefficientOp
 from hpgmg.finite_volume.operators.interpolation import InterpolatorPC
 from hpgmg.finite_volume.operators.jacobi_smoother import JacobiSmoother
 from hpgmg.finite_volume.operators.restriction import Restriction
-from hpgmg.finite_volume.operators.stencil_operators import ConstantCoefficient7pt
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
-from hpgmg.finite_volume.space import Space, Vector, Coord
-from hpgmg.finite_volume.mesh import Mesh
+from hpgmg.finite_volume.space import Space, Coord
 from hpgmg.finite_volume.simple_level import SimpleLevel
-from hpgmg.finite_volume.operators.problem_sine import SineProblem
-from hpgmg.finite_volume.smoothers import gauss_siedel, jacobi_stencil
 
 
 class SimpleMultigridSolver(object):
@@ -26,9 +22,11 @@ class SimpleMultigridSolver(object):
     """
     def __init__(self, configuration):
         if configuration.equation == 'h':
+            # h is for helmholtz
             self.a = 1.0
             self.b = 1.0
         else:
+            # default p is for poisson
             self.a = 0.0
             self.b = 1.0
 
@@ -53,13 +51,9 @@ class SimpleMultigridSolver(object):
         self.fine_level.initialize()
         self.fine_level.print()
 
-
-    def compute_residual(self):
-        residual_operator = ConstantCoefficient7pt()
-
     def v_cycle(self, level):
         if min(level.space) < 3:
-            self.bottom_solver_function(level)
+            self.bottom_solver(level)
             return
 
         coarser_level = level.make_coarser_level()
@@ -68,11 +62,11 @@ class SimpleMultigridSolver(object):
         coarser_level.print("Coarsened level {}".format(coarser_level.level_number))
 
         self.restrictor.restrict(coarser_level.cell_values, level.cell_values, Restriction.RESTRICT_CELL)
-        self.smoother.smooth(coarser_level, coarser_level.cell_values, coarser_level.true_solution, 0.5, 1.0/12.0)
+        self.smoother.smooth(coarser_level, coarser_level.cell_values, coarser_level.true_solution)
 
         self.v_cycle(coarser_level)
 
-        self.interpolate_function.interpolate(coarser_level.cell_values, level.cell_values)
+        self.interpolator.interpolate(coarser_level.cell_values, level.cell_values)
 
         level.print("Interpolated level {}".format(level.level_number))
 
@@ -82,36 +76,47 @@ class SimpleMultigridSolver(object):
             self.v_cycle(self.fine_level)
 
     @staticmethod
-    def main():
+    def get_configuration(args=None):
         parser = argparse.ArgumentParser()
+        parser.add_argument('log2_level_size', help='each dim will be of 2^(log2_level_size)',
+                            default=6, type=int)
         parser.add_argument('-d', '--dimensions', help='number of dimensions in problem',
                             default=3, type=int)
         parser.add_argument('-nv', '--number-of-vcycles', help='number of vcycles to run',
                             default=1, type=int)
-        parser.add_argument('log2_level_size', help='each dim will be of 2^(log2_level_size)',
-                            default=6, type=int)
         parser.add_argument('-gs', '--ghost_size', help='size of ghost zone (assumed symmetric)',
                             default=1, type=int)
         parser.add_argument('-p', '--problem',
                             help="problem name, one of [sine]",
                             default='sine',
                             choices=['sine'], )
-        parser.add_argument('-bc', '--boundary-conditions', dest='boundary_condition',
+        parser.add_argument('-bc', '--boundary-condition',
                             help="Type of boundary condition. Use p for Periodic and d for Dirichlet. Default is d",
                             default=('p' if os.environ.get('USE_PERIODIC_BC', 0) else 'd'),
                             choices=['p', 'd'], )
         parser.add_argument('-eq', '--equation',
                             help="Type of equation, h for helmholtz orp for poisson",
-                            default='p' )
+                            default='p', )
         parser.add_argument('-sm', '--smoother',
                             help="Type of smoother, j for jacobi",
-                            default='j' )
-        parser.add_argument('-fb', '--fixed_beta', dest='fixed_beta', action='store_true',
+                            default='j', )
+        parser.add_argument('-fb', '--fixed_beta', action='store_true',
                             help="Use 1.0 as fixed value of beta, default is variable beta coefficient",
                             default=False, )
-        command_line_configuration = parser.parse_args()
+        return parser.parse_args(args=args)
 
-        solver = SimpleMultigridSolver(command_line_configuration)
+    @staticmethod
+    def get_solver(args=None):
+        """
+        this is meant for use in testing
+        :return:
+        """
+        return SimpleMultigridSolver(SimpleMultigridSolver.get_configuration(args=args))
+
+    @staticmethod
+    def main():
+        configuration = SimpleMultigridSolver.get_configuration()
+        solver = SimpleMultigridSolver(configuration)
         solver.solve()
 
 
