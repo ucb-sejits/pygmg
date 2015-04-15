@@ -10,7 +10,7 @@ from hpgmg.finite_volume.operators.jacobi_smoother import JacobiSmoother
 from hpgmg.finite_volume.operators.restriction import Restriction
 from hpgmg.finite_volume.operators.stencil_operators import ConstantCoefficient7pt
 
-__author__ = 'nzhang-dev'
+__author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 from hpgmg.finite_volume.space import Space, Vector, Coord
 from hpgmg.finite_volume.mesh import Mesh
@@ -62,17 +62,13 @@ class SimpleMultigridSolver(object):
             self.bottom_solver_function(level)
             return
 
-        self.problem_operator.set_scale(level.h)
-
         coarser_level = level.make_coarser_level()
         self.problem_operator.rebuild_operator(coarser_level, level)
 
         coarser_level.print("Coarsened level {}".format(coarser_level.level_number))
 
-        for smooth_pass in range(self.smooth_iterations):
-            new_cell_values = Mesh(coarser_level.space)
-            self.smooth_function(new_cell_values, coarser_level.cell_values, 0.5, 1.0/12.0)
-            coarser_level.cell_values = new_cell_values
+        self.restrictor.restrict(coarser_level.cell_values, level.cell_values, Restriction.RESTRICT_CELL)
+        self.smoother.smooth(coarser_level, coarser_level.cell_values, coarser_level.true_solution, 0.5, 1.0/12.0)
 
         self.v_cycle(coarser_level)
 

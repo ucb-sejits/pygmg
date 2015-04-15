@@ -29,7 +29,7 @@ class SimpleConstantCoefficientOperator(object):
 
     def rebuild_operator(self, target_level, source_level=None):
         self.set_scale(target_level.h)
-        self.restrictor.restrict(target_level.cell_values, source_level.cell_values, Restriction.RESTRICT_CELL)
+        self.restrictor.restrict(target_level.alpha, source_level.alpha, Restriction.RESTRICT_CELL)
         self.restrictor.restrict(target_level.beta_face_values[SimpleLevel.FACE_I],
                                  source_level.beta_face_values[SimpleLevel.FACE_I], Restriction.RESTRICT_FACE_I)
         self.restrictor.restrict(target_level.beta_face_values[SimpleLevel.FACE_J],
