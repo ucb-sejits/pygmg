@@ -34,6 +34,7 @@ class Operator:
             return x_new
         return NotImplemented
 
+
 # this class adds -4*x[i][j] to the sum so as to make the laplacian diagonally dominant
 class Weird6ptSum2d(Operator):
     def apply_op(self, x, i, j):
@@ -65,7 +66,6 @@ class Weird6ptSum2d(Operator):
             return 1
         else:
             return float(1) / (-4)
-
 
     def constructMatrix(self, x):
         length = x.space[0]
@@ -161,13 +161,15 @@ def neighbors2d(i, j):
         neighbs[i] = orgin+deltas[i]
     return neighbs
 
+
 class ConstantCoefficient7pt(Operator):
-    def __init__(self, a, b, h2inv=1.0):
+    def __init__(self, a, b, dimensions=3, h2inv=1.0):
         self.a = a
         self.b = b
         self.h2inv = h2inv
         self.neighborhood = [
-            Coord(x) for x in Neighborhood.von_neuman_neighborhood(radius=1, dim=3, include_origin=False)
+            Coord(x)
+            for x in Neighborhood.von_neuman_neighborhood(radius=1, dim=dimensions, include_origin=False)
         ]
 
     def set_scale(self, level_h):

@@ -36,9 +36,10 @@ def jacobi(A, b, x, iters = 10):
         x = Dinv.dot(b - R.dot(x))
     return x
 
-def jacobi_stencil(S, b, xmb, iters = 10):
+
+def jacobi_stencil(S, b, xmb, iterations=10):
     dim = xmb.space[0]
-    for _ in range(0, iters):
+    for _ in range(0, iterations):
         x_temp = np.zeros_like((xmb))
         for i in range(1, dim-1):
             for j in range(1, dim-1):

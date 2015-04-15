@@ -4,6 +4,7 @@ implement a simple single threaded, variable coefficient gmg solver
 from __future__ import division, print_function
 import argparse
 import os
+from hpgmg.finite_volume.Simple7PointOperator import SimpleConstantCoefficientOperator
 from hpgmg.finite_volume.operators.interpolation import InterpolatorPC
 from hpgmg.finite_volume.operators.jacobi_smoother import JacobiSmoother, ShivJacobi
 from hpgmg.finite_volume.operators.restriction import Restriction
@@ -19,6 +20,10 @@ from hpgmg.finite_volume.smoothers import gauss_siedel, jacobi_stencil
 
 
 class SimpleMultigridSolver(object):
+    """
+    a simple multi-grid solver. gets a argparse configuration
+    with settings from the command line
+    """
     def __init__(self, configuration):
         if configuration.equation == 'h':
             self.a = 1.0
@@ -30,9 +35,10 @@ class SimpleMultigridSolver(object):
         self.dimensions = configuration.dimensions
         self.global_size = Space([2**configuration.log2_level_size for _ in range(self.dimensions)])
 
+        self.number_of_v_cycles = configuration.number_of_vcycles
         self.interpolator = InterpolatorPC(pre_scale=0.0)
         self.restrictor = Restriction().restrict
-        self.problem_operator = ConstantCoefficient7pt(self.a, self.b)
+        self.problem_operator = SimpleConstantCoefficientOperator(solver=self)
 
         if configuration.smoother == 'j':
             self.smoother = ShivJacobi(self.problem_operator, 6)
@@ -54,20 +60,13 @@ class SimpleMultigridSolver(object):
             self.bottom_solver_function(level)
             return
 
-        level.cell_values = self.smoother(level.true_solution, level.cell_values)
-        
+        self.problem_operator.set_scale(level.h)
+
+        level.cell_values = self.smoother.smooth(level.true_solution, level.cell_values)
 
         coarser_level = level.make_coarser_level()
 
         # do all restrictions
-
-        self.restrict_function(coarser_level.cell_values, level.cell_values, Restriction.RESTRICT_CELL)
-        self.restrict_function(coarser_level.beta_face_values[SimpleLevel.FACE_I],
-                               level.beta_face_values[SimpleLevel.FACE_I], Restriction.RESTRICT_FACE_I)
-        self.restrict_function(coarser_level.beta_face_values[SimpleLevel.FACE_J],
-                               level.beta_face_values[SimpleLevel.FACE_J], Restriction.RESTRICT_FACE_J)
-        self.restrict_function(coarser_level.beta_face_values[SimpleLevel.FACE_K],
-                               level.beta_face_values[SimpleLevel.FACE_K], Restriction.RESTRICT_FACE_K)
 
         coarser_level.print("Coarsened level {}".format(coarser_level.level_number))
         for smooth_pass in range(self.smooth_iterations):
@@ -82,13 +81,17 @@ class SimpleMultigridSolver(object):
         level.print("Interpolated level {}".format(level.level_number))
 
     def solve(self):
-        pass
+        for cycle in range(self.number_of_v_cycles):
+            print("Running v-cycle {}".format(cycle))
+            self.v_cycle(self.fine_level)
 
     @staticmethod
     def main():
         parser = argparse.ArgumentParser()
         parser.add_argument('-d', '--dimensions', help='number of dimensions in problem',
                             default=3, type=int)
+        parser.add_argument('-nv', '--number-of-vcycles', help='number of vcycles to run',
+                            default=1, type=int)
         parser.add_argument('log2_level_size', help='each dim will be of 2^(log2_level_size)',
                             default=6, type=int)
         parser.add_argument('-p', '--problem',

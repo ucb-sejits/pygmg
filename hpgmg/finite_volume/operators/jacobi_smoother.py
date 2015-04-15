@@ -9,14 +9,41 @@ from stencil_code.neighborhood import Neighborhood
 from stencil_code.stencil_kernel import Stencil
 
 
-class ShivJacobi(object):
-    def __init__(self, op, iterations=10):
+class JacobiSmoother(object):
+    def __init__(self, op, use_l1_jacobi=True, iterations=10):
+        """
+
+        :param op:
+        :param use_l1_jacobi:
+        :param iterations:
+        :return:
+        """
         self.operator = op
+        self.use_l1_jacobi = use_l1_jacobi
+        self.weight = 1.0 if use_l1_jacobi else 2.0/3.0
         self.iterations = iterations
 
-    def smooth(self, lhs_mesh, rhs_mesh):
+    def smooth(self, level, target_mesh, rhs_mesh):
+        """
+
+        :param level: the level being smoothed
+        :param target_mesh:
+        :param rhs_mesh:
+        :return:
+        """
+        lambda_mesh = level.l1_inverse if self.use_l1_jacobi else lambda_mesh = level.d_inverse
+        working_target = level.temp
         for i in range(self.iterations):
-            jacobi_stencil(self.operator, lhs_mesh, rhs_mesh)
+            # jacobi_stencil(self.operator, lhs_mesh, rhs_mesh)
+            for index in working_target.indices():
+                working_target[index] = rhs_mesh[index] + (
+                    self.weight * lambda_mesh[index] * (rhs_mesh[index] - self.operator(rhs_mesh, level.valid, index))
+                )
+
+            temp_mesh = working_target
+            level.temp = level.target_mesh
+            level.target_mesh = temp_mesh
+
 
 class SejitsJacobiSmoother(Stencil):
     def __init__(self, alpha, beta):

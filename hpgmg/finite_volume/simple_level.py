@@ -38,8 +38,6 @@ class SimpleLevel(object):
             Mesh(space),
             Mesh(space),
         ]
-        if configuration.fixed_beta:
-            self.operator = ConstantCoefficient7pt()
         self.d_inverse = Mesh(space)
         self.l1_inverse = Mesh(space)
         self.temp = Mesh(space)
