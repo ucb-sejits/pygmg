@@ -43,8 +43,15 @@ class Vector(tuple):
     __radd__ = __add__
 
     def near(self, other, threshold=1e-6):
+        """
+        checks to see if one vector is near another, this function considers the magnitude of
+        the numbers involved, this function is surely too slow
+        :param other:
+        :param threshold:
+        :return:
+        """
         if isinstance(other, Vector):
-            return all(abs(self[d] - other[d]) < threshold for d in range(self.ndim))
+            return all(abs(self[d] - other[d]) < abs(self[d]/threshold) for d in range(self.ndim))
         else:
             return NotImplemented
 
