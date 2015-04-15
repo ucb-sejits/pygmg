@@ -42,6 +42,12 @@ class Vector(tuple):
 
     __radd__ = __add__
 
+    def near(self, other, threshold=1e-6):
+        if isinstance(other, Vector):
+            return all(abs(self[d] - other[d]) < threshold for d in range(self.ndim))
+        else:
+            return NotImplemented
+
     @property
     def i(self):
         return self[0]

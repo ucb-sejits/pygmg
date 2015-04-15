@@ -26,10 +26,10 @@ class SymbolicProblem(Problem):
     """
 
     x, y, z = sympy.Symbol('x'), sympy.Symbol('y'), sympy.Symbol('z')
-    # c1, c2 = 2.0 * np.pi, 6.0 * np.pi
-    # power = 13.0
-    c1, c2 = sympy.Symbol('c1'), sympy.Symbol('c2')
-    power = sympy.Symbol('power')
+    c1, c2 = 2.0 * np.pi, 6.0 * np.pi
+    power = 13.0
+    # c1, c2 = sympy.Symbol('c1'), sympy.Symbol('c2')
+    # power = sympy.Symbol('power')
 
     u = (sympy.sin(c1*x)**power) * (sympy.sin(c1*y)**power) * (sympy.sin(c1*z)**power)
 
@@ -44,7 +44,7 @@ class SymbolicProblem(Problem):
     def __init__(self):
         self.u = SymbolicProblem.u
 
-        self.du_dx = sympy.diff(self.u, SymbolicProblem.x)
+        self.du_dx = sympy.powsimp(sympy.diff(self.u, SymbolicProblem.x), force=True)
         self.du_dy = sympy.diff(self.u, SymbolicProblem.y)
         self.du_dz = sympy.diff(self.u, SymbolicProblem.z)
 
@@ -78,13 +78,13 @@ class SymbolicProblem(Problem):
 
         u = self.u.evalf(subs=substitutions)
 
-        u_x = self.du_dx.evalf(subs=substitutions)
-        u_y = self.du_dy.evalf(subs=substitutions)
-        u_z = self.du_dz.evalf(subs=substitutions)
+        u_x = float(self.du_dx.evalf(subs=substitutions))
+        u_y = float(self.du_dy.evalf(subs=substitutions))
+        u_z = float(self.du_dz.evalf(subs=substitutions))
 
-        u_xx = self.d2u_dx2.evalf(subs=substitutions)
-        u_yy = self.d2u_dy2.evalf(subs=substitutions)
-        u_zz = self.d2u_dz2.evalf(subs=substitutions)
+        u_xx = float(self.d2u_dx2.evalf(subs=substitutions))
+        u_yy = float(self.d2u_dy2.evalf(subs=substitutions))
+        u_zz = float(self.d2u_dz2.evalf(subs=substitutions))
 
         return u, Vector(u_x, u_y, u_z), Vector(u_xx, u_yy, u_zz)
 
@@ -93,11 +93,30 @@ if __name__ == '__main__':
     sp = SymbolicProblem()
 
     mesh = Mesh(Space(10, 10, 10))
-    for index in mesh.indices():
-        vector = Vector(index[d] / mesh.space[d] for d in range(mesh.space.ndim))
+    if True:
+        count = 0
+        for index in mesh.indices():
+            vector = Vector(float(index[d]) / mesh.space[d] for d in range(mesh.space.ndim))
 
-        print(sp.evaluate_u(vector))
-        print(SineProblem.evaluate_u(vector))
+            a, da, d2a = sp.evaluate_u(vector)
+            b, db, d2b = SineProblem.evaluate_u(vector)
+
+            do_print = False
+            if abs(a-b) > 1e-6:
+                print("mismatch u {} {}".format(a, b), end="")
+                do_print = True
+            if not da.near(db):
+                print("mismatch du {} {}".format(da, db), end="")
+                do_print = True
+            if not d2a.near(d2b):
+                print("mismatch d2u {} {}".format(d2a, d2b), end="")
+                do_print = True
+            if do_print:
+                print()
+
+            count += 1
+            if count % 10 == 0:
+                print("count {}".format(count))
     # SymbolicProblem.symbolic_version(Vector(1,1,1))
 
 
