@@ -31,7 +31,7 @@ class JacobiSmoother(object):
         :param rhs_mesh:
         :return:
         """
-        lambda_mesh = level.l1_inverse if self.use_l1_jacobi else lambda_mesh = level.d_inverse
+        lambda_mesh = level.l1_inverse if self.use_l1_jacobi else level.d_inverse
         working_target = level.temp
         for i in range(self.iterations):
             # jacobi_stencil(self.operator, lhs_mesh, rhs_mesh)
@@ -61,19 +61,6 @@ class SejitsJacobiSmoother(Stencil):
             for y in in_grid.neighbors(x, 0):
                 out_grid[x] += self.beta * in_grid[y]
 
-
-class JacobiSmoother(object):
-    neighbors = Neighborhood.von_neuman_neighborhood(radius=1, dim=3, include_origin=False)
-
-    @staticmethod
-    def smooth(in_grid, out_grid, a, b):
-        # for index in out_grid.space.interior_points(Coord(1, 1, 1)):
-        for index in out_grid.indices():
-            out_grid[index] = a * in_grid[index]
-
-            for neighbor_offset in JacobiSmoother.neighbors:
-                neighbor_index = out_grid.space.clamp(index + neighbor_offset)
-                out_grid[index] += b * in_grid[neighbor_index]
 
 if __name__ == '__main__':
     if True:

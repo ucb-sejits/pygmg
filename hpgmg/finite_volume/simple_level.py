@@ -2,19 +2,12 @@
 implement a simple single threaded, variable coefficient gmg solver
 """
 from __future__ import division, print_function
-import argparse
-import os
-from hpgmg.finite_volume.operators.interpolation import InterpolatorPC
-from hpgmg.finite_volume.operators.jacobi_smoother import JacobiSmoother, ShivJacobi
-from hpgmg.finite_volume.operators.restriction import Restriction
-from hpgmg.finite_volume.operators.stencil_operators import ConstantCoefficient7pt
 
 __author__ = 'nzhang-dev'
 
 from hpgmg.finite_volume.space import Space, Vector
 from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.operators.problem_sine import SineProblem
-from hpgmg.finite_volume.smoothers import gauss_siedel, jacobi_stencil
 
 
 class SimpleLevel(object):
@@ -22,14 +15,16 @@ class SimpleLevel(object):
     FACE_J = 0
     FACE_K = 0
 
-    def __init__(self, space, level_number=0, configuration=None):
+    def __init__(self, solver, space, level_number=0):
+        self.solver = solver
         self.space = space
-        self.configuration = configuration
-        self.is_variable_coefficient = not configuration.fixed_beta
-        self.problem_name = configuration.problem
+        self.configuration = solver.configuration
+        self.is_variable_coefficient = not solver.configuration.fixed_beta
+        self.problem_name = solver.configuration.problem
         self.level_number = level_number
         if self.problem_name == 'sine':
             self.problem = SineProblem
+        self.ghost_zone = solver.ghost_zone
 
         self.cell_values = Mesh(space)
         self.alpha = Mesh(space)
@@ -38,6 +33,10 @@ class SimpleLevel(object):
             Mesh(space),
             Mesh(space),
         ]
+        self.valid = Mesh(space)
+        for index in self.interior_points():
+            self.valid[index] = 1.0
+
         self.d_inverse = Mesh(space)
         self.l1_inverse = Mesh(space)
         self.temp = Mesh(space)
@@ -49,12 +48,16 @@ class SimpleLevel(object):
         self.cell_size = 1.0 / space[0]
 
     def make_coarser_level(self):
-        coarser_level = SimpleLevel(self.space//2, self.level_number+1, self.configuration)
+        coarser_level = SimpleLevel(self.solver, self.space//2, self.level_number+1)
         return coarser_level
 
     @property
     def h(self):
         return self.cell_size
+
+    def interior_points(self):
+        for point in self.space.interior_points(self.ghost_zone):
+            yield point
 
     def initialize(self, a=1.0, b=1.0):
         alpha = 1.0

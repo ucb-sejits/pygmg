@@ -17,22 +17,17 @@ class SimpleConstantCoefficientOperator(object):
             Coord(x)
             for x in Neighborhood.von_neuman_neighborhood(radius=1, dim=solver.dimensions, include_origin=False)
         ]
+        self.num_neighbors = len(self.neighborhood)
 
     def set_scale(self, level_h):
         self.h2inv = 1.0 / (level_h ** 2)
 
-    def apply_op(self, x, i, j, k):
-        return self.a * x[i][j][k] - self.b * self.h2inv * (
-            + x[i + 1][j][k]
-            + x[i - 1][j][k]
-            + x[i][j + 1][k]
-            + x[i][j - 1][k]
-            + x[i][j][k + 1]
-            + x[i][j][k - 1]
-            - x[i][j][k] * 6.0
-        )
+    def apply_op(self, mesh, index):
+        return self.a * mesh[index] - self.b * self.h2inv * sum(
+            [mesh[neighbor_index] for neighbor_index in self.neighborhood]
+        ) * self.num_neighbors
 
-    def rebuild_operator(self, target_level, source_level, a, b):
+    def rebuild_operator(self, target_level, source_level=None):
         self.set_scale(target_level.h)
         self.restrictor.restrict(target_level.cell_values, source_level.cell_values, Restriction.RESTRICT_CELL)
         self.restrictor.restrict(target_level.beta_face_values[SimpleLevel.FACE_I],
@@ -43,7 +38,7 @@ class SimpleConstantCoefficientOperator(object):
                                  source_level.beta_face_values[SimpleLevel.FACE_K], Restriction.RESTRICT_FACE_K)
 
         dominant_eigenvalue = -1e9
-        for index in target_level.d_inverse.interior_points():
+        for index in target_level.interior_points():
             sum_abs = abs(self.b * self.h2inv) * sum(
                 [target_level.valid[neighbor_index] for neighbor_index in self.neighborhood]
             )

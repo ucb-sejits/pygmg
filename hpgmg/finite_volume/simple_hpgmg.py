@@ -6,13 +6,13 @@ import argparse
 import os
 from hpgmg.finite_volume.Simple7PointOperator import SimpleConstantCoefficientOperator
 from hpgmg.finite_volume.operators.interpolation import InterpolatorPC
-from hpgmg.finite_volume.operators.jacobi_smoother import JacobiSmoother, ShivJacobi
+from hpgmg.finite_volume.operators.jacobi_smoother import JacobiSmoother
 from hpgmg.finite_volume.operators.restriction import Restriction
 from hpgmg.finite_volume.operators.stencil_operators import ConstantCoefficient7pt
 
 __author__ = 'nzhang-dev'
 
-from hpgmg.finite_volume.space import Space, Vector
+from hpgmg.finite_volume.space import Space, Vector, Coord
 from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.simple_level import SimpleLevel
 from hpgmg.finite_volume.operators.problem_sine import SineProblem
@@ -32,22 +32,24 @@ class SimpleMultigridSolver(object):
             self.a = 0.0
             self.b = 1.0
 
+        self.configuration = configuration
         self.dimensions = configuration.dimensions
         self.global_size = Space([2**configuration.log2_level_size for _ in range(self.dimensions)])
+        self.ghost_zone = Coord(1 for _ in range(self.dimensions))
 
         self.number_of_v_cycles = configuration.number_of_vcycles
         self.interpolator = InterpolatorPC(pre_scale=0.0)
-        self.restrictor = Restriction().restrict
+        self.restrictor = Restriction()
         self.problem_operator = SimpleConstantCoefficientOperator(solver=self)
 
         if configuration.smoother == 'j':
-            self.smoother = ShivJacobi(self.problem_operator, 6)
+            self.smoother = JacobiSmoother(self.problem_operator, 6)
         else:
             raise Exception()
 
         self.bottom_solver = IdentityBottomSolver().solve
 
-        self.fine_level = SimpleLevel(self.global_size, 0, configuration)
+        self.fine_level = SimpleLevel(solver=self, space=self.global_size, level_number=0)
         self.fine_level.initialize()
         self.fine_level.print()
 
@@ -62,13 +64,11 @@ class SimpleMultigridSolver(object):
 
         self.problem_operator.set_scale(level.h)
 
-        level.cell_values = self.smoother.smooth(level.true_solution, level.cell_values)
-
         coarser_level = level.make_coarser_level()
-
-        # do all restrictions
+        self.problem_operator.rebuild_operator(coarser_level, level)
 
         coarser_level.print("Coarsened level {}".format(coarser_level.level_number))
+
         for smooth_pass in range(self.smooth_iterations):
             new_cell_values = Mesh(coarser_level.space)
             self.smooth_function(new_cell_values, coarser_level.cell_values, 0.5, 1.0/12.0)
@@ -94,6 +94,8 @@ class SimpleMultigridSolver(object):
                             default=1, type=int)
         parser.add_argument('log2_level_size', help='each dim will be of 2^(log2_level_size)',
                             default=6, type=int)
+        parser.add_argument('-gs', '--ghost_size', help='size of ghost zone (assumed symmetric)',
+                            default=1, type=int)
         parser.add_argument('-p', '--problem',
                             help="problem name, one of [sine]",
                             default='sine',
