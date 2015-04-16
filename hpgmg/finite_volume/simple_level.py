@@ -3,9 +3,9 @@ implement a simple single threaded, variable coefficient gmg solver
 """
 from __future__ import division, print_function
 
-__author__ = 'nzhang-dev'
+__author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
-from hpgmg.finite_volume.space import Space, Vector
+from hpgmg.finite_volume.space import Vector
 from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.operators.problem_sine import SineProblem
 
@@ -13,20 +13,20 @@ from hpgmg.finite_volume.operators.problem_sine import SineProblem
 class SimpleLevel(object):
     """
     From hpgmg defines.h, the list of matrices at each level
-    #define  VECTOR_TEMP         0 //
-    #define  VECTOR_UTRUE        1 // exact solution used to generate f
-    #define  VECTOR_F_MINUS_AV   2 // cell centered residual (f-Av)
-    //------------------------------------------------------------------------------------------------------------------------------
-    #define  VECTOR_F            3 // original right-hand side (Au=f), cell centered
-    #define  VECTOR_U            4 // numerical solution
-    #define  VECTOR_ALPHA        5 // cell centered coefficient
-    #define  VECTOR_BETA_I       6 // face centered coefficient (n.b. element 0 is the left face of the ghost zone element)
-    #define  VECTOR_BETA_J       7 // face centered coefficient (n.b. element 0 is the back face of the ghost zone element)
-    #define  VECTOR_BETA_K       8 // face centered coefficient (n.b. element 0 is the bottom face of the ghost zone element)
-    //------------------------------------------------------------------------------------------------------------------
-    #define  VECTOR_DINV         9 // cell centered relaxation parameter (e.g. inverse of the diagonal)
-    #define  VECTOR_L1INV       10 // cell centered relaxation parameter (e.g. inverse of the L1 norm of each row)
-    #define  VECTOR_VALID       11 // cell centered array noting which cells are actually present
+    C vector offset    python mesh name
+    ================== ====================================
+    VECTOR_TEMP        temp
+    VECTOR_UTRUE       exact_solution
+    VECTOR_F_MINUS_AV  residual
+    VECTOR_F           right_hand_side
+    VECTOR_U           cell_values
+    VECTOR_ALPHA       alpha
+    VECTOR_BETA_I      beta_face_values[SimpleLevel.FACE_I]
+    VECTOR_BETA_J      beta_face_values[SimpleLevel.FACE_J]
+    VECTOR_BETA_K      beta_face_values[SimpleLevel.FACE_K]
+    VECTOR_DINV        d_inverse
+    VECTOR_L1INV       l1_inverse
+    VECTOR_VALID       valid
 
     """
     FACE_I = 0
@@ -65,7 +65,6 @@ class SimpleLevel(object):
         self.residual = Mesh(self.space)
 
         self.dominant_eigen_value_of_d_inv_a = 0.0
-
 
         self.cell_size = 1.0 / self.space[0]
 
@@ -127,5 +126,3 @@ class SimpleLevel(object):
                 print()
             print()
             print()
-
-
