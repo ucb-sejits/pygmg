@@ -11,13 +11,32 @@ from hpgmg.finite_volume.operators.problem_sine import SineProblem
 
 
 class SimpleLevel(object):
+    """
+    From hpgmg defines.h, the list of matrices at each level
+    #define  VECTOR_TEMP         0 //
+    #define  VECTOR_UTRUE        1 // exact solution used to generate f
+    #define  VECTOR_F_MINUS_AV   2 // cell centered residual (f-Av)
+    //------------------------------------------------------------------------------------------------------------------------------
+    #define  VECTOR_F            3 // original right-hand side (Au=f), cell centered
+    #define  VECTOR_U            4 // numerical solution
+    #define  VECTOR_ALPHA        5 // cell centered coefficient
+    #define  VECTOR_BETA_I       6 // face centered coefficient (n.b. element 0 is the left face of the ghost zone element)
+    #define  VECTOR_BETA_J       7 // face centered coefficient (n.b. element 0 is the back face of the ghost zone element)
+    #define  VECTOR_BETA_K       8 // face centered coefficient (n.b. element 0 is the bottom face of the ghost zone element)
+    //------------------------------------------------------------------------------------------------------------------
+    #define  VECTOR_DINV         9 // cell centered relaxation parameter (e.g. inverse of the diagonal)
+    #define  VECTOR_L1INV       10 // cell centered relaxation parameter (e.g. inverse of the L1 norm of each row)
+    #define  VECTOR_VALID       11 // cell centered array noting which cells are actually present
+
+    """
     FACE_I = 0
     FACE_J = 0
     FACE_K = 0
 
     def __init__(self, solver, space, level_number=0):
         self.solver = solver
-        self.space = space
+        self.space = space + (solver.ghost_zone * 2)
+
         self.configuration = solver.configuration
         self.is_variable_coefficient = not solver.configuration.fixed_beta
         self.problem_name = solver.configuration.problem
@@ -26,29 +45,32 @@ class SimpleLevel(object):
             self.problem = SineProblem
         self.ghost_zone = solver.ghost_zone
 
-        self.cell_values = Mesh(space)
-        self.alpha = Mesh(space)
+        self.cell_values = Mesh(self.space)
+        self.right_hand_side = Mesh(self.space)
+        self.exact_solution = Mesh(self.space) if self.level_number == 0 else None
+
+        self.alpha = Mesh(self.space)
         self.beta_face_values = [
-            Mesh(space),
-            Mesh(space),
-            Mesh(space),
+            Mesh(self.space),
+            Mesh(self.space),
+            Mesh(self.space),
         ]
-        self.valid = Mesh(space)
+        self.valid = Mesh(self.space)
         for index in self.interior_points():
             self.valid[index] = 1.0
 
-        self.d_inverse = Mesh(space)
-        self.l1_inverse = Mesh(space)
-        self.temp = Mesh(space)
+        self.d_inverse = Mesh(self.space)
+        self.l1_inverse = Mesh(self.space)
+        self.temp = Mesh(self.space)
+        self.residual = Mesh(self.space)
+
         self.dominant_eigen_value_of_d_inv_a = 0.0
 
-        if self.level_number == 0:
-            self.true_solution = Mesh(space)
 
-        self.cell_size = 1.0 / space[0]
+        self.cell_size = 1.0 / self.space[0]
 
     def make_coarser_level(self):
-        coarser_level = SimpleLevel(self.solver, self.space//2, self.level_number+1)
+        coarser_level = SimpleLevel(self.solver, (self.space-self.ghost_zone)//2, self.level_number+1)
         return coarser_level
 
     @property
@@ -67,7 +89,7 @@ class SimpleLevel(object):
 
         problem = self.problem
 
-        for element_index in self.space.points:
+        for element_index in self.interior_points():
             half_cell = Vector([0.5 for _ in self.space])
             absolute_position = (Vector(element_index) + half_cell) * self.cell_size
 
@@ -85,8 +107,9 @@ class SimpleLevel(object):
                 )
             )
 
-            self.cell_values[element_index] = u
-            self.true_solution[element_index] = f
+            self.right_hand_side[element_index] = f
+            self.exact_solution[element_index] = u
+
             self.alpha[element_index] = alpha
             self.beta_face_values[SimpleLevel.FACE_I][element_index] = beta_i
             self.beta_face_values[SimpleLevel.FACE_J][element_index] = beta_j

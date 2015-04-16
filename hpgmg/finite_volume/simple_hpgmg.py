@@ -7,6 +7,7 @@ import os
 from hpgmg.finite_volume.Simple7PointOperator import SimpleConstantCoefficientOperator
 from hpgmg.finite_volume.operators.interpolation import InterpolatorPC
 from hpgmg.finite_volume.operators.jacobi_smoother import JacobiSmoother
+from hpgmg.finite_volume.operators.residual import Residual
 from hpgmg.finite_volume.operators.restriction import Restriction
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
@@ -39,6 +40,7 @@ class SimpleMultigridSolver(object):
         self.interpolator = InterpolatorPC(pre_scale=0.0)
         self.restrictor = Restriction()
         self.problem_operator = SimpleConstantCoefficientOperator(solver=self)
+        self.residual = Residual(solver=self)
 
         if configuration.smoother == 'j':
             self.smoother = JacobiSmoother(self.problem_operator, 6)
@@ -56,13 +58,18 @@ class SimpleMultigridSolver(object):
             self.bottom_solver(level)
             return
 
+        self.smoother.smooth(level, level.cell_values, level.right_hand_side)
+        self.residual.run(level, level.temp, level.cell_values, level.right_hand_side)
+
         coarser_level = level.make_coarser_level()
         self.problem_operator.rebuild_operator(coarser_level, level)
+        self.restrictor.restrict(coarser_level, coarser_level.right_hand_side, level.temp, Restriction.RESTRICT_CELL)
 
         coarser_level.print("Coarsened level {}".format(coarser_level.level_number))
 
-        self.restrictor.restrict(coarser_level.cell_values, level.cell_values, Restriction.RESTRICT_CELL)
-        self.smoother.smooth(coarser_level, coarser_level.cell_values, coarser_level.true_solution)
+
+
+        # self.smoother.smooth(coarser_level, coarser_level.cell_values, coarser_level.exact_solution)
 
         self.v_cycle(coarser_level)
 
@@ -71,6 +78,13 @@ class SimpleMultigridSolver(object):
         level.print("Interpolated level {}".format(level.level_number))
 
     def solve(self):
+        """
+        MGSolve(&all_grids,VECTOR_U,VECTOR_F,a,b,dtol,rtol);
+        void MGSolve(mg_type *all_grids, int u_id, int F_id, double a, double b, double dtol, double rtol){
+
+            MGVCycle(all_grids,e_id,R_id,a,b,level);
+        :return:
+        """
         for cycle in range(self.number_of_v_cycles):
             print("Running v-cycle {}".format(cycle))
             self.v_cycle(self.fine_level)

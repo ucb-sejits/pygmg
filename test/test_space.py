@@ -67,3 +67,9 @@ class TestSpace(unittest.TestCase):
         self.assertEqual(Vector(1, 2, 3) * Vector(3, 4, 5), 26, "vector vector multiply is dot")
         self.assertEqual(Coord(1, 2, 3) * Coord(3, 4, 5), Coord(3, 8, 15), "coord coord multiply is element-wise")
 
+    def test_interior_points(self):
+        space = Space(4, 4)
+        ghost = Space(1, 1)
+
+        for point in space.interior_points(ghost):
+            print(point)

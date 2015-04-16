@@ -44,7 +44,7 @@ class JacobiSmoother(object):
 
             temp_mesh = working_target
             level.temp = target_mesh
-            target_mesh = temp_mesh
+            working_target = temp_mesh
 
 
 if __name__ == '__main__':
@@ -57,11 +57,11 @@ if __name__ == '__main__':
         "solver.smoother {} is not a JacobiSmoother".format(solver.smoother)
     )
 
-    level = solver.fine_level
-    mesh = level.cell_values
+    base_level = solver.fine_level
+    mesh = base_level.cell_values
     for index in mesh.indices():
         mesh[index] = sum(list(index))
     mesh.print("mesh")
 
-    solver.smoother.smooth(level, level.cell_values, level.true_solution)
-    level.cell_values.print("smoothed mesh")
+    solver.smoother.smooth(base_level, base_level.cell_values, base_level.exact_solution)
+    base_level.cell_values.print("smoothed mesh")
