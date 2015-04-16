@@ -1,5 +1,6 @@
 from __future__ import print_function
-from hpgmg.finite_volume.space import Vector
+from hpgmg.finite_volume.simple_level import SimpleLevel
+from hpgmg.finite_volume.space import Coord
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
@@ -13,21 +14,22 @@ class Restriction(object):
     def __init__(self):
         self.neighbor_offsets = [
             [
-                Vector(0, 0, 0),
-                Vector(0, 0, 1),
-                Vector(0, 1, 0),
-                Vector(0, 1, 1),
-                Vector(1, 0, 0),
-                Vector(1, 0, 1),
-                Vector(1, 1, 0),
-                Vector(1, 1, 1),
+                Coord(0, 0, 0),
+                Coord(0, 0, 1),
+                Coord(0, 1, 0),
+                Coord(0, 1, 1),
+                Coord(1, 0, 0),
+                Coord(1, 0, 1),
+                Coord(1, 1, 0),
+                Coord(1, 1, 1),
             ],
-            [Vector(0, 0, 0), Vector(0, 0, 1), Vector(0, 1, 0), Vector(0, 1, 1), ],
-            [Vector(0, 0, 0), Vector(0, 0, 1), Vector(1, 0, 0), Vector(1, 0, 1), ],
-            [Vector(0, 0, 0), Vector(0, 1, 0), Vector(1, 0, 0), Vector(1, 1, 0), ],
+            [Coord(0, 0, 0), Coord(0, 0, 1), Coord(0, 1, 0), Coord(0, 1, 1), ],
+            [Coord(0, 0, 0), Coord(0, 0, 1), Coord(1, 0, 0), Coord(1, 0, 1), ],
+            [Coord(0, 0, 0), Coord(0, 1, 0), Coord(1, 0, 0), Coord(1, 1, 0), ],
         ]
 
     def restrict(self, level, target, source, restriction_type):
+        assert(isinstance(level, SimpleLevel))
         for target_point in level.interior_points():
             source_point = target_point * 2
             target[target_point] = 0.0

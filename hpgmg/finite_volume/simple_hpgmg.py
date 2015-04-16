@@ -54,7 +54,7 @@ class SimpleMultigridSolver(object):
         self.fine_level.print()
 
     def v_cycle(self, level):
-        if min(level.space) < 3:
+        if min(level.space) <= 3:
             self.bottom_solver(level)
             return
 
@@ -66,10 +66,6 @@ class SimpleMultigridSolver(object):
         self.restrictor.restrict(coarser_level, coarser_level.right_hand_side, level.temp, Restriction.RESTRICT_CELL)
 
         coarser_level.print("Coarsened level {}".format(coarser_level.level_number))
-
-
-
-        # self.smoother.smooth(coarser_level, coarser_level.cell_values, coarser_level.exact_solution)
 
         self.v_cycle(coarser_level)
 
