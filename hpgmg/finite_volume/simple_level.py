@@ -146,15 +146,15 @@ class SimpleLevel(object):
 
     def invert_mesh(self, target_mesh, scale_factor, mesh_to_invert):
         for index in self.valid_indices():
-            target_mesh[index] = scale_factor / mesh_to_invert
+            target_mesh[index] = scale_factor / mesh_to_invert[index]
 
     def scale_mesh(self, target_mesh, scale_factor, source_mesh):
         for index in self.valid_indices():
-            target_mesh[index] = scale_factor * source_mesh
+            target_mesh[index] = scale_factor * source_mesh[index]
 
     def shift_mesh(self, target_mesh, shift_value, source_mesh):
         for index in self.valid_indices():
-            target_mesh[index] = shift_value * source_mesh
+            target_mesh[index] = shift_value * source_mesh[index]
 
     def dot_mesh(self, mesh_a, mesh_b):
         accumulator = 0.0

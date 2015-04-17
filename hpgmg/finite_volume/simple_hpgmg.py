@@ -71,16 +71,17 @@ class SimpleMultigridSolver(object):
 
             coarser_level = level.make_coarser_level()
             self.problem_operator.rebuild_operator(coarser_level, level)
-            self.restrictor.restrict(coarser_level, coarser_level.right_hand_side, level.temp, Restriction.RESTRICT_CELL)
+            self.restrictor.restrict(coarser_level, coarser_level.right_hand_side,
+                                     level.temp, Restriction.RESTRICT_CELL)
 
-            coarser_level.print("Coarsened level {}".format(coarser_level.level_number))
+            # coarser_level.print("Coarsened level {}".format(coarser_level.level_number))
 
         self.v_cycle(coarser_level, coarser_level.cell_values, coarser_level.residual)
 
         with Timer("v-cycle level {}".format(level.level_number)):
             self.interpolator.interpolate(coarser_level.cell_values, level.cell_values)
 
-        level.print("Interpolated level {}".format(level.level_number))
+        # level.print("Interpolated level {}".format(level.level_number))
 
     def solve(self):
         """
@@ -91,9 +92,47 @@ class SimpleMultigridSolver(object):
             MGVCycle(all_grids,e_id,R_id,a,b,level);
         :return:
         """
+        d_tolerance, r_tolerance = 0.0, 1e-10
+        norm_of_right_hand_side = 1.0
+        norm_of_d_right_hand_side = 1.0
+
+        level = self.fine_level
+
+        if d_tolerance > 0.0:
+            level.multiply_meshes(level.temp, 1.0, level.right_hand_side, level.d_inverse)
+            norm_of_d_right_hand_side = level.norm_mesh(level.temp)
+        if r_tolerance > 0.0:
+            norm_of_right_hand_side = level.norm_mesh(level.right_hand_side)
+
+        level.fill_mesh(level.cell_values, 0.0)
+        level.scale_mesh(level.residual, 1.0, level.right_hand_side)
+
         for cycle in range(self.number_of_v_cycles):
             print("Running v-cycle {}".format(cycle))
-            self.v_cycle(self.fine_level, self.fine_level.cell_values, self.fine_level.residual)
+            self.v_cycle(level, level.cell_values, level.residual)
+
+            if self.boundary_is_periodic and self.a == 0.0 or level.alpha_is_zero:
+                average_value_of_u = level.mean_mesh(level.cell_values)
+                level.shift_mesh(level.cell_values, level.cell_values, average_value_of_u)
+
+            self.residual.run(level, level.temp, level.cell_values, level.right_hand_side,)
+            if d_tolerance > 0.0:
+                level.multiply_meshes(level.temp, 1.0, level.temp, level.d_inverse)
+            norm_of_residual = level.norm_mesh(level.temp)
+
+            if cycle > 0:
+                print("\n           ", end="")
+                if r_tolerance > 0:
+                    print("v-cycle={:2d}  norm={:1.15e}  rel={:%1.15e}".format(
+                        cycle+1, norm_of_residual, norm_of_residual / norm_of_right_hand_side))
+                else:
+                    print("v-cycle={:2d}  norm={:1.15e}  rel={:1.15e}".format(
+                        cycle+1, norm_of_residual, norm_of_residual / norm_of_d_right_hand_side))
+
+            if norm_of_residual / norm_of_right_hand_side < r_tolerance:
+                break
+            if norm_of_residual < d_tolerance:
+                break
 
     @staticmethod
     def get_configuration(args=None):
