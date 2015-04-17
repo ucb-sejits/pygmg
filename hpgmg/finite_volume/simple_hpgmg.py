@@ -1,5 +1,5 @@
 """
-implement a simple single threaded, variable coefficient gmg solver
+implement a simple single threaded, gmg solver
 """
 from __future__ import division, print_function
 import argparse
@@ -9,6 +9,7 @@ from hpgmg.finite_volume.operators.interpolation import InterpolatorPC
 from hpgmg.finite_volume.operators.jacobi_smoother import JacobiSmoother
 from hpgmg.finite_volume.operators.residual import Residual
 from hpgmg.finite_volume.operators.restriction import Restriction
+from hpgmg.finite_volume.timer import Timer
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
@@ -42,6 +43,9 @@ class SimpleMultigridSolver(object):
         self.problem_operator = SimpleConstantCoefficientOperator(solver=self)
         self.residual = Residual(solver=self)
 
+        self.boundary_is_periodic = configuration.boundary_condition == 'p'
+        self.boundary_is_dirichlet = configuration.boundary_condition != 'p'
+
         if configuration.smoother == 'j':
             self.smoother = JacobiSmoother(self.problem_operator, 6)
         else:
@@ -55,29 +59,33 @@ class SimpleMultigridSolver(object):
 
     def v_cycle(self, level):
         if min(level.space) <= 3:
-            self.bottom_solver(level)
+            with Timer('bottom_solve'):
+                self.bottom_solver(level)
             return
 
-        self.smoother.smooth(level, level.cell_values, level.right_hand_side)
-        self.residual.run(level, level.temp, level.cell_values, level.right_hand_side)
+        with Timer("v-cycle level {}".format(level.level_number)):
+            self.smoother.smooth(level, level.cell_values, level.right_hand_side)
+            self.residual.run(level, level.temp, level.cell_values, level.right_hand_side)
 
-        coarser_level = level.make_coarser_level()
-        self.problem_operator.rebuild_operator(coarser_level, level)
-        self.restrictor.restrict(coarser_level, coarser_level.right_hand_side, level.temp, Restriction.RESTRICT_CELL)
+            coarser_level = level.make_coarser_level()
+            self.problem_operator.rebuild_operator(coarser_level, level)
+            self.restrictor.restrict(coarser_level, coarser_level.right_hand_side, level.temp, Restriction.RESTRICT_CELL)
 
-        coarser_level.print("Coarsened level {}".format(coarser_level.level_number))
+            coarser_level.print("Coarsened level {}".format(coarser_level.level_number))
 
         self.v_cycle(coarser_level)
 
-        self.interpolator.interpolate(coarser_level.cell_values, level.cell_values)
+        with Timer("v-cycle level {}".format(level.level_number)):
+            self.interpolator.interpolate(coarser_level.cell_values, level.cell_values)
 
         level.print("Interpolated level {}".format(level.level_number))
 
     def solve(self):
         """
-        MGSolve(&all_grids,VECTOR_U,VECTOR_F,a,b,dtol,rtol);
+        void MGVCycle(mg_type *all_grids, int e_id, int R_id, double a, double b, int level){
         void MGSolve(mg_type *all_grids, int u_id, int F_id, double a, double b, double dtol, double rtol){
 
+        MGSolve(&all_grids,VECTOR_U,VECTOR_F,a,b,dtol,rtol);
             MGVCycle(all_grids,e_id,R_id,a,b,level);
         :return:
         """
@@ -128,6 +136,7 @@ class SimpleMultigridSolver(object):
         configuration = SimpleMultigridSolver.get_configuration()
         solver = SimpleMultigridSolver(configuration)
         solver.solve()
+        Timer.show_timers()
 
 
 class IdentityBottomSolver(object):

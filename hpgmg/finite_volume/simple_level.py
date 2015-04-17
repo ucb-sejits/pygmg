@@ -5,7 +5,7 @@ from __future__ import division, print_function
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
-from hpgmg.finite_volume.space import Vector
+from hpgmg.finite_volume.space import Vector, Space
 from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.operators.problem_sine import SineProblem
 
@@ -34,6 +34,7 @@ class SimpleLevel(object):
     FACE_K = 0
 
     def __init__(self, solver, space, level_number=0):
+        assert(isinstance(space, Space))
         self.solver = solver
         self.space = space + (solver.ghost_zone * 2)
 
@@ -76,9 +77,17 @@ class SimpleLevel(object):
     def h(self):
         return self.cell_size
 
+    def indices(self):
+        for point in self.space.points:
+            yield point
+
     def interior_points(self):
         for point in self.space.interior_points(self.ghost_zone):
             yield point
+
+    def valid_indices(self):
+        for index in self.interior_points():
+            yield index
 
     def initialize(self, a=1.0, b=1.0):
         alpha = 1.0
@@ -113,6 +122,70 @@ class SimpleLevel(object):
             self.beta_face_values[SimpleLevel.FACE_I][element_index] = beta_i
             self.beta_face_values[SimpleLevel.FACE_J][element_index] = beta_j
             self.beta_face_values[SimpleLevel.FACE_K][element_index] = beta_k
+
+    def initialize_valid(self):
+        for index in self.valid.indices():
+            self.valid[index] = 1.0
+            if self.solver.boundary_is_dirichlet and self.valid.space.is_boundary_point(index):
+                self.valid[index] = 0.0
+
+    def fill_mesh(self, mesh, value):
+        for index in self.indices():
+            mesh[index] = value if self.valid[index] > 0.0 else 0.0
+
+    def add_meshes(self, target_mesh, scale_a, mesh_a, scale_b, mesh_b):
+        for index in self.valid_indices():
+            target_mesh[index] = scale_a * mesh_a[index] + scale_b + mesh_b[index]
+
+    def multiply_meshes(self, target_mesh, scale_factor, mesh_a, mesh_b):
+        for index in self.valid_indices():
+            target_mesh[index] = scale_factor * mesh_a[index] * mesh_b[index]
+
+    def invert_mesh(self, target_mesh, scale_factor, mesh_to_invert):
+        for index in self.valid_indices():
+            target_mesh[index] = scale_factor / mesh_to_invert
+
+    def scale_mesh(self, target_mesh, scale_factor, source_mesh):
+        for index in self.valid_indices():
+            target_mesh[index] = scale_factor * source_mesh
+
+    def shift_mesh(self, target_mesh, shift_value, source_mesh):
+        for index in self.valid_indices():
+            target_mesh[index] = shift_value * source_mesh
+
+    def dot_mesh(self, mesh_a, mesh_b):
+        accumulator = 0.0
+        for index in self.valid_indices():
+            accumulator += mesh_a[index] * mesh_b.index
+        return accumulator
+
+    def norm_mesh(self, mesh):
+        max_norm = 0.0
+        for index in self.valid_indices():
+            if abs(mesh[index]) > max_norm:
+                max_norm = abs(mesh[index])
+        return max_norm
+
+    def project_cell_to_face(self, cell_mesh, face_id):
+        lower_neighbor = Vector(
+            -1 if d == face_id else 0 for d in range(len(self.space))
+        )
+        for index in self.valid_indices():
+            self.beta_face_values[index] = 0.5 * (cell_mesh[index + lower_neighbor] + cell_mesh[index])
+
+    def mean_mesh(self, mesh):
+        """
+
+        :param mesh:
+        :return:
+        """
+        # TODO: original used computed cell count, is this over valid or what
+        accumulator = 0.0
+        cell_count = 0
+        for index in self.valid_indices():
+            accumulator += mesh[index]
+            cell_count += 1
+        return accumulator / cell_count
 
     def print(self, title=None):
         if title:

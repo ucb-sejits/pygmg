@@ -1,5 +1,5 @@
 from __future__ import print_function
-from stencil_code.library.basic_convolution import Neighborhood
+from stencil_code.neighborhood import Neighborhood
 from hpgmg.finite_volume.operators.restriction import Restriction
 from hpgmg.finite_volume.simple_level import SimpleLevel
 from hpgmg.finite_volume.space import Coord

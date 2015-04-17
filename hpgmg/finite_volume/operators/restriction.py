@@ -32,6 +32,8 @@ class Restriction(object):
         assert(isinstance(level, SimpleLevel))
         for target_point in level.interior_points():
             source_point = target_point * 2
+            assert isinstance(target_point, Coord)
+            assert isinstance(source_point, Coord)
             target[target_point] = 0.0
             for neighbor_offset in self.neighbor_offsets[restriction_type]:
                 target[target_point] += source[source_point + neighbor_offset]

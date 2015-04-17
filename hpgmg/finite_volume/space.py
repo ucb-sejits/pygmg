@@ -45,7 +45,7 @@ class Vector(tuple):
     def near(self, other, threshold=1e-6):
         """
         checks to see if one vector is near another, this function considers the magnitude of
-        the numbers involved, this function is surely too slow
+        the numbers involved, this function siu
         :param other:
         :param threshold:
         :return:

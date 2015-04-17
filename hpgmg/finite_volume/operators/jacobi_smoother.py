@@ -1,12 +1,6 @@
 from __future__ import print_function
-from hpgmg.finite_volume.mesh import Mesh
-from hpgmg.finite_volume.smoothers import jacobi_stencil
-from hpgmg.finite_volume.space import Space, Coord
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
-
-from stencil_code.neighborhood import Neighborhood
-from stencil_code.stencil_kernel import Stencil
 
 
 class JacobiSmoother(object):
@@ -34,7 +28,6 @@ class JacobiSmoother(object):
         lambda_mesh = level.l1_inverse if self.use_l1_jacobi else level.d_inverse
         working_target = level.temp
         for i in range(self.iterations):
-            # jacobi_stencil(self.operator, lhs_mesh, rhs_mesh)
             for index in working_target.indices():
                 working_target[index] = rhs_mesh[index] + (
                     self.weight * lambda_mesh[index] * (
@@ -59,8 +52,8 @@ if __name__ == '__main__':
 
     base_level = solver.fine_level
     mesh = base_level.cell_values
-    for index in mesh.indices():
-        mesh[index] = sum(list(index))
+    for point in mesh.indices():
+        mesh[point] = sum(list(point))
     mesh.print("mesh")
 
     solver.smoother.smooth(base_level, base_level.cell_values, base_level.exact_solution)

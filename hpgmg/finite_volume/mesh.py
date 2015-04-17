@@ -56,3 +56,7 @@ class Mesh(np.ndarray):
                 print()
             print()
         print()
+
+    def zero(self):
+        for index in self.indices():
+            self[index] = 0.0
