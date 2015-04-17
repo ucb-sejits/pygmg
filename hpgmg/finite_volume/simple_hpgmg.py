@@ -5,6 +5,7 @@ from __future__ import division, print_function
 import argparse
 import os
 from hpgmg.finite_volume.Simple7PointOperator import SimpleConstantCoefficientOperator
+from hpgmg.finite_volume.iterative_solver import IterativeSolver
 from hpgmg.finite_volume.operators.interpolation import InterpolatorPC
 from hpgmg.finite_volume.operators.jacobi_smoother import JacobiSmoother
 from hpgmg.finite_volume.operators.residual import Residual
@@ -51,16 +52,17 @@ class SimpleMultigridSolver(object):
         else:
             raise Exception()
 
-        self.bottom_solver = IdentityBottomSolver().solve
+        self.default_bottom_norm = 1e-3
+        self.bottom_solver = IterativeSolver(solver=self, desired_reduction=self.default_bottom_norm)
 
         self.fine_level = SimpleLevel(solver=self, space=self.global_size, level_number=0)
         self.fine_level.initialize()
         self.fine_level.print()
 
-    def v_cycle(self, level):
+    def v_cycle(self, level, target_mesh, residual_mesh):
         if min(level.space) <= 3:
             with Timer('bottom_solve'):
-                self.bottom_solver(level)
+                self.bottom_solver.solve(level, target_mesh, residual_mesh)
             return
 
         with Timer("v-cycle level {}".format(level.level_number)):
@@ -73,7 +75,7 @@ class SimpleMultigridSolver(object):
 
             coarser_level.print("Coarsened level {}".format(coarser_level.level_number))
 
-        self.v_cycle(coarser_level)
+        self.v_cycle(coarser_level, coarser_level.cell_values, coarser_level.residual)
 
         with Timer("v-cycle level {}".format(level.level_number)):
             self.interpolator.interpolate(coarser_level.cell_values, level.cell_values)
@@ -91,7 +93,7 @@ class SimpleMultigridSolver(object):
         """
         for cycle in range(self.number_of_v_cycles):
             print("Running v-cycle {}".format(cycle))
-            self.v_cycle(self.fine_level)
+            self.v_cycle(self.fine_level, self.fine_level.cell_values, self.fine_level.residual)
 
     @staticmethod
     def get_configuration(args=None):

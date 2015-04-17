@@ -42,6 +42,8 @@ class SimpleLevel(object):
         self.is_variable_coefficient = not solver.configuration.fixed_beta
         self.problem_name = solver.configuration.problem
         self.level_number = level_number
+        self.krylov_iterations = 0
+
         if self.problem_name == 'sine':
             self.problem = SineProblem
         self.ghost_zone = solver.ghost_zone
@@ -68,6 +70,7 @@ class SimpleLevel(object):
         self.dominant_eigen_value_of_d_inv_a = 0.0
 
         self.cell_size = 1.0 / self.space[0]
+        self.alpha_is_zero = None
 
     def make_coarser_level(self):
         coarser_level = SimpleLevel(self.solver, (self.space-self.ghost_zone)//2, self.level_number+1)
@@ -156,7 +159,7 @@ class SimpleLevel(object):
     def dot_mesh(self, mesh_a, mesh_b):
         accumulator = 0.0
         for index in self.valid_indices():
-            accumulator += mesh_a[index] * mesh_b.index
+            accumulator += mesh_a[index] * mesh_b[index]
         return accumulator
 
     def norm_mesh(self, mesh):
