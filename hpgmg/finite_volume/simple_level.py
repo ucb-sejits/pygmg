@@ -14,8 +14,8 @@ class SimpleLevel(object):
     """
     From hpgmg defines.h, the list of matrices at each level
     C vector offset    python mesh name
-    ================== ====================================
-    VECTOR_TEMP        temp
+    ================== ==================================== ===============================
+    VECTOR_TEMP        temp                                 generic work space
     VECTOR_UTRUE       exact_solution
     VECTOR_F_MINUS_AV  residual
     VECTOR_F           right_hand_side
@@ -40,12 +40,9 @@ class SimpleLevel(object):
 
         self.configuration = solver.configuration
         self.is_variable_coefficient = solver.is_variable_coefficient
-        self.problem_name = solver.configuration.problem
         self.level_number = level_number
         self.krylov_iterations = 0
 
-        if self.problem_name == 'sine':
-            self.problem = SineProblem
         self.ghost_zone = solver.ghost_zone
 
         self.cell_values = Mesh(self.space)
@@ -91,40 +88,6 @@ class SimpleLevel(object):
     def valid_indices(self):
         for index in self.interior_points():
             yield index
-
-    def initialize(self, a=1.0, b=1.0):
-        alpha = 1.0
-        beta = 1.0
-        beta_xyz = Vector(0.0, 0.0, 0.0)
-        beta_i, beta_j, beta_k = 1.0, 1.0, 1.0
-
-        problem = self.problem
-
-        for element_index in self.interior_points():
-            half_cell = Vector([0.5 for _ in self.space])
-            absolute_position = (Vector(element_index) + half_cell) * self.cell_size
-
-            if self.is_variable_coefficient:
-                beta_i, _ = problem.evaluate_beta(absolute_position-Vector(self.h*0.5, 0.0, 0.0))
-                beta_j, _ = problem.evaluate_beta(absolute_position-Vector(0.0, self.h*0.5, 0.0))
-                beta_k, beta = problem.evaluate_beta(absolute_position-Vector(0.0, 0.0, self.h*0.5))
-                beta, beta_xyz = problem.evaluate_beta(absolute_position)
-
-            u, u_xyz, u_xxyyzz = problem.evaluate_u(absolute_position)
-            f = a * alpha * u - (
-                b * (
-                    (beta_xyz.i * u_xyz.i + beta_xyz.j * u_xyz.j + beta_xyz.k * u_xyz.k) +
-                    beta * (u_xxyyzz.i + u_xxyyzz.j + u_xxyyzz.k)
-                )
-            )
-
-            self.right_hand_side[element_index] = f
-            self.exact_solution[element_index] = u
-
-            self.alpha[element_index] = alpha
-            self.beta_face_values[SimpleLevel.FACE_I][element_index] = beta_i
-            self.beta_face_values[SimpleLevel.FACE_J][element_index] = beta_j
-            self.beta_face_values[SimpleLevel.FACE_K][element_index] = beta_k
 
     def initialize_valid(self):
         for index in self.valid.indices():

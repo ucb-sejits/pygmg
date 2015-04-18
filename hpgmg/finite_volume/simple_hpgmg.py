@@ -8,13 +8,14 @@ from hpgmg.finite_volume.Simple7PointOperator import SimpleConstantCoefficientOp
 from hpgmg.finite_volume.iterative_solver import IterativeSolver
 from hpgmg.finite_volume.operators.interpolation import InterpolatorPC
 from hpgmg.finite_volume.operators.jacobi_smoother import JacobiSmoother
+from hpgmg.finite_volume.operators.problem_sine import SineProblem
 from hpgmg.finite_volume.operators.residual import Residual
 from hpgmg.finite_volume.operators.restriction import Restriction
 from hpgmg.finite_volume.timer import Timer
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
-from hpgmg.finite_volume.space import Space, Coord
+from hpgmg.finite_volume.space import Space, Coord, Vector
 from hpgmg.finite_volume.simple_level import SimpleLevel
 
 
@@ -53,12 +54,49 @@ class SimpleMultigridSolver(object):
         else:
             raise Exception()
 
+        if configuration.problem_name == 'sine':
+            self.problem = SineProblem
+
         self.default_bottom_norm = 1e-3
         self.bottom_solver = IterativeSolver(solver=self, desired_reduction=self.default_bottom_norm)
 
         self.fine_level = SimpleLevel(solver=self, space=self.global_size, level_number=0)
-        self.fine_level.initialize()
+        self.initialize(self.fine_level)
         # self.fine_level.print()
+
+    def initialize(self, level):
+        alpha = 1.0
+        beta = 1.0
+        beta_xyz = Vector(0.0, 0.0, 0.0)
+        beta_i, beta_j, beta_k = 1.0, 1.0, 1.0
+
+        problem = self.problem
+
+        for element_index in level.interior_points():
+            half_cell = Vector([0.5 for _ in level.space])
+            absolute_position = (Vector(element_index) + half_cell) * level.cell_size
+
+            if level.is_variable_coefficient:
+                beta_i, _ = problem.evaluate_beta(absolute_position-Vector(level.h*0.5, 0.0, 0.0))
+                beta_j, _ = problem.evaluate_beta(absolute_position-Vector(0.0, level.h*0.5, 0.0))
+                beta_k, beta = problem.evaluate_beta(absolute_position-Vector(0.0, 0.0, level.h*0.5))
+                beta, beta_xyz = problem.evaluate_beta(absolute_position)
+
+            u, u_xyz, u_xxyyzz = problem.evaluate_u(absolute_position)
+            f = self.a * alpha * u - (
+                self.b * (
+                    (beta_xyz.i * u_xyz.i + beta_xyz.j * u_xyz.j + beta_xyz.k * u_xyz.k) +
+                    beta * (u_xxyyzz.i + u_xxyyzz.j + u_xxyyzz.k)
+                )
+            )
+
+            level.right_hand_side[element_index] = f
+            level.exact_solution[element_index] = u
+
+            level.alpha[element_index] = alpha
+            level.beta_face_values[SimpleLevel.FACE_I][element_index] = beta_i
+            level.beta_face_values[SimpleLevel.FACE_J][element_index] = beta_j
+            level.beta_face_values[SimpleLevel.FACE_K][element_index] = beta_k
 
     def v_cycle(self, level, target_mesh, residual_mesh):
         if min(level.space) <= 3:
@@ -150,7 +188,7 @@ class SimpleMultigridSolver(object):
                             default=1, type=int)
         parser.add_argument('-gs', '--ghost_size', help='size of ghost zone (assumed symmetric)',
                             default=1, type=int)
-        parser.add_argument('-p', '--problem',
+        parser.add_argument('-pn', '--problem-name',
                             help="problem name, one of [sine]",
                             default='sine',
                             choices=['sine'], )
