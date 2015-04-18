@@ -39,7 +39,7 @@ class SimpleLevel(object):
         self.space = space + (solver.ghost_zone * 2)
 
         self.configuration = solver.configuration
-        self.is_variable_coefficient = not solver.configuration.fixed_beta
+        self.is_variable_coefficient = solver.is_variable_coefficient
         self.problem_name = solver.configuration.problem
         self.level_number = level_number
         self.krylov_iterations = 0

@@ -36,6 +36,7 @@ class SimpleMultigridSolver(object):
         self.configuration = configuration
         self.dimensions = configuration.dimensions
         self.global_size = Space([2**configuration.log2_level_size for _ in range(self.dimensions)])
+        self.is_variable_coefficient = configuration.variable_coefficient
         self.ghost_zone = Coord(1 for _ in range(self.dimensions))
 
         self.number_of_v_cycles = configuration.number_of_vcycles
@@ -57,7 +58,7 @@ class SimpleMultigridSolver(object):
 
         self.fine_level = SimpleLevel(solver=self, space=self.global_size, level_number=0)
         self.fine_level.initialize()
-        self.fine_level.print()
+        # self.fine_level.print()
 
     def v_cycle(self, level, target_mesh, residual_mesh):
         if min(level.space) <= 3:
@@ -98,41 +99,45 @@ class SimpleMultigridSolver(object):
 
         level = self.fine_level
 
-        if d_tolerance > 0.0:
-            level.multiply_meshes(level.temp, 1.0, level.right_hand_side, level.d_inverse)
-            norm_of_d_right_hand_side = level.norm_mesh(level.temp)
-        if r_tolerance > 0.0:
-            norm_of_right_hand_side = level.norm_mesh(level.right_hand_side)
-
-        level.fill_mesh(level.cell_values, 0.0)
-        level.scale_mesh(level.residual, 1.0, level.right_hand_side)
-
-        for cycle in range(self.number_of_v_cycles):
-            print("Running v-cycle {}".format(cycle))
-            self.v_cycle(level, level.cell_values, level.residual)
-
-            if self.boundary_is_periodic and self.a == 0.0 or level.alpha_is_zero:
-                average_value_of_u = level.mean_mesh(level.cell_values)
-                level.shift_mesh(level.cell_values, level.cell_values, average_value_of_u)
-
-            self.residual.run(level, level.temp, level.cell_values, level.right_hand_side,)
+        with Timer("mg-solve time"):
             if d_tolerance > 0.0:
-                level.multiply_meshes(level.temp, 1.0, level.temp, level.d_inverse)
-            norm_of_residual = level.norm_mesh(level.temp)
+                level.multiply_meshes(level.temp, 1.0, level.right_hand_side, level.d_inverse)
+                norm_of_d_right_hand_side = level.norm_mesh(level.temp)
+            if r_tolerance > 0.0:
+                norm_of_right_hand_side = level.norm_mesh(level.right_hand_side)
 
-            if cycle > 0:
-                print("\n           ", end="")
-                if r_tolerance > 0:
-                    print("v-cycle={:2d}  norm={:1.15e}  rel={:%1.15e}".format(
-                        cycle+1, norm_of_residual, norm_of_residual / norm_of_right_hand_side))
-                else:
-                    print("v-cycle={:2d}  norm={:1.15e}  rel={:1.15e}".format(
-                        cycle+1, norm_of_residual, norm_of_residual / norm_of_d_right_hand_side))
+            level.fill_mesh(level.cell_values, 0.0)
+            level.scale_mesh(level.residual, 1.0, level.right_hand_side)
 
-            if norm_of_residual / norm_of_right_hand_side < r_tolerance:
-                break
-            if norm_of_residual < d_tolerance:
-                break
+            for cycle in range(self.number_of_v_cycles):
+                print("Running v-cycle {}".format(cycle))
+                self.v_cycle(level, level.cell_values, level.residual)
+
+                if self.boundary_is_periodic and self.a == 0.0 or level.alpha_is_zero:
+                    # Poisson with Periodic Boundary Conditions...
+                    # by convention, we assume the solution sums to zero...
+                    # so eliminate any constants from the solution...
+                    average_value_of_u = level.mean_mesh(level.cell_values)
+                    level.shift_mesh(level.cell_values, level.cell_values, average_value_of_u)
+
+                self.residual.run(level, level.temp, level.cell_values, level.right_hand_side,)
+                if d_tolerance > 0.0:
+                    level.multiply_meshes(level.temp, 1.0, level.temp, level.d_inverse)
+                norm_of_residual = level.norm_mesh(level.temp)
+
+                if cycle > 0:
+                    print("\n           ", end="")
+                    if r_tolerance > 0:
+                        print("v-cycle={:2d}  norm={:1.15e}  rel={:%1.15e}".format(
+                            cycle+1, norm_of_residual, norm_of_residual / norm_of_right_hand_side))
+                    else:
+                        print("v-cycle={:2d}  norm={:1.15e}  rel={:1.15e}".format(
+                            cycle+1, norm_of_residual, norm_of_residual / norm_of_d_right_hand_side))
+
+                if norm_of_residual / norm_of_right_hand_side < r_tolerance:
+                    break
+                if norm_of_residual < d_tolerance:
+                    break
 
     @staticmethod
     def get_configuration(args=None):
@@ -155,11 +160,11 @@ class SimpleMultigridSolver(object):
                             choices=['p', 'd'], )
         parser.add_argument('-eq', '--equation',
                             help="Type of equation, h for helmholtz orp for poisson",
-                            default='p', )
+                            default='h', )
         parser.add_argument('-sm', '--smoother',
                             help="Type of smoother, j for jacobi",
                             default='j', )
-        parser.add_argument('-fb', '--fixed_beta', action='store_true',
+        parser.add_argument('-vc', '--variable-coefficient', action='store_true',
                             help="Use 1.0 as fixed value of beta, default is variable beta coefficient",
                             default=False, )
         return parser.parse_args(args=args)
