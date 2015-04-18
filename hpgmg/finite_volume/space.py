@@ -51,7 +51,8 @@ class Vector(tuple):
         :return:
         """
         if isinstance(other, Vector):
-            return all(abs(self[d] - other[d]) < abs(self[d]/threshold) for d in range(self.ndim))
+            # return all(abs(self[d] - other[d]) < abs(self[d]/threshold) for d in range(self.ndim))
+            return all(abs(self[d] - other[d]) < abs(threshold) for d in range(self.ndim))
         else:
             return NotImplemented
 
