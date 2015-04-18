@@ -23,6 +23,7 @@ class SineProblemND(Problem):
     """
 
     def __init__(self, dimensions=3):
+        self.source = []
         expr = None
         dimension_names = ['x', 'y', 'z'][:dimensions]
         if dimensions > len(dimension_names):
@@ -31,9 +32,13 @@ class SineProblemND(Problem):
         dimension_symbols = []
         for dimension_name in dimension_names:
             declaration = "{0} = sympy.Symbol('{0}')".format(dimension_name)
-            print("declaration {}".format(declaration))
+            self.source.append(declaration)
             exec declaration
             dimension_symbols.append(sympy.Symbol(dimension_name))
+        c1, c2 = 2.0 * np.pi, 6.0 * np.pi
+        power = 13.0
+        self.source.append("c1, c2 = {}, {}".format(c1, c2))  # 2.0 * np.pi, 6.0 * np.pi)
+        self.source.append("power = {}".format(power))
 
         first_terms = ["(sympy.sin(c1*{})**power)".format(sym) for sym in dimension_symbols]
         first_product = " * ".join(first_terms)
@@ -41,15 +46,10 @@ class SineProblemND(Problem):
         second_terms = ["(sympy.sin(c2*{})**power)".format(sym) for sym in dimension_symbols]
         second_product = " * ".join(second_terms)
         text_expression = "expr = " + first_product + " + " + second_product
+        self.source.append(text_expression)
 
-        print("first terms {}".format(first_terms))
-        print("second terms {}".format(second_terms))
-        print("Expression {}".format(text_expression))
-
-        c1, c2 = 2.0 * np.pi, 6.0 * np.pi
-        power = 13.0
         exec text_expression
-        print("expression {}".format(expr))
+        # print("expression {}".format(expr))
 
         first_derivatives = []
         second_derivatives = []
@@ -57,17 +57,21 @@ class SineProblemND(Problem):
             first_derivatives.append(
                 sympy.diff(expr, dimension_symbol)
             )
+            self.source.append("du_d{}_expr = {}".format(dimension_symbol, first_derivatives[-1]))
+
+        for dimension_symbol in dimension_symbols:
             second_derivatives.append(
                 sympy.diff(expr, dimension_symbol, 2)
             )
+            self.source.append("d2u_d{}2_expr = {}".format(dimension_symbol, second_derivatives[-1]))
 
-        print("first derivatives")
-        for first_derivative in first_derivatives:
-            print(first_derivatives)
-
-        print("second derivatives")
-        for second_derivative in second_derivatives:
-            print(second_derivatives)
+        # print("first derivatives")
+        # for first_derivative in first_derivatives:
+        #     print(first_derivatives)
+        #
+        # print("second derivatives")
+        # for second_derivative in second_derivatives:
+        #     print(second_derivatives)
 
         self.u_function = sympy.lambdify(dimension_symbols, expr)
         self.u_first_derivatives = [
@@ -97,14 +101,11 @@ class SineProblemND(Problem):
 if __name__ == '__main__':
     number_of_dimensions = 3
     problem = SineProblemND(number_of_dimensions)
+    print("function python source")
+    for line in problem.source:
+        print("    {}".format(line))
     space = Space(4 for _ in range(number_of_dimensions))
     mesh = Mesh(space)
-
-    for index in mesh.indices():
-        point = Vector(float(index[d]) / mesh.space[d] for d in range(mesh.space.ndim))
-        mesh[index] = problem.evaluate_u(point)[0]
-
-    mesh.print("test mesh")
 
     if number_of_dimensions == 3:
         count = 0
@@ -130,3 +131,9 @@ if __name__ == '__main__':
             count += 1
             if count % 10 == 0:
                 print("count {}".format(count))
+
+    for d in range(1, 5):
+        problem = SineProblemND(d)
+        print("Dimensions {}".format(d))
+        for line in problem.source:
+            print("    {}".format(line))
