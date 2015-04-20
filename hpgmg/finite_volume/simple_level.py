@@ -7,7 +7,6 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 from hpgmg.finite_volume.space import Vector, Space
 from hpgmg.finite_volume.mesh import Mesh
-from hpgmg.finite_volume.operators.problem_sine import SineProblem
 
 
 class SimpleLevel(object):

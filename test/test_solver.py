@@ -1,11 +1,13 @@
 from __future__ import print_function
 import unittest
-from hpgmg.finite_volume.Simple7PointOperator import SimpleConstantCoefficientOperator
+
+from hpgmg.finite_volume.operators.Simple7PointOperator import SimpleConstantCoefficientOperator
 from hpgmg.finite_volume.iterative_solver import IterativeSolver
 from hpgmg.finite_volume.operators.jacobi_smoother import JacobiSmoother
 from hpgmg.finite_volume.simple_hpgmg import SimpleMultigridSolver
 from hpgmg.finite_volume.simple_level import SimpleLevel
 from hpgmg.finite_volume.space import Coord
+
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 

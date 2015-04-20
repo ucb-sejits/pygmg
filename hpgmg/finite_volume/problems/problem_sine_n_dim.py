@@ -1,12 +1,10 @@
 from __future__ import print_function
-from hpgmg.finite_volume.mesh import Mesh
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 import numpy as np
-from hpgmg.finite_volume.operators.problem import Problem
-from hpgmg.finite_volume.operators.problem_sine import SineProblem
-from hpgmg.finite_volume.space import Vector, Space
+from hpgmg.finite_volume.problems.problem import Problem
+from hpgmg.finite_volume.space import Vector
 
 import sympy
 
@@ -96,44 +94,3 @@ class SineProblemND(Problem):
             u_second_derivative(*vector) for u_second_derivative in self.u_second_derivatives
         )
         return u, Vector(du_dv), Vector(d2u_dv2)
-
-
-if __name__ == '__main__':
-    number_of_dimensions = 3
-    problem = SineProblemND(number_of_dimensions)
-    print("function python source")
-    for line in problem.source:
-        print("    {}".format(line))
-    space = Space(4 for _ in range(number_of_dimensions))
-    mesh = Mesh(space)
-
-    if number_of_dimensions == 3:
-        count = 0
-        for index in mesh.indices():
-            point = Vector(float(index[d]) / mesh.space[d] for d in range(mesh.space.ndim))
-
-            a, da, d2a = problem.evaluate_u(point)
-            b, db, d2b = SineProblem.evaluate_u(point)
-
-            do_print = False
-            if abs(a-b) > 1e-6:
-                print("mismatch u {:12.6e} {:12.6e}".format(a, b), end="")
-                do_print = True
-            if not da.near(db, threshold=1e-6):
-                print("mismatch du {:12} {:12}".format(da, db), end="")
-                do_print = True
-            if not d2a.near(d2b, threshold=1e-6):
-                print("mismatch d2u {:12} {:12}".format(d2a, d2b), end="")
-                do_print = True
-            if do_print:
-                print()
-
-            count += 1
-            if count % 10 == 0:
-                print("count {}".format(count))
-
-    for d in range(1, 5):
-        problem = SineProblemND(d)
-        print("Dimensions {}".format(d))
-        for line in problem.source:
-            print("    {}".format(line))

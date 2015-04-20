@@ -3,14 +3,10 @@ from hpgmg.finite_volume.mesh import Mesh
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
-from math import tanh, sin, cos
-
 import numpy as np
-from hpgmg.finite_volume.constants import Constants
 
-import hpgmg.finite_volume.operators.misc as misc
-from hpgmg.finite_volume.operators.problem import Problem
-from hpgmg.finite_volume.operators.problem_sine import SineProblem
+from hpgmg.finite_volume.problems.problem import Problem
+from hpgmg.finite_volume.problems.problem_sine import SineProblem
 from hpgmg.finite_volume.space import Vector, Space
 
 import sympy

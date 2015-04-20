@@ -2,7 +2,7 @@ from __future__ import print_function, division
 from hpgmg.finite_volume import VECTOR_F, VECTOR_UTRUE
 from hpgmg.finite_volume.boundary_condition import BoundaryCondition
 from hpgmg.finite_volume.operators import misc
-from hpgmg.finite_volume.operators.problem_sine import SineProblem
+from hpgmg.finite_volume.problems.problem_sine import SineProblem
 from hpgmg.finite_volume.space import Space
 
 __author__ = 'nzhang-dev'

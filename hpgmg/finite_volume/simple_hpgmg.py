@@ -4,16 +4,17 @@ implement a simple single threaded, gmg solver
 from __future__ import division, print_function
 import argparse
 import os
-from hpgmg.finite_volume.Simple7PointOperator import SimpleConstantCoefficientOperator
+
+from hpgmg.finite_volume.operators.stencil_von_neumann_r1 import StencilVonNeumannR1
 from hpgmg.finite_volume.iterative_solver import IterativeSolver
 from hpgmg.finite_volume.operators.interpolation import InterpolatorPC
 from hpgmg.finite_volume.operators.jacobi_smoother import JacobiSmoother
-from hpgmg.finite_volume.operators.problem_sine import SineProblem
-from hpgmg.finite_volume.operators.problem_sine_n_dim import SineProblemND
+from hpgmg.finite_volume.problems.problem_sine_n_dim import SineProblemND
 from hpgmg.finite_volume.operators.residual import Residual
 from hpgmg.finite_volume.operators.restriction import Restriction
 from hpgmg.finite_volume.operators.variable_beta_generators import VariableBeta
 from hpgmg.finite_volume.timer import Timer
+
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
@@ -45,7 +46,7 @@ class SimpleMultigridSolver(object):
         self.number_of_v_cycles = configuration.number_of_vcycles
         self.interpolator = InterpolatorPC(pre_scale=0.0)
         self.restrictor = Restriction()
-        self.problem_operator = SimpleConstantCoefficientOperator(solver=self)
+        self.problem_operator = StencilVonNeumannR1(solver=self)
         self.residual = Residual(solver=self)
 
         self.boundary_is_periodic = configuration.boundary_condition == 'p'

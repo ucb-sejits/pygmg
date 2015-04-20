@@ -7,7 +7,11 @@ from hpgmg.finite_volume.space import Coord
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 
-class SimpleConstantCoefficientOperator(object):
+class StencilVonNeumannR1(object):
+    """
+    implements a stencil using a radius 1 von neumann neighborhood
+    """
+    # TODO: implement variable coefficient cases
     def __init__(self, solver):
         self.a = solver.a
         self.b = solver.b
@@ -23,9 +27,10 @@ class SimpleConstantCoefficientOperator(object):
         self.h2inv = 1.0 / (level_h ** 2)
 
     def apply_op(self, mesh, index):
-        return self.a * mesh[index] - self.b * self.h2inv * sum(
-            [mesh[neighbor_index] for neighbor_index in self.neighborhood]
-        ) * self.num_neighbors
+        return self.a * mesh[index] - self.b * self.h2inv * (
+            sum([mesh[neighbor_index] for neighbor_index in self.neighborhood]) -
+            mesh[index] * self.num_neighbors
+        )
 
     def rebuild_operator(self, target_level, source_level=None):
         self.set_scale(target_level.h)

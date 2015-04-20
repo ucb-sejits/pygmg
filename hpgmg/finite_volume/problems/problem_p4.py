@@ -1,11 +1,6 @@
 from __future__ import print_function
-from math import tanh, sin, cos
 
-import numpy as np
-from hpgmg.finite_volume.constants import Constants
-
-import hpgmg.finite_volume.operators.misc as misc
-from hpgmg.finite_volume.operators.problem import Problem
+from hpgmg.finite_volume.problems.problem import Problem
 from hpgmg.finite_volume.space import Vector
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
@@ -14,7 +9,8 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 class ProblemP4(Problem):
     @staticmethod
     def symbolic_version(coord):
-        from sympy import diff, Symbol, sin
+        from sympy import diff, Symbol
+
         x, y, z = Symbol('x'), Symbol('y'), Symbol('z')
         shift = Symbol('shift')
 
