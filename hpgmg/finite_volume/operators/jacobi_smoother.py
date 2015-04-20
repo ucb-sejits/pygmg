@@ -31,7 +31,7 @@ class JacobiSmoother(object):
             for index in working_target.indices():
                 working_target[index] = rhs_mesh[index] + (
                     self.weight * lambda_mesh[index] * (
-                        rhs_mesh[index] - self.operator.apply_op(rhs_mesh, index)
+                        rhs_mesh[index] - self.operator.apply_op(rhs_mesh, index, level)
                     )
                 )
 

@@ -74,7 +74,7 @@ class StencilVonNeumannR1(object):
             )
         )
 
-    def apply_op_constant_coefficient_fused_boundary_conditions(self, level, mesh, index):
+    def apply_op_constant_coefficient_fused_boundary_conditions(self, mesh, index, level):
         return self.a * mesh[index] - self.b * self.h2inv * (
             sum(
                 level.valid[index + self.unit_vectors[dim]] * (
@@ -94,7 +94,7 @@ class StencilVonNeumannR1(object):
     # TODO: Implement apply_op_variable_coefficient_unfused_boundary_conditions_helmholtz
     # TODO: Implement apply_op_variable_coefficient_unfused_boundary_conditions_poisson
 
-    def apply_op_constant_coefficient_unfused_boundary_conditions(self, mesh, index):
+    def apply_op_constant_coefficient_unfused_boundary_conditions(self, mesh, index, _):
         return self.a * mesh[index] - self.b * self.h2inv * (
             sum([mesh[neighbor_index] for neighbor_index in self.neighborhood]) -
             mesh[index] * self.num_neighbors

@@ -12,4 +12,4 @@ class Residual(object):
 
     def run(self, level, target_mesh, source_mesh, right_hand_side):
         for index in level.interior_points():
-            target_mesh[index] = right_hand_side[index] - self.operator.apply_op(source_mesh, index)
+            target_mesh[index] = right_hand_side[index] - self.operator.apply_op(source_mesh, index, level)
