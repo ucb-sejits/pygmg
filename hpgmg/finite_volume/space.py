@@ -142,6 +142,9 @@ class Coord(Vector):
     def __sub__(self, other):
         return self + -other
 
+    def to_vector(self):
+        return Vector(float(x) for x in self)
+
 
 class Space(Coord):
     """

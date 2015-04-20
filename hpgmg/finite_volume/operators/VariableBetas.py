@@ -24,7 +24,7 @@ class VariableBeta(object):
 
         delta = vector - self.center
         distance = sum(d**2 for d in delta)**0.5
-        normalized_delta = delta / distance
+        normalized_delta = delta * distance**-1.0
 
         beta_at_face = c1 + c2 * tanh(c3 * (distance - 0.25))
         beta_vector = c2 * c3 * normalized_delta * (1 - (tanh(c3 * (distance - 0.25))**2))
@@ -71,7 +71,7 @@ class VariableBeta(object):
 if __name__ == '__main__':
     from hpgmg.finite_volume.mesh import Mesh
 
-    size = 4
+    size = 16
     num_dimensions = 3
     h = 1.0 / size
 
@@ -79,17 +79,27 @@ if __name__ == '__main__':
 
     mesh = Mesh([size for _ in range(num_dimensions)])
 
-    for index in mesh.indices():
+    for coord in mesh.indices():
+        index = coord.to_vector()
+
+        a_beta_d, a_beta = variable_beta.evaluate_beta(index)
+        b_beta_d, b_beta = variable_beta.evaluate_beta_3d(index)
+
+        assert  abs(a_beta_d - b_beta_d) < 1e-6, \
+            "at {} a_beta_d did not match b_beta_d {} != {}".format(index, a_beta_d, b_beta_d)
+        for dim in range(num_dimensions):
+            assert a_beta.near(b_beta), \
+                "at {} a_beta_d did not match b_beta_d {} != {}".format(index, a_beta[dim], b_beta[dim])
+
         for d in range(num_dimensions):
             index_at_face_d = Vector(
                 v if d != dim else v - 0.5 * h for dim, v in enumerate(index)
             )
 
-            a_beta_d, a_beta = variable_beta.evaluate_beta(index_at_face_d)
             b_beta_d, b_beta = variable_beta.evaluate_beta_3d(index_at_face_d)
+            a_beta_d, a_beta = variable_beta.evaluate_beta(index_at_face_d)
 
-            assert a_beta_d == b_beta_d, "a_beta_d did not match b_beta_d {} != {}".format(a_beta_d, b_beta_d)
-            for dim in range(num_dimensions):
-                assert a_beta[dim] == b_beta[dim], \
-                    "a_beta_d did not match b_beta_d {} != {}".format(a_beta[dim], b_beta[dim])
-
+            assert abs(a_beta_d - b_beta_d) < 1e-6, \
+                "at {} a_beta_d did not match b_beta_d {} != {}".format(index_at_face_d, a_beta_d, b_beta_d)
+            assert a_beta.near(b_beta), \
+                "at {} a_beta_d did not match b_beta_d {} != {}".format(index_at_face_d, a_beta, b_beta)
