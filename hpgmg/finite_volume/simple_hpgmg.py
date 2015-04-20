@@ -9,8 +9,10 @@ from hpgmg.finite_volume.iterative_solver import IterativeSolver
 from hpgmg.finite_volume.operators.interpolation import InterpolatorPC
 from hpgmg.finite_volume.operators.jacobi_smoother import JacobiSmoother
 from hpgmg.finite_volume.operators.problem_sine import SineProblem
+from hpgmg.finite_volume.operators.problem_sine_n_dim import SineProblemND
 from hpgmg.finite_volume.operators.residual import Residual
 from hpgmg.finite_volume.operators.restriction import Restriction
+from hpgmg.finite_volume.operators.variable_beta_generators import VariableBeta
 from hpgmg.finite_volume.timer import Timer
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
@@ -55,7 +57,10 @@ class SimpleMultigridSolver(object):
             raise Exception()
 
         if configuration.problem_name == 'sine':
-            self.problem = SineProblem
+            self.problem = SineProblemND(dimensions=self.dimensions)
+
+        if configuration.variable_coefficient:
+            self.beta_generator = VariableBeta(self.dimensions)
 
         self.default_bottom_norm = 1e-3
         self.bottom_solver = IterativeSolver(solver=self, desired_reduction=self.default_bottom_norm)
@@ -71,18 +76,22 @@ class SimpleMultigridSolver(object):
         beta_i, beta_j, beta_k = 1.0, 1.0, 1.0
 
         problem = self.problem
+        if level.is_variable_coefficient:
+            beta_generator = self.beta_generator
 
         for element_index in level.interior_points():
             half_cell = Vector([0.5 for _ in level.space])
             absolute_position = (Vector(element_index) + half_cell) * level.cell_size
 
             if level.is_variable_coefficient:
-                beta_i, _ = problem.evaluate_beta(absolute_position-Vector(level.h*0.5, 0.0, 0.0))
-                beta_j, _ = problem.evaluate_beta(absolute_position-Vector(0.0, level.h*0.5, 0.0))
-                beta_k, beta = problem.evaluate_beta(absolute_position-Vector(0.0, 0.0, level.h*0.5))
-                beta, beta_xyz = problem.evaluate_beta(absolute_position)
+                beta_i, _ = beta_generator.evaluate_beta(absolute_position-Vector(level.h*0.5, 0.0, 0.0))
+                beta_j, _ = beta_generator.evaluate_beta(absolute_position-Vector(0.0, level.h*0.5, 0.0))
+                beta_k, beta = beta_generator.evaluate_beta(absolute_position-Vector(0.0, 0.0, level.h*0.5))
+                beta, beta_xyz = beta_generator.evaluate_beta(absolute_position)
 
             u, u_xyz, u_xxyyzz = problem.evaluate_u(absolute_position)
+
+            # double F = a*A*U - b*( (Bx*Ux + By*Uy + Bz*Uz)  +  B*(Uxx + Uyy + Uzz) );
             f = self.a * alpha * u - (
                 self.b * (
                     (beta_xyz.i * u_xyz.i + beta_xyz.j * u_xyz.j + beta_xyz.k * u_xyz.k) +
