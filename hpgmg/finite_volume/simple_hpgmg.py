@@ -28,6 +28,8 @@ class SimpleMultigridSolver(object):
     with settings from the command line
     """
     def __init__(self, configuration):
+        print("equation {}".format(configuration.equation))
+
         if configuration.equation == 'h':
             # h is for helmholtz
             self.a = 1.0
@@ -43,19 +45,22 @@ class SimpleMultigridSolver(object):
         self.is_variable_coefficient = configuration.variable_coefficient
         self.ghost_zone = Coord(1 for _ in range(self.dimensions))
 
+        self.boundary_is_periodic = configuration.boundary_condition == 'p'
+        self.boundary_is_dirichlet = configuration.boundary_condition != 'p'
+
+        self.is_helmholtz = configuration.equation == 'h'
+        self.is_poisson = configuration.equation == 'p'
+
         self.number_of_v_cycles = configuration.number_of_vcycles
         self.interpolator = InterpolatorPC(pre_scale=0.0)
         self.restrictor = Restriction()
         self.problem_operator = StencilVonNeumannR1(solver=self)
         self.residual = Residual(solver=self)
-
-        self.boundary_is_periodic = configuration.boundary_condition == 'p'
-        self.boundary_is_dirichlet = configuration.boundary_condition != 'p'
-
         if configuration.smoother == 'j':
             self.smoother = JacobiSmoother(self.problem_operator, 6)
         else:
             raise Exception()
+
 
         if configuration.problem_name == 'sine':
             self.problem = SineProblemND(dimensions=self.dimensions)
@@ -207,7 +212,8 @@ class SimpleMultigridSolver(object):
                             default=('p' if os.environ.get('USE_PERIODIC_BC', 0) else 'd'),
                             choices=['p', 'd'], )
         parser.add_argument('-eq', '--equation',
-                            help="Type of equation, h for helmholtz orp for poisson",
+                            help="Type of equation, h for helmholtz or p for poisson",
+                            choices=['h', 'p'],
                             default='h', )
         parser.add_argument('-sm', '--smoother',
                             help="Type of smoother, j for jacobi",

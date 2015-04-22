@@ -10,6 +10,7 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 class StencilVonNeumannR1(object):
     """
     implements a stencil using a radius 1 von neumann neighborhood
+    i.e. 7 point in 3d
     """
     # TODO: implement variable coefficient cases
     def __init__(self, solver):
@@ -29,15 +30,18 @@ class StencilVonNeumannR1(object):
             for dim in range(solver.dimensions)
         ]
         self.num_neighbors = len(self.neighborhood)
-        self.apply_op = self.apply_op_constant_coefficient_unfused_boundary_conditions
+        if solver.is_helmholtz:
+            self.apply_op = self.apply_op_constant_coefficient_unfused_boundary_conditions
+        else:
+            self.apply_op = self.apply_op_constant_coefficient_unfused_boundary_conditions
 
     def set_scale(self, level_h):
         self.h2inv = 1.0 / (level_h ** 2)
 
     def apply_op_variable_coefficient_fused_boundary_conditions_helmholtz(self, mesh, index, level):
-        return self.a * mesh[index] - self.b * self.h2inv * (
+        return self.a * level.alpha[index] * mesh[index] - self.b * self.h2inv * (
             sum(
-                level.beta_face_values[SimpleLevel.FACE_I][index] * (
+                level.beta_face_values[dim][index] * (
                     level.valid[index - self.unit_vectors[dim]] * (
                         mesh[index] + mesh[index - self.unit_vectors[dim]]
                     ) - 2.0 * mesh[index]

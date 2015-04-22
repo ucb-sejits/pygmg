@@ -2,6 +2,7 @@
 implement a simple single threaded, variable coefficient gmg solver
 """
 from __future__ import division, print_function
+from stencil_code.halo_enumerator import HaloEnumerator
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
@@ -29,8 +30,8 @@ class SimpleLevel(object):
 
     """
     FACE_I = 0
-    FACE_J = 0
-    FACE_K = 0
+    FACE_J = 1
+    FACE_K = 2
 
     def __init__(self, solver, space, level_number=0):
         assert(isinstance(space, Space))
@@ -94,6 +95,12 @@ class SimpleLevel(object):
             if self.solver.boundary_is_dirichlet and self.valid.space.is_boundary_point(index):
                 self.valid[index] = 0.0
 
+    def ghost_indices(self, mesh):
+        halo_enumerator = HaloEnumerator(self.solver.ghost, mesh.space)
+
+        for halo_coord in halo_enumerator.fixed_surface_iterator():
+            yield halo_coord
+
     def fill_mesh(self, mesh, value):
         for index in self.indices():
             mesh[index] = value if self.valid[index] > 0.0 else 0.0
@@ -156,11 +163,20 @@ class SimpleLevel(object):
         if title:
             print(title)
 
-        for i in range(self.space.i-1, -1, -1):
-            for j in range(self.space.j-1, -1, -1):
-                print(" "*j*4, end="")
-                for k in range(self.space.k):
-                    print("{:6.2f}".format(self.cell_values[(i, j, k)]), end="")
+        if self.space.ndim == 3:
+            for i in range(self.space.i-1, -1, -1):
+                for j in range(self.space.j-1, -1, -1):
+                    print(" "*j*4, end="")
+                    for k in range(self.space.k):
+                        print("{:6.2f}".format(self.cell_values[(i, j, k)]), end="")
+                    print()
+                print()
+                print()
+        elif self.space.ndim == 2:
+            for i in range(self.space.i-1, -1, -1):
+                for j in range(self.space.j-1, -1, -1):
+                    print("{:6.2f}".format(self.cell_values[(i, j)]), end="")
                 print()
             print()
-            print()
+        else:
+            NotImplemented
