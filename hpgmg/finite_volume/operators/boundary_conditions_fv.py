@@ -3,12 +3,11 @@ from stencil_code.halo_enumerator import HaloEnumerator
 from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.simple_hpgmg import SimpleMultigridSolver
 from hpgmg.finite_volume.simple_level import SimpleLevel
-from hpgmg.finite_volume.space import Coord
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 
-class BoundaryUpdater_V1(object):
+class BoundaryUpdaterV1(object):
     """
     For cell-centered, we need to fill in the ghost zones to apply any BC's
     This code does a simple linear interpolation for homogeneous dirichlet (0 on boundary)
@@ -34,7 +33,12 @@ class BoundaryUpdater_V1(object):
         self.solver = solver
         self.level = level
 
-    def apply(self, mesh, just_faces):
+        if self.solver.boundary_is_dirichlet:
+            self.apply = self.apply_dirichlet
+        elif self.solver.boundary_is_periodic:
+            self.apply = self.apply_periodic
+
+    def apply_dirichlet(self, mesh):
         assert(isinstance(mesh, Mesh))
 
         halo_iterator = HaloEnumerator(self.level.ghost_zone, mesh.space)
@@ -59,16 +63,50 @@ class BoundaryUpdater_V1(object):
             scale, neighbor_index = get_scale_and_neighbor(index)
             mesh[index] = scale * mesh[neighbor_index]
 
+    def apply_periodic(self, mesh):
+        assert(isinstance(mesh, Mesh))
+
+        halo_iterator = HaloEnumerator(self.level.ghost_zone, mesh.space)
+
+        def get_scale_and_neighbor(index):
+            neighbor = []
+            for dim in range(mesh.ndim):
+                x = index[dim]
+                if x < self.level.ghost_zone[dim]:
+                    neighbor.append(mesh.space[dim]-x-2)
+                elif x >= mesh.space[dim]-self.level.ghost_zone[dim]:
+                    neighbor.append(self.level.ghost_zone[dim] - (x - mesh.space[dim] + 1))
+                else:
+                    neighbor.append(x)
+            return tuple(neighbor)
+
+        for index in halo_iterator.fixed_surface_iterator():
+
+            neighbor_index = get_scale_and_neighbor(index)
+            mesh[index] = mesh[neighbor_index]
+
 
 if __name__ == '__main__':
-    solver = SimpleMultigridSolver.get_solver(["2"])
-    bu = BoundaryUpdater_V1(solver, solver.fine_level)
+    simple_solver = SimpleMultigridSolver.get_solver(["2"])
+    bu = BoundaryUpdaterV1(simple_solver, simple_solver.fine_level)
 
-    for i in solver.fine_level.interior_points():
-        solver.fine_level.cell_values[i] = i[0]
+    for i in simple_solver.fine_level.interior_points():
+        simple_solver.fine_level.cell_values[i] = i[0]
 
-    solver.fine_level.cell_values.print("before bu")
+    simple_solver.fine_level.cell_values.print("before bu")
 
-    bu.apply(solver.fine_level.cell_values, False)
+    bu.apply(simple_solver.fine_level.cell_values)
 
-    solver.fine_level.cell_values.print("after bu")
+    simple_solver.fine_level.cell_values.print("after bu")
+
+    simple_solver = SimpleMultigridSolver.get_solver(["2", "-bc", "p"])
+    bu = BoundaryUpdaterV1(simple_solver, simple_solver.fine_level)
+
+    for i in simple_solver.fine_level.interior_points():
+        simple_solver.fine_level.cell_values[i] = sum(i)
+
+    simple_solver.fine_level.cell_values.print("before bu")
+
+    bu.apply(simple_solver.fine_level.cell_values)
+
+    simple_solver.fine_level.cell_values.print("after bu periodic")
