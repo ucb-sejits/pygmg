@@ -53,14 +53,13 @@ class SimpleMultigridSolver(object):
 
         self.number_of_v_cycles = configuration.number_of_vcycles
         self.interpolator = InterpolatorPC(pre_scale=0.0)
-        self.restrictor = Restriction()
+        self.restrictor = Restriction(solver=self)
         self.problem_operator = StencilVonNeumannR1(solver=self)
         self.residual = Residual(solver=self)
         if configuration.smoother == 'j':
             self.smoother = JacobiSmoother(self.problem_operator, 6)
         else:
             raise Exception()
-
 
         if configuration.problem_name == 'sine':
             self.problem = SineProblemND(dimensions=self.dimensions)
@@ -72,7 +71,7 @@ class SimpleMultigridSolver(object):
         self.bottom_solver = IterativeSolver(solver=self, desired_reduction=self.default_bottom_norm)
 
         self.fine_level = SimpleLevel(solver=self, space=self.global_size, level_number=0)
-        self.initialize(self.fine_level)
+        self.initialize_nd(self.fine_level)
         # self.fine_level.print()
 
     def initialize(self, level):
@@ -80,6 +79,10 @@ class SimpleMultigridSolver(object):
         beta = 1.0
         beta_xyz = Vector(0.0, 0.0, 0.0)
         beta_i, beta_j, beta_k = 1.0, 1.0, 1.0
+        half_unit_vectors = [
+            Vector([0.5 if d == dim else 0 for d in range(self.dimensions)])
+            for dim in range(self.dimensions)
+        ]
 
         problem = self.problem
         if level.is_variable_coefficient:
@@ -92,7 +95,7 @@ class SimpleMultigridSolver(object):
             if level.is_variable_coefficient:
                 beta_i, _ = beta_generator.evaluate_beta(absolute_position-Vector(level.h*0.5, 0.0, 0.0))
                 beta_j, _ = beta_generator.evaluate_beta(absolute_position-Vector(0.0, level.h*0.5, 0.0))
-                beta_k, beta = beta_generator.evaluate_beta(absolute_position-Vector(0.0, 0.0, level.h*0.5))
+                beta_k, _ = beta_generator.evaluate_beta(absolute_position-Vector(0.0, 0.0, level.h*0.5))
                 beta, beta_xyz = beta_generator.evaluate_beta(absolute_position)
 
             u, u_xyz, u_xxyyzz = problem.evaluate_u(absolute_position)
@@ -112,6 +115,45 @@ class SimpleMultigridSolver(object):
             level.beta_face_values[SimpleLevel.FACE_I][element_index] = beta_i
             level.beta_face_values[SimpleLevel.FACE_J][element_index] = beta_j
             level.beta_face_values[SimpleLevel.FACE_K][element_index] = beta_k
+
+    def initialize_nd(self, level):
+        alpha = 1.0
+        beta = 1.0
+        beta_xyz = Vector(0.0, 0.0, 0.0)
+        face_betas = [1.0 for _ in range(self.dimensions)]
+        half_cell = Vector([0.5 for _ in level.space])
+        half_unit_vectors = [
+            Vector([0.5 if d == dim else 0 for d in range(self.dimensions)])
+            for dim in range(self.dimensions)
+        ]
+
+        problem = self.problem
+        if level.is_variable_coefficient:
+            beta_generator = self.beta_generator
+
+        for element_index in level.interior_points():
+            absolute_position = (Vector(element_index) + half_cell) * level.cell_size
+
+            if level.is_variable_coefficient:
+                for face_index in range(self.dimensions):
+                    face_betas[face_index], _ = beta_generator.evaluate_beta(
+                        absolute_position-half_unit_vectors(face_index)
+                    )
+                beta, beta_xyz = beta_generator.evaluate_beta(absolute_position)
+
+            u, u_xyz, u_xxyyzz = problem.evaluate_u(absolute_position)
+
+            # double F = a*A*U - b*( (Bx*Ux + By*Uy + Bz*Uz)  +  B*(Uxx + Uyy + Uzz) );
+            f = self.a * alpha * u - (
+                self.b * ((beta_xyz * u_xyz) + beta * sum(u_xxyyzz))
+            )
+
+            level.right_hand_side[element_index] = f
+            level.exact_solution[element_index] = u
+
+            level.alpha[element_index] = alpha
+            for face_index in range(self.dimensions):
+                level.beta_face_values[face_index][element_index] = face_betas[face_index]
 
     def v_cycle(self, level, target_mesh, residual_mesh):
         if min(level.space) <= 3:
