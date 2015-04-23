@@ -88,17 +88,3 @@ class BoundaryUpdaterV1(object):
 
     def ordered_halo_enumerator(self):
         self.ordered_border_types = itertools.product('ie', repeat=self.solver.dimensions)
-
-
-if __name__ == '__main__':
-    simple_solver = SimpleMultigridSolver.get_solver(["2", "-bc", "p"])
-    bu = BoundaryUpdaterV1(simple_solver, simple_solver.fine_level)
-
-    for i in simple_solver.fine_level.interior_points():
-        simple_solver.fine_level.cell_values[i] = sum(i)
-
-    simple_solver.fine_level.cell_values.print("before bu")
-
-    bu.apply(simple_solver.fine_level.cell_values)
-
-    simple_solver.fine_level.cell_values.print("after bu periodic")
