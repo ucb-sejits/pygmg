@@ -1,4 +1,5 @@
 from __future__ import print_function
+import itertools
 from stencil_code.halo_enumerator import HaloEnumerator
 from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.simple_hpgmg import SimpleMultigridSolver
@@ -85,20 +86,11 @@ class BoundaryUpdaterV1(object):
             neighbor_index = get_scale_and_neighbor(index)
             mesh[index] = mesh[neighbor_index]
 
+    def ordered_halo_enumerator(self):
+        self.ordered_border_types = itertools.product('ie', repeat=self.solver.dimensions)
+
 
 if __name__ == '__main__':
-    simple_solver = SimpleMultigridSolver.get_solver(["2"])
-    bu = BoundaryUpdaterV1(simple_solver, simple_solver.fine_level)
-
-    for i in simple_solver.fine_level.interior_points():
-        simple_solver.fine_level.cell_values[i] = i[0]
-
-    simple_solver.fine_level.cell_values.print("before bu")
-
-    bu.apply(simple_solver.fine_level.cell_values)
-
-    simple_solver.fine_level.cell_values.print("after bu")
-
     simple_solver = SimpleMultigridSolver.get_solver(["2", "-bc", "p"])
     bu = BoundaryUpdaterV1(simple_solver, simple_solver.fine_level)
 

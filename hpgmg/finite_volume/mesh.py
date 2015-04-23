@@ -25,6 +25,7 @@ class Mesh(np.ndarray):
             self[index] = value
 
     def __eq__(self, other):
+        assert hasattr(other, 'space'), "mesh cannot test equality against {}".format(other)
         if self.space != other.space:
             return False
         else:
