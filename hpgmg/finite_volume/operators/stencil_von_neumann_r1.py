@@ -49,7 +49,7 @@ class StencilVonNeumannR1(object):
                 for dim in range(self.dimensions)
             ) +
             sum(
-                level.beta_face_values[SimpleLevel.FACE_I][index + self.unit_vectors[dim]] * (
+                level.beta_face_values[dim][index + self.unit_vectors[dim]] * (
                     level.valid[index + self.unit_vectors[dim]] * (
                         mesh[index] + mesh[index + self.unit_vectors[dim]]
                     ) - 2.0 * mesh[index]
@@ -61,7 +61,7 @@ class StencilVonNeumannR1(object):
     def apply_op_variable_coefficient_fused_boundary_conditions_poisson(self, mesh, index, level):
         return -self.b * self.h2inv * (
             sum(
-                level.beta_face_values[SimpleLevel.FACE_I][index] * (
+                level.beta_face_values[dim][index] * (
                     level.valid[index - self.unit_vectors[dim]] * (
                         mesh[index] + mesh[index - self.unit_vectors[dim]]
                     ) - 2.0 * mesh[index]
@@ -69,7 +69,7 @@ class StencilVonNeumannR1(object):
                 for dim in range(self.dimensions)
             ) +
             sum(
-                level.beta_face_values[SimpleLevel.FACE_I][index + self.unit_vectors[dim]] * (
+                level.beta_face_values[dim][index + self.unit_vectors[dim]] * (
                     level.valid[index + self.unit_vectors[dim]] * (
                         mesh[index] + mesh[index + self.unit_vectors[dim]]
                     ) - 2.0 * mesh[index]

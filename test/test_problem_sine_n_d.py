@@ -3,7 +3,7 @@ import unittest
 
 from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.problems.problem_sine_n_dim import SineProblemND
-from hpgmg.finite_volume.operators.problem_sine import SineProblem
+from hpgmg.finite_volume.problems.problem_sine import SineProblem
 from hpgmg.finite_volume.space import Vector, Space
 
 

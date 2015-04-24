@@ -35,7 +35,7 @@ class TestBoundaryCondition(unittest.TestCase):
     def test_boundary_updater_v1_dirichlet(self):
         simple_solver = SimpleMultigridSolver.get_solver(["2"])
         bu = BoundaryUpdaterV1(simple_solver, simple_solver.fine_level)
-        self.assertTrue(bu.apply == bu.apply_periodic)
+        self.assertTrue(bu.apply == bu.apply_dirichlet)
 
         mesh = simple_solver.fine_level.cell_values
 

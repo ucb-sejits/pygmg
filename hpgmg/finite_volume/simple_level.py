@@ -21,18 +21,14 @@ class SimpleLevel(object):
     VECTOR_F           right_hand_side
     VECTOR_U           cell_values
     VECTOR_ALPHA       alpha
-    VECTOR_BETA_I      beta_face_values[SimpleLevel.FACE_I]
-    VECTOR_BETA_J      beta_face_values[SimpleLevel.FACE_J]
-    VECTOR_BETA_K      beta_face_values[SimpleLevel.FACE_K]
+    VECTOR_BETA_I      beta_face_values[0]
+    VECTOR_BETA_J      beta_face_values[1]
+    VECTOR_BETA_K      beta_face_values[2]
     VECTOR_DINV        d_inverse
     VECTOR_L1INV       l1_inverse
     VECTOR_VALID       valid
 
     """
-    FACE_I = 0
-    FACE_J = 1
-    FACE_K = 2
-
     def __init__(self, solver, space, level_number=0):
         assert(isinstance(space, Space))
         self.solver = solver
@@ -51,9 +47,7 @@ class SimpleLevel(object):
 
         self.alpha = Mesh(self.space)
         self.beta_face_values = [
-            Mesh(self.space),
-            Mesh(self.space),
-            Mesh(self.space),
+            Mesh(self.space) for _ in range(self.solver.dimensions)
         ]
         self.valid = Mesh(self.space)
         for index in self.interior_points():
