@@ -50,9 +50,9 @@ class SimpleLevel(object):
             Mesh(self.space) for _ in range(self.solver.dimensions)
         ]
         self.valid = Mesh(self.space)
-        for index in self.interior_points():
-            self.valid[index] = 1.0
-
+        # for index in self.interior_points():
+        #     self.valid[index] = 1.0
+        self.valid.fill(1.0)
         self.d_inverse = Mesh(self.space)
         self.l1_inverse = Mesh(self.space)
         self.temp = Mesh(self.space)
@@ -80,7 +80,7 @@ class SimpleLevel(object):
             yield point
 
     def valid_indices(self):
-        for index in self.interior_points():
+        for index in self.indices():
             yield index
 
     def initialize_valid(self):

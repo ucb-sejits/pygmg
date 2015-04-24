@@ -16,12 +16,10 @@ from hpgmg.finite_volume.operators.restriction import Restriction
 from hpgmg.finite_volume.operators.variable_beta_generators import VariableBeta
 from hpgmg.finite_volume.operators.boundary_conditions_fv import BoundaryUpdaterV1
 from hpgmg.finite_volume.timer import Timer
-
-
-__author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
-
 from hpgmg.finite_volume.space import Space, Vector
 from hpgmg.finite_volume.simple_level import SimpleLevel
+
+__author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 
 class SimpleMultigridSolver(object):
@@ -80,6 +78,9 @@ class SimpleMultigridSolver(object):
 
         self.fine_level = SimpleLevel(solver=self, space=self.global_size, level_number=0)
         self.initialize(self.fine_level)
+
+        mean = self.fine_level.mean_mesh(self.fine_level.exact_solution)
+        self.fine_level.shift_mesh(self.fine_level.exact_solution, -mean, self.fine_level.exact_solution)
         # self.fine_level.print()
 
     def initialize_3d(self, level):
@@ -98,7 +99,7 @@ class SimpleMultigridSolver(object):
         if level.is_variable_coefficient:
             beta_generator = self.beta_generator
 
-        for element_index in level.interior_points():
+        for element_index in level.indices():
             half_cell = Vector([0.5 for _ in level.space])
             absolute_position = (Vector(element_index) + half_cell) * level.cell_size
 
@@ -127,6 +128,12 @@ class SimpleMultigridSolver(object):
             level.beta_face_values[2][element_index] = beta_k
 
     def initialize(self, level):
+        """
+        Initialize the right_hand_side(VECTOR_F), exact_solution(VECTOR_UTRUE)
+        alpha, and possibly the beta_faces
+        :param level:
+        :return:
+        """
         alpha = 1.0
         beta = 1.0
         beta_xyz = Vector(0.0, 0.0, 0.0)
@@ -141,7 +148,7 @@ class SimpleMultigridSolver(object):
         if level.is_variable_coefficient:
             beta_generator = self.beta_generator
 
-        for element_index in level.interior_points():
+        for element_index in level.indices():
             absolute_position = (Vector(element_index) + half_cell) * level.cell_size
 
             if level.is_variable_coefficient:
@@ -164,6 +171,10 @@ class SimpleMultigridSolver(object):
             level.alpha[element_index] = alpha
             for face_index in range(self.dimensions):
                 level.beta_face_values[face_index][element_index] = face_betas[face_index]
+
+        if level.alpha_is_zero is None:
+            level.alpha_is_zero = level.dot_mesh(level.alpha, level.alpha) == 0.0
+        logging.debug("level.alpha_is_zero {}".format(level.alpha_is_zero))
 
     def v_cycle(self, level, target_mesh, residual_mesh):
         if min(level.space) <= 3:
@@ -224,7 +235,7 @@ class SimpleMultigridSolver(object):
                     # by convention, we assume the solution sums to zero...
                     # so eliminate any constants from the solution...
                     average_value_of_u = level.mean_mesh(level.cell_values)
-                    level.shift_mesh(level.cell_values, level.cell_values, average_value_of_u)
+                    level.shift_mesh(level.cell_values, average_value_of_u, level.cell_values)
 
                 self.residual.run(level, level.temp, level.cell_values, level.right_hand_side,)
                 if d_tolerance > 0.0:
@@ -234,7 +245,7 @@ class SimpleMultigridSolver(object):
                 if cycle > 0:
                     print("\n           ", end="")
                     if r_tolerance > 0:
-                        print("v-cycle={:2d}  norm={:1.15e}  rel={:%1.15e}".format(
+                        print("v-cycle={:2d}  norm={:1.15e}  rel={:1.15e}".format(
                             cycle+1, norm_of_residual, norm_of_residual / norm_of_right_hand_side))
                     else:
                         print("v-cycle={:2d}  norm={:1.15e}  rel={:1.15e}".format(

@@ -34,7 +34,7 @@ class TestBoundaryCondition(unittest.TestCase):
 
     def test_boundary_updater_v1_dirichlet(self):
         simple_solver = SimpleMultigridSolver.get_solver(["2"])
-        bu = BoundaryUpdaterV1(simple_solver, simple_solver.fine_level)
+        bu = BoundaryUpdaterV1(simple_solver)
         self.assertTrue(bu.apply == bu.apply_dirichlet)
 
         mesh = simple_solver.fine_level.cell_values
@@ -44,7 +44,7 @@ class TestBoundaryCondition(unittest.TestCase):
 
         # mesh.print("before bu")
 
-        bu.apply(mesh)
+        bu.apply(simple_solver.fine_level, mesh)
 
         mesh.print("after bu")
 
@@ -77,7 +77,7 @@ class TestBoundaryCondition(unittest.TestCase):
 
     def test_boundary_updater_v1_periodic(self):
         simple_solver = SimpleMultigridSolver.get_solver(["2", "-bc", "p"])
-        bu = BoundaryUpdaterV1(simple_solver, simple_solver.fine_level)
+        bu = BoundaryUpdaterV1(simple_solver)
         self.assertTrue(bu.apply == bu.apply_periodic)
 
         mesh = simple_solver.fine_level.cell_values
@@ -87,7 +87,7 @@ class TestBoundaryCondition(unittest.TestCase):
 
         # mesh.print("before bu")
 
-        bu.apply(mesh)
+        bu.apply(simple_solver.fine_level, mesh)
 
         mesh.print("after bu")
 

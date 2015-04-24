@@ -32,6 +32,8 @@ class TestSpace(unittest.TestCase):
 
     def test_multiply(self):
         self.assertEqual(Space(2, 2, 2) * 4, Space(8, 8, 8))
+        self.assertEqual(Space(2, 2, 2) * Space(1, 2, 3), Space(2, 4, 6))
+
 
     def test_add(self):
         self.assertEqual(Coord(1, 1, 1) + Coord(1, 2, 3), Coord(2, 3, 4))
@@ -73,3 +75,8 @@ class TestSpace(unittest.TestCase):
 
         for point in space.interior_points(ghost):
             print(point)
+
+
+class TestVector(unittest.TestCase):
+    def test_multiply(self):
+        self.assertEqual(Vector(2, 2, 2) * Vector(1, 2, 3), 12)
