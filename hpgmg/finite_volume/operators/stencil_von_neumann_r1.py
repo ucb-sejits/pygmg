@@ -21,6 +21,7 @@ class StencilVonNeumannR1(object):
         self.restrictor = solver.restrictor
         self.is_variable_coefficient = solver.is_variable_coefficient
         self.h2inv = 1.0
+        self.ghost_zone = Coord(1 for _ in range(self.dimensions))
         self.neighborhood = [
             Coord(x)
             for x in Neighborhood.von_neuman_neighborhood(radius=1, dim=self.dimensions, include_origin=False)

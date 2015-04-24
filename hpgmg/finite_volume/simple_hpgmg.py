@@ -4,6 +4,7 @@ implement a simple single threaded, gmg solver
 from __future__ import division, print_function
 import argparse
 import os
+import logging
 
 from hpgmg.finite_volume.operators.stencil_von_neumann_r1 import StencilVonNeumannR1
 from hpgmg.finite_volume.iterative_solver import IterativeSolver
@@ -13,12 +14,13 @@ from hpgmg.finite_volume.problems.problem_sine_n_dim import SineProblemND
 from hpgmg.finite_volume.operators.residual import Residual
 from hpgmg.finite_volume.operators.restriction import Restriction
 from hpgmg.finite_volume.operators.variable_beta_generators import VariableBeta
+from hpgmg.finite_volume.operators.boundary_conditions_fv import BoundaryUpdaterV1
 from hpgmg.finite_volume.timer import Timer
 
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
-from hpgmg.finite_volume.space import Space, Coord, Vector
+from hpgmg.finite_volume.space import Space, Vector
 from hpgmg.finite_volume.simple_level import SimpleLevel
 
 
@@ -28,7 +30,10 @@ class SimpleMultigridSolver(object):
     with settings from the command line
     """
     def __init__(self, configuration):
-        print("equation {}".format(configuration.equation))
+        if configuration.log:
+            logging.basicConfig(level=logging.DEBUG)
+
+        logging.debug("equation {}".format(configuration.equation))
 
         if configuration.equation == 'h':
             # h is for helmholtz
@@ -43,10 +48,10 @@ class SimpleMultigridSolver(object):
         self.dimensions = configuration.dimensions
         self.global_size = Space([2**configuration.log2_level_size for _ in range(self.dimensions)])
         self.is_variable_coefficient = configuration.variable_coefficient
-        self.ghost_zone = Coord(1 for _ in range(self.dimensions))
 
         self.boundary_is_periodic = configuration.boundary_condition == 'p'
         self.boundary_is_dirichlet = configuration.boundary_condition != 'p'
+        self.boundary_updater = BoundaryUpdaterV1(solver=self)
 
         self.is_helmholtz = configuration.equation == 'h'
         self.is_poisson = configuration.equation == 'p'
@@ -54,7 +59,10 @@ class SimpleMultigridSolver(object):
         self.number_of_v_cycles = configuration.number_of_vcycles
         self.interpolator = InterpolatorPC(pre_scale=0.0)
         self.restrictor = Restriction(solver=self)
+
         self.problem_operator = StencilVonNeumannR1(solver=self)
+        self.ghost_zone = self.problem_operator.ghost_zone
+
         self.residual = Residual(solver=self)
         if configuration.smoother == 'j':
             self.smoother = JacobiSmoother(self.problem_operator, 6)
@@ -71,18 +79,20 @@ class SimpleMultigridSolver(object):
         self.bottom_solver = IterativeSolver(solver=self, desired_reduction=self.default_bottom_norm)
 
         self.fine_level = SimpleLevel(solver=self, space=self.global_size, level_number=0)
-        self.initialize_nd(self.fine_level)
+        self.initialize(self.fine_level)
         # self.fine_level.print()
 
-    def initialize(self, level):
+    def initialize_3d(self, level):
+        """
+        This function is deprecated, it is hard coded for 3d and is kept here at present for
+        testing purposes
+        :param level:
+        :return:
+        """
         alpha = 1.0
         beta = 1.0
         beta_xyz = Vector(0.0, 0.0, 0.0)
         beta_i, beta_j, beta_k = 1.0, 1.0, 1.0
-        half_unit_vectors = [
-            Vector([0.5 if d == dim else 0 for d in range(self.dimensions)])
-            for dim in range(self.dimensions)
-        ]
 
         problem = self.problem
         if level.is_variable_coefficient:
@@ -112,11 +122,11 @@ class SimpleMultigridSolver(object):
             level.exact_solution[element_index] = u
 
             level.alpha[element_index] = alpha
-            level.beta_face_values[SimpleLevel.FACE_I][element_index] = beta_i
-            level.beta_face_values[SimpleLevel.FACE_J][element_index] = beta_j
-            level.beta_face_values[SimpleLevel.FACE_K][element_index] = beta_k
+            level.beta_face_values[0][element_index] = beta_i
+            level.beta_face_values[1][element_index] = beta_j
+            level.beta_face_values[2][element_index] = beta_k
 
-    def initialize_nd(self, level):
+    def initialize(self, level):
         alpha = 1.0
         beta = 1.0
         beta_xyz = Vector(0.0, 0.0, 0.0)
@@ -137,7 +147,7 @@ class SimpleMultigridSolver(object):
             if level.is_variable_coefficient:
                 for face_index in range(self.dimensions):
                     face_betas[face_index], _ = beta_generator.evaluate_beta(
-                        absolute_position-half_unit_vectors(face_index)
+                        absolute_position-half_unit_vectors[face_index]
                     )
                 beta, beta_xyz = beta_generator.evaluate_beta(absolute_position)
 
@@ -169,6 +179,7 @@ class SimpleMultigridSolver(object):
             self.problem_operator.rebuild_operator(coarser_level, level)
             self.restrictor.restrict(coarser_level, coarser_level.right_hand_side,
                                      level.temp, Restriction.RESTRICT_CELL)
+            self.boundary_updater.apply(coarser_level, coarser_level.cell_values)
 
             # coarser_level.print("Coarsened level {}".format(coarser_level.level_number))
 
@@ -243,8 +254,6 @@ class SimpleMultigridSolver(object):
                             default=3, type=int)
         parser.add_argument('-nv', '--number-of-vcycles', help='number of vcycles to run',
                             default=1, type=int)
-        parser.add_argument('-gs', '--ghost_size', help='size of ghost zone (assumed symmetric)',
-                            default=1, type=int)
         parser.add_argument('-pn', '--problem-name',
                             help="problem name, one of [sine]",
                             default='sine',
@@ -263,6 +272,7 @@ class SimpleMultigridSolver(object):
         parser.add_argument('-vc', '--variable-coefficient', action='store_true',
                             help="Use 1.0 as fixed value of beta, default is variable beta coefficient",
                             default=False, )
+        parser.add_argument('-l', '--log', help='turn on logging', action="store_true", )
         return parser.parse_args(args=args)
 
     @staticmethod
@@ -279,11 +289,6 @@ class SimpleMultigridSolver(object):
         solver = SimpleMultigridSolver(configuration)
         solver.solve()
         Timer.show_timers()
-
-
-class IdentityBottomSolver(object):
-    def solve(self, level):
-        pass
 
 
 if __name__ == '__main__':

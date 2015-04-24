@@ -41,7 +41,7 @@ class TestSimpleMultigridSolver(unittest.TestCase):
         for x in range(3):
             solver.fine_level.fill_mesh(solver.fine_level.beta_face_values[x], 0.0)
 
-        solver.initialize_nd(solver.fine_level)
+        solver.initialize_3d(solver.fine_level)
 
         for face_index in range(3):
             for index in solver.fine_level.beta_face_values[face_index].indices():
