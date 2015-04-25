@@ -67,6 +67,8 @@ class SimpleMultigridSolver(object):
         else:
             raise Exception()
 
+        self.minimum_coarse_dimension = configuration.minimum_coarse_dimension
+
         if configuration.problem_name == 'sine':
             self.problem = SineProblemND(dimensions=self.dimensions)
 
@@ -77,6 +79,8 @@ class SimpleMultigridSolver(object):
         self.bottom_solver = IterativeSolver(solver=self, desired_reduction=self.default_bottom_norm)
 
         self.fine_level = SimpleLevel(solver=self, space=self.global_size, level_number=0)
+        self.all_levels = [self.fine_level]
+
         self.initialize(self.fine_level)
 
         if (self.a == 0.0 or self.fine_level.alpha_is_zero) and self.boundary_is_periodic:
@@ -192,6 +196,16 @@ class SimpleMultigridSolver(object):
             level.alpha_is_zero = level.dot_mesh(level.alpha, level.alpha) == 0.0
         logging.debug("level.alpha_is_zero {}".format(level.alpha_is_zero))
 
+    def build_all_levels(self):
+        level = self.fine_level
+        while level.space[0] > self.minimum_coarse_dimension and level.space[0] % 2 == 0:
+            coarser_level = level.make_coarser_level()
+            self.all_levels.append(coarser_level)
+            level = coarser_level
+
+
+
+
     def v_cycle(self, level, target_mesh, residual_mesh):
         if min(level.space) <= 3:
             with Timer('bottom_solve'):
@@ -203,7 +217,7 @@ class SimpleMultigridSolver(object):
             self.residual.run(level, level.temp, level.cell_values, level.right_hand_side)
 
             coarser_level = level.make_coarser_level()
-            self.problem_operator.rebuild_operator(coarser_level, level)
+            # self.problem_operator.rebuild_operator(coarser_level, level)
             self.restrictor.restrict(coarser_level, coarser_level.right_hand_side,
                                      level.temp, Restriction.RESTRICT_CELL)
             self.boundary_updater.apply(coarser_level, coarser_level.cell_values)
@@ -213,7 +227,8 @@ class SimpleMultigridSolver(object):
         self.v_cycle(coarser_level, coarser_level.cell_values, coarser_level.residual)
 
         with Timer("v-cycle level {}".format(level.level_number)):
-            self.interpolator.interpolate(coarser_level.cell_values, level.cell_values)
+            self.interpolator.interpolate(level.cell_values, coarser_level.cell_values)
+            self.smoother.smooth(level, level.cell_values, level.right_hand_side)
 
         # level.print("Interpolated level {}".format(level.level_number))
 
@@ -272,6 +287,8 @@ class SimpleMultigridSolver(object):
                 if norm_of_residual < d_tolerance:
                     break
 
+
+
     @staticmethod
     def get_configuration(args=None):
         parser = argparse.ArgumentParser()
@@ -299,6 +316,8 @@ class SimpleMultigridSolver(object):
         parser.add_argument('-vc', '--variable-coefficient', action='store_true',
                             help="Use 1.0 as fixed value of beta, default is variable beta coefficient",
                             default=False, )
+        parser.add_argument('-mcd', '--minimum-coarse_dimension', help='smallest allowed coarsened dimension',
+                            default=3, type=int)
         parser.add_argument('-l', '--log', help='turn on logging', action="store_true", )
         return parser.parse_args(args=args)
 
