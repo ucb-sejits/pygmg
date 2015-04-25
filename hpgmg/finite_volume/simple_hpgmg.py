@@ -79,8 +79,24 @@ class SimpleMultigridSolver(object):
         self.fine_level = SimpleLevel(solver=self, space=self.global_size, level_number=0)
         self.initialize(self.fine_level)
 
-        mean = self.fine_level.mean_mesh(self.fine_level.exact_solution)
-        self.fine_level.shift_mesh(self.fine_level.exact_solution, -mean, self.fine_level.exact_solution)
+        if (self.a == 0.0 or self.fine_level.alpha_is_zero) and self.boundary_is_periodic:
+            # Poisson w/ periodic BC's...
+            # nominally, u shifted by any constant is still a valid solution.
+            # However, by convention, we assume u sums to zero.
+            mean = self.fine_level.mean_mesh(self.fine_level.exact_solution)
+            self.fine_level.shift_mesh(self.fine_level.exact_solution, -mean, self.fine_level.exact_solution)
+
+        if self.boundary_is_periodic:
+            average_value_of_rhs = self.fine_level.mean_mesh(self.fine_level.right_hand_side)
+            if average_value_of_rhs != 0.0:
+                logging.warn("average_value_of_rhs {} should be zero, adjusting it".format(average_value_of_rhs))
+                self.fine_level.shift_mesh(
+                    self.fine_level.right_hand_side,
+                    average_value_of_rhs,
+                    self.fine_level.right_hand_side
+                )
+
+        self.problem_operator.rebuild_operator(self.fine_level, source_level=None)
         # self.fine_level.print()
 
     def initialize_3d(self, level):

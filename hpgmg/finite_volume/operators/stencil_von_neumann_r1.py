@@ -104,14 +104,18 @@ class StencilVonNeumannR1(object):
             sum([mesh[neighbor_index] for neighbor_index in self.neighborhood]) -
             mesh[index] * self.num_neighbors
         )
+        # neighbor_sum = sum([mesh[neighbor_index] for neighbor_index in self.neighborhood])
+        # m_i = mesh[index]
+        # second_term = neighbor_sum - m_i * self.num_neighbors
+        # return self.a * m_i - self.b * self.h2inv * second_term
 
     def rebuild_operator(self, target_level, source_level=None):
         self.set_scale(target_level.h)
-        self.restrictor.restrict(target_level, target_level.alpha, source_level.alpha, Restriction.RESTRICT_CELL)
-
-        for dim in range(self.dimensions):
-            self.restrictor.restrict(target_level, target_level.beta_face_values[dim],
-                                     source_level.beta_face_values[dim], dim+1)
+        if source_level is not None:
+            self.restrictor.restrict(target_level, target_level.alpha, source_level.alpha, Restriction.RESTRICT_CELL)
+            for dim in range(self.dimensions):
+                self.restrictor.restrict(target_level, target_level.beta_face_values[dim],
+                                         source_level.beta_face_values[dim], dim+1)
 
         dominant_eigenvalue = -1e9
         for index in target_level.interior_points():

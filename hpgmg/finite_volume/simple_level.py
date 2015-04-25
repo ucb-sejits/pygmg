@@ -60,7 +60,7 @@ class SimpleLevel(object):
 
         self.dominant_eigen_value_of_d_inv_a = 0.0
 
-        self.cell_size = 1.0 / self.space[0]
+        self.cell_size = 1.0 / space[0]
         self.alpha_is_zero = None
 
     def make_coarser_level(self):
@@ -173,4 +173,4 @@ class SimpleLevel(object):
                 print()
             print()
         else:
-            NotImplemented
+            print("I don't know how to print level with {} dimensions".format(self.space.ndim))

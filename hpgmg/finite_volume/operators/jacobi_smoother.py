@@ -17,27 +17,35 @@ class JacobiSmoother(object):
         self.weight = 1.0 if use_l1_jacobi else 2.0/3.0
         self.iterations = iterations
 
-    def smooth(self, level, target_mesh, rhs_mesh):
+    def smooth(self, level, mesh_to_smooth, rhs_mesh):
         """
 
         :param level: the level being smoothed
-        :param target_mesh:
+        :param mesh_to_smooth:
         :param rhs_mesh:
         :return:
         """
         lambda_mesh = level.l1_inverse if self.use_l1_jacobi else level.d_inverse
         working_target = level.temp
+        working_source = mesh_to_smooth
+        need_copy = False
+
         for i in range(self.iterations):
-            for index in working_target.indices():
-                working_target[index] = rhs_mesh[index] + (
+            for index in level.interior_points():
+                stencil = self.operator.apply_op(rhs_mesh, index, level)
+                working_target[index] = mesh_to_smooth[index] + (
                     self.weight * lambda_mesh[index] * (
-                        rhs_mesh[index] - self.operator.apply_op(rhs_mesh, index, level)
+                        rhs_mesh[index] - stencil
                     )
                 )
 
-            temp_mesh = working_target
-            level.temp = target_mesh
-            working_target = temp_mesh
+            temp = working_target
+            working_target = working_source
+            working_source = temp
+            need_copy = not need_copy
+
+        if need_copy:
+            level.shift_mesh(mesh_to_smooth, 1.0, level.temp)
 
 
 if __name__ == '__main__':
@@ -45,10 +53,9 @@ if __name__ == '__main__':
 
     solver = simple_hpgmg.SimpleMultigridSolver.get_solver("3 -fb".split())
 
-    assert(
-        isinstance(solver.smoother, JacobiSmoother),
-        "solver.smoother {} is not a JacobiSmoother".format(solver.smoother)
-    )
+    assert isinstance(solver.smoother, JacobiSmoother), "solver.smoother {} is not a JacobiSmoother".format(
+        solver.smoother)
+
 
     base_level = solver.fine_level
     mesh = base_level.cell_values
