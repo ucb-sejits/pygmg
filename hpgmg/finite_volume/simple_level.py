@@ -60,6 +60,7 @@ class SimpleLevel(object):
 
         self.dominant_eigen_value_of_d_inv_a = 0.0
 
+        # TODO: confirm the divisor should not include the ghost zone
         self.cell_size = 1.0 / space[0]
         self.alpha_is_zero = None
 
