@@ -37,7 +37,7 @@ class JacobiSmoother(object):
                 working_target[index] = mesh_to_smooth[index] + (
                     self.weight * lambda_mesh[index] * (b - Ax)
                 )
-                print(b, Ax)
+    
 
             temp = working_target
             working_target = working_source

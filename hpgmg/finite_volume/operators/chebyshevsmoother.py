@@ -64,7 +64,6 @@ class ChebyshevSmoother(object):
                     c1 * (working_source[index] - working_source_prev[index]) +
                     c2 * lambda_mesh[index] * (b - Ax)
                 )
-                print(lambda_mesh[index], b, Ax, )
             need_copy = not need_copy
 
         if need_copy:
