@@ -189,3 +189,4 @@ class StencilVonNeumannR1(object):
             di = (a_diagonal + sum_abs) / a_diagonal
             if di > dominant_eigenvalue:
                 dominant_eigenvalue = di
+            target_level.dominant_eigen_value_of_d_inv_a = dominant_eigenvalue
