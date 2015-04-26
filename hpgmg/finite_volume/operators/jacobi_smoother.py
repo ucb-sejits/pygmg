@@ -32,12 +32,12 @@ class JacobiSmoother(object):
 
         for i in range(self.iterations):
             for index in level.interior_points():
-                stencil = self.operator.apply_op(rhs_mesh, index, level)
+                Ax = self.operator.apply_op(rhs_mesh, index, level)
+                b =  rhs_mesh[index]
                 working_target[index] = mesh_to_smooth[index] + (
-                    self.weight * lambda_mesh[index] * (
-                        rhs_mesh[index] - stencil
-                    )
+                    self.weight * lambda_mesh[index] * (b - Ax)
                 )
+                print(b, Ax)
 
             temp = working_target
             working_target = working_source
@@ -51,10 +51,10 @@ class JacobiSmoother(object):
 if __name__ == '__main__':
     import hpgmg.finite_volume.simple_hpgmg as simple_hpgmg
 
-    solver = simple_hpgmg.SimpleMultigridSolver.get_solver("3 -fb".split())
+    solver = simple_hpgmg.SimpleMultigridSolver.get_solver("0 ".split())
 
-    assert isinstance(solver.smoother, JacobiSmoother), "solver.smoother {} is not a JacobiSmoother".format(
-        solver.smoother)
+    #assert isinstance(solver.smoother, JacobiSmoother), "solver.smoother {} is not a JacobiSmoother".format(
+    #    solver.smoother)
 
 
     base_level = solver.fine_level
