@@ -32,11 +32,9 @@ class JacobiSmoother(object):
 
         for i in range(self.iterations):
             for index in level.interior_points():
-                Ax = self.operator.apply_op(rhs_mesh, index, level)
-                b =  rhs_mesh[index]
-                working_target[index] = mesh_to_smooth[index] + (
-                    self.weight * lambda_mesh[index] * (b - Ax)
-                )
+                a_x = self.operator.apply_op(rhs_mesh, index, level)
+                b = rhs_mesh[index]
+                working_target[index] = mesh_to_smooth[index] + (self.weight * lambda_mesh[index] * (b - a_x))
 
             temp = working_target
             working_target = working_source
