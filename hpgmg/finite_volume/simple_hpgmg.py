@@ -5,6 +5,7 @@ from __future__ import division, print_function
 import argparse
 import os
 import logging
+from hpgmg.finite_volume.operators.chebyshevsmoother import ChebyshevSmoother
 
 from hpgmg.finite_volume.operators.stencil_von_neumann_r1 import StencilVonNeumannR1
 from hpgmg.finite_volume.iterative_solver import IterativeSolver
@@ -64,6 +65,8 @@ class SimpleMultigridSolver(object):
         self.residual = Residual(solver=self)
         if configuration.smoother == 'j':
             self.smoother = JacobiSmoother(self.problem_operator, 6)
+        elif configuration.smoother == 'c':
+            self.smoother = ChebyshevSmoother(self.problem_operator, 1, 1)
         else:
             raise Exception()
 
@@ -311,7 +314,7 @@ class SimpleMultigridSolver(object):
                             choices=['h', 'p'],
                             default='h', )
         parser.add_argument('-sm', '--smoother',
-                            help="Type of smoother, j for jacobi",
+                            help="Type of smoother, j for jacobi, c for chebyshev",
                             default='j', )
         parser.add_argument('-vc', '--variable-coefficient', action='store_true',
                             help="Use 1.0 as fixed value of beta, default is variable beta coefficient",
