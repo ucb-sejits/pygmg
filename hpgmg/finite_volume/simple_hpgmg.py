@@ -64,7 +64,11 @@ class SimpleMultigridSolver(object):
 
         self.residual = Residual(solver=self)
         if configuration.smoother == 'j':
-            self.smoother = JacobiSmoother(self.problem_operator, configuration.smoother_iterations)
+            self.smoother = JacobiSmoother(
+                self.problem_operator,
+                use_l1_jacobi=configuration.use_l1_jacobi,
+                iterations=configuration.smoother_iterations
+            )
         elif configuration.smoother == 'c':
             self.smoother = ChebyshevSmoother(self.problem_operator, 1, 1)
         else:
@@ -316,6 +320,9 @@ class SimpleMultigridSolver(object):
         parser.add_argument('-sm', '--smoother',
                             help="Type of smoother, j for jacobi, c for chebyshev",
                             default='j', )
+        parser.add_argument('-ulj', '--use-l1-jacobi', action="store_true",
+                            help="use l1 instead of d inverse with jacobi smoother",
+                            default=False, )
         parser.add_argument('-vc', '--variable-coefficient', action='store_true',
                             help="Use 1.0 as fixed value of beta, default is variable beta coefficient",
                             default=False, )

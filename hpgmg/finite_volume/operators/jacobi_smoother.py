@@ -12,6 +12,10 @@ class JacobiSmoother(object):
         :param iterations:
         :return:
         """
+        assert(isinstance(op, object))
+        assert(isinstance(use_l1_jacobi, bool))
+        assert(isinstance(iterations, int))
+
         self.operator = op
         self.use_l1_jacobi = use_l1_jacobi
         self.weight = 1.0 if use_l1_jacobi else 2.0/3.0
