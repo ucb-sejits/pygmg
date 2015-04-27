@@ -64,7 +64,7 @@ class SimpleMultigridSolver(object):
 
         self.residual = Residual(solver=self)
         if configuration.smoother == 'j':
-            self.smoother = JacobiSmoother(self.problem_operator, 6)
+            self.smoother = JacobiSmoother(self.problem_operator, configuration.smoother_iterations)
         elif configuration.smoother == 'c':
             self.smoother = ChebyshevSmoother(self.problem_operator, 1, 1)
         else:
@@ -319,6 +319,8 @@ class SimpleMultigridSolver(object):
         parser.add_argument('-vc', '--variable-coefficient', action='store_true',
                             help="Use 1.0 as fixed value of beta, default is variable beta coefficient",
                             default=False, )
+        parser.add_argument('-si', '--smoother-iterations', help='number of iterations each time smoother is called',
+                            default=6, type=int)
         parser.add_argument('-mcd', '--minimum-coarse_dimension', help='smallest allowed coarsened dimension',
                             default=3, type=int)
         parser.add_argument('-l', '--log', help='turn on logging', action="store_true", )
