@@ -1,7 +1,6 @@
 from __future__ import print_function
 from stencil_code.neighborhood import Neighborhood
 from hpgmg.finite_volume.operators.restriction import Restriction
-from hpgmg.finite_volume.simple_level import SimpleLevel
 from hpgmg.finite_volume.space import Coord
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
@@ -22,7 +21,7 @@ class StencilVonNeumannR1(object):
         self.is_variable_coefficient = solver.is_variable_coefficient
         self.h2inv = 1.0
         self.ghost_zone = Coord(1 for _ in range(self.dimensions))
-        self.neighborhood = [
+        self.neighborhood_offsets = [
             Coord(x)
             for x in Neighborhood.von_neuman_neighborhood(radius=1, dim=self.dimensions, include_origin=False)
         ]
@@ -30,7 +29,7 @@ class StencilVonNeumannR1(object):
             Coord([1 if d == dim else 0 for d in range(self.dimensions)])
             for dim in range(solver.dimensions)
         ]
-        self.num_neighbors = len(self.neighborhood)
+        self.num_neighbors = len(self.neighborhood_offsets)
         if solver.is_helmholtz:
             self.apply_op = self.apply_op_constant_coefficient_unfused_boundary_conditions
         else:
@@ -96,18 +95,58 @@ class StencilVonNeumannR1(object):
             mesh[index] * self.num_neighbors * 2.0
         )
 
-    # TODO: Implement apply_op_variable_coefficient_unfused_boundary_conditions_helmholtz
-    # TODO: Implement apply_op_variable_coefficient_unfused_boundary_conditions_poisson
+    def apply_op_variable_coefficient_unfused_boundary_conditions_helmholtz(self, mesh, index, level):
+        return self.a * level.alpha[index] * mesh[index] - self.b * self.h2inv * (
+            sum(
+                level.beta_face_values[dim][index] * (
+                    level.valid[index - self.unit_vectors[dim]] * (
+                        mesh[index] + mesh[index - self.unit_vectors[dim]]
+                    ) - 2.0 * mesh[index]
+                )
+                for dim in range(self.dimensions)
+            ) +
+            sum(
+                level.beta_face_values[dim][index + self.unit_vectors[dim]] * (
+                    level.valid[index + self.unit_vectors[dim]] * (
+                        mesh[index] + mesh[index + self.unit_vectors[dim]]
+                    ) - 2.0 * mesh[index]
+                )
+                for dim in range(self.dimensions)
+            )
+        )
 
-    def apply_op_constant_coefficient_unfused_boundary_conditions(self, mesh, index, _):
+    def apply_op_variable_coefficient_unfused_boundary_conditions_poisson(self, mesh, index, level):
+        return -self.b * self.h2inv * (
+            sum(
+                level.beta_face_values[dim][index] * (
+                    (
+                        mesh[index] + mesh[index - self.unit_vectors[dim]]
+                    ) - 2.0 * mesh[index]
+                )
+                for dim in range(self.dimensions)
+            ) +
+            sum(
+                level.beta_face_values[dim][index + self.unit_vectors[dim]] * (
+                    (
+                        mesh[index] + mesh[index + self.unit_vectors[dim]]
+                    ) - 2.0 * mesh[index]
+                )
+                for dim in range(self.dimensions)
+            )
+        )
+
+    def apply_op_constant_coefficient_unfused_boundary_conditions(self, mesh, index, _=None):
         return self.a * mesh[index] - self.b * self.h2inv * (
-            sum([mesh[neighbor_index] for neighbor_index in self.neighborhood]) -
+            sum([mesh[index + neighbor_offset] for neighbor_offset in self.neighborhood_offsets]) -
             mesh[index] * self.num_neighbors
         )
-        # neighbor_sum = sum([mesh[neighbor_index] for neighbor_index in self.neighborhood])
-        # m_i = mesh[index]
-        # second_term = neighbor_sum - m_i * self.num_neighbors
-        # return self.a * m_i - self.b * self.h2inv * second_term
+
+    def apply_op_constant_coefficient_unfused_boundary_conditions_verbose(self, mesh, index, _=None):
+        neighbor_sum = sum([mesh[index + neighbor_offset] for neighbor_offset in self.neighborhood_offsets])
+        m_i = mesh[index]
+        second_term = neighbor_sum - m_i * self.num_neighbors
+        print("apply_op h2inv {} neighbor_sum {} second_term {}".format(self.h2inv, neighbor_sum, second_term))
+        return self.a * m_i - self.b * self.h2inv * second_term
 
     def rebuild_operator(self, target_level, source_level=None):
         self.set_scale(target_level.h)
@@ -170,10 +209,10 @@ class StencilVonNeumannR1(object):
                 )
             else:
                 sum_abs = abs(self.b * self.h2inv) * sum(
-                    [target_level.valid[neighbor_index] for neighbor_index in self.neighborhood]
+                    [target_level.valid[neighbor_index] for neighbor_index in self.neighborhood_offsets]
                 )
                 a_diagonal = self.a * target_level.alpha[index] - self.b * self.h2inv * sum(
-                    [target_level.valid[neighbor_index]-2.0 for neighbor_index in self.neighborhood]
+                    [target_level.valid[neighbor_index]-2.0 for neighbor_index in self.neighborhood_offsets]
                 )
 
             # compute the d_inverse, l1_inverse and dominant eigen_value
