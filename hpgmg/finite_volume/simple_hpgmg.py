@@ -210,9 +210,6 @@ class SimpleMultigridSolver(object):
             self.all_levels.append(coarser_level)
             level = coarser_level
 
-
-
-
     def v_cycle(self, level, target_mesh, residual_mesh):
         if min(level.space) <= 3:
             with Timer('bottom_solve'):
@@ -225,11 +222,8 @@ class SimpleMultigridSolver(object):
 
             coarser_level = level.make_coarser_level()
             # self.problem_operator.rebuild_operator(coarser_level, level)
-            self.restrictor.restrict(coarser_level, coarser_level.right_hand_side,
-                                     level.temp, Restriction.RESTRICT_CELL)
-            self.boundary_updater.apply(coarser_level, coarser_level.cell_values)
-
-            # coarser_level.print("Coarsened level {}".format(coarser_level.level_number))
+            self.restrictor.restrict(coarser_level, coarser_level.residual, level.temp, Restriction.RESTRICT_CELL)
+            coarser_level.fill_mesh(coarser_level.cell_values, 0.0)
 
         self.v_cycle(coarser_level, coarser_level.cell_values, coarser_level.residual)
 
@@ -241,11 +235,17 @@ class SimpleMultigridSolver(object):
 
     def solve(self):
         """
-        void MGVCycle(mg_type *all_grids, int e_id, int R_id, double a, double b, int level){
         void MGSolve(mg_type *all_grids, int u_id, int F_id, double a, double b, double dtol, double rtol){
+            void MGVCycle(mg_type *all_grids, int e_id, int R_id, double a, double b, int level){
 
         MGSolve(&all_grids,VECTOR_U,VECTOR_F,a,b,dtol,rtol);
             MGVCycle(all_grids,e_id,R_id,a,b,level);
+
+
+        MGSolve(&all_grids, u_id=VECTOR_U(cell_values), F_id=VECTOR_F(right_hand_side), a, b, dtol,rtol);
+            e_id = u_id(cell_values)
+            R_id = VECTOR_F_MINUS_FV(residual)
+            MGVCycle(all_grids, e_id=VECTOR_U(cell_values), R_id=VECTOR_F_MINUS_FV(residual),a,b,level);
         :return:
         """
         d_tolerance, r_tolerance = 0.0, 1e-10
