@@ -1,5 +1,5 @@
 from __future__ import print_function
-from hpgmg.finite_volume.cycle_counter import CycleCounter
+from hpgmg.other_work.cycle_counter import CycleCounter
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
@@ -7,10 +7,10 @@ import numpy
 import math
 
 from collections import namedtuple
-from hpgmg.finite_volume.operators.stencil_27_pt import stencil_get_radius
+from hpgmg.other_work.stencil_27_pt import stencil_get_radius
 from hpgmg.finite_volume.space import Space, Vector
-from hpgmg.finite_volume.box import Box
-from hpgmg.finite_volume.boundary_condition import BoundaryCondition
+from hpgmg.other_work.box import Box
+from hpgmg.other_work.boundary_condition import BoundaryCondition
 
 DecomposeLex = True  # todo: this should come from global configuration
 DecomposeBisectionSpecial = False  # todo: this should come from global configuration

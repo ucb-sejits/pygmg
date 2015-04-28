@@ -1,17 +1,13 @@
 from __future__ import print_function, division
+from hpgmg.other_work import THeatgenerator, pymg3d, smoothers
 
 __author__ = 'nzhang-dev'
 
-import pymg3d
 import numpy as np
-import smoothers
-import THeatgenerator
 
 import timeit
 import itertools
-import sys
 import argparse
-import os
 import logging
 
 
@@ -94,9 +90,9 @@ if __name__ == '__main__':
 
     global smoother_choice
     smoother_options={
-                1:smoothers.chebyshev, 
-                2:smoothers.gauss_siedel,
-                3:smoothers.jacobi
+                1: smoothers.chebyshev,
+                2: smoothers.gauss_siedel,
+                3: smoothers.jacobi
     }
     smoother_choice = smoother_options[smoother_enum]
 

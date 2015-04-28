@@ -6,32 +6,10 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 import unittest
 
-from hpgmg.finite_volume.boundary_condition import BoundaryCondition
+from hpgmg.other_work.boundary_condition import BoundaryCondition
 
 
 class TestBoundaryCondition(unittest.TestCase):
-    def test_basics(self):
-        bc = BoundaryCondition
-        self.assertEqual(len(bc.Faces), 27)
-        self.assertEqual(len(bc.Edges), 27)
-        self.assertEqual(len(bc.Corners), 27)
-
-        self.assertTrue(bc.is_corner(bc.neighbor_vector(-1, -1, -1)))
-        self.assertTrue(bc.is_corner(bc.neighbor_vector(1, 1, 1)))
-        self.assertTrue(bc.is_corner(bc.neighbor_vector(-1, 1, -1)))
-
-        self.assertTrue(bc.is_edge(bc.neighbor_vector(-1, 0, -1)))
-        self.assertTrue(bc.is_edge(bc.neighbor_vector(-1, 0, 1)))
-        self.assertTrue(bc.is_edge(bc.neighbor_vector(1, 0, -1)))
-
-        self.assertTrue(bc.is_face(bc.neighbor_vector(-1, 0, 0)))
-        self.assertTrue(bc.is_face(bc.neighbor_vector(0, 0, 1)))
-        self.assertTrue(bc.is_face(bc.neighbor_vector(1, 0, 0)))
-
-    def test_iteration(self):
-        bc = BoundaryCondition
-        self.assertEqual(len(list(bc.foreach_neighbor_delta())), 27)
-
     def test_boundary_updater_v1_dirichlet(self):
         simple_solver = SimpleMultigridSolver.get_solver(["2"])
         bu = BoundaryUpdaterV1(simple_solver)

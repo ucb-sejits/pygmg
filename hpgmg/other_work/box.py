@@ -1,6 +1,9 @@
 from __future__ import print_function
+
 import numpy as np
-from hpgmg.finite_volume.constants import Constants
+
+from hpgmg.other_work.constants import Constants
+
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 

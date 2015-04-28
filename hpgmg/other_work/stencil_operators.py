@@ -1,12 +1,14 @@
 from __future__ import print_function
 
-import numpy as np
 from abc import ABCMeta, abstractmethod
 
+import numpy as np
 from stencil_code.neighborhood import Neighborhood
+
 from hpgmg.finite_volume.mesh import Mesh
-from hpgmg.finite_volume.smoothers import jacobi, jacobi_stencil
-from hpgmg.finite_volume.space import Space, Coord
+from hpgmg.other_work.smoothers import jacobi, jacobi_stencil
+from hpgmg.finite_volume.space import Coord
+
 
 #from stencil_code.neighborhood import Neighborhood
 

@@ -3,7 +3,7 @@ from math import sin, cos
 
 import numpy as np
 
-from hpgmg.finite_volume.constants import Constants
+from hpgmg.other_work.constants import Constants
 import hpgmg.finite_volume.operators.misc as misc
 from hpgmg.finite_volume.problems.problem import Problem
 from hpgmg.finite_volume.space import Vector

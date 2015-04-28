@@ -10,7 +10,7 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 class TestApplyOp(unittest.TestCase):
     def test_jacobi_smoother(self):
-        solver = simple_hpgmg.SimpleMultigridSolver.get_solver("3 -d 2 -sm j -si 4000 -bc p".split())
+        solver = simple_hpgmg.SimpleMultigridSolver.get_solver("3 -d 2 -sm j -si 40 -bc p".split())
 
         self.assertIsInstance(solver.smoother, JacobiSmoother)
         self.assertFalse(solver.smoother.use_l1_jacobi)

@@ -1,12 +1,9 @@
 from __future__ import print_function
-import time
 from hpgmg.finite_volume.timer import Timer
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 import unittest
-from hpgmg.finite_volume.boundary_condition import BoundaryCondition
-from hpgmg.finite_volume.operators.stencil_27_pt import stencil_get_radius
 
 
 class TestTimer(unittest.TestCase):

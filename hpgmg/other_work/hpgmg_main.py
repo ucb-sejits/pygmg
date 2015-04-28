@@ -1,6 +1,6 @@
 from __future__ import print_function, division
 from hpgmg.finite_volume import VECTOR_F, VECTOR_UTRUE
-from hpgmg.finite_volume.boundary_condition import BoundaryCondition
+from hpgmg.other_work.boundary_condition import BoundaryCondition
 from hpgmg.finite_volume.operators import misc
 from hpgmg.finite_volume.problems.problem_sine import SineProblem
 from hpgmg.finite_volume.space import Space
@@ -11,8 +11,8 @@ import argparse
 import os
 import logging
 
-from hpgmg.finite_volume.level import Level, LevelManager
-from hpgmg.finite_volume.operators.stencil_27_pt import stencil_get_radius
+from hpgmg.other_work.level import Level, LevelManager
+from hpgmg.other_work.stencil_27_pt import stencil_get_radius
 
 log = logging
 log.root.setLevel(logging.INFO)
