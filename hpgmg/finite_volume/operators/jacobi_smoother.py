@@ -15,6 +15,7 @@ class JacobiSmoother(object):
         assert(isinstance(op, object))
         assert(isinstance(use_l1_jacobi, bool))
         assert(isinstance(iterations, int))
+        assert iterations % 2 == 0
 
         self.operator = op
         self.use_l1_jacobi = use_l1_jacobi
@@ -30,23 +31,16 @@ class JacobiSmoother(object):
         :return:
         """
         lambda_mesh = level.l1_inverse if self.use_l1_jacobi else level.d_inverse
-        working_target = level.temp
-        working_source = mesh_to_smooth
-        need_copy = False
+        working_target = mesh_to_smooth
+        working_source = level.temp
 
         for i in range(self.iterations):
+            working_target, working_source = working_source, working_target
+
             for index in level.interior_points():
                 a_x = self.operator.apply_op(rhs_mesh, index, level)
                 b = rhs_mesh[index]
                 working_target[index] = mesh_to_smooth[index] + (self.weight * lambda_mesh[index] * (b - a_x))
-
-            temp = working_target
-            working_target = working_source
-            working_source = temp
-            need_copy = not need_copy
-
-        if need_copy:
-            level.shift_mesh(mesh_to_smooth, 1.0, level.temp)
 
 
 if __name__ == '__main__':

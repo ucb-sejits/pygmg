@@ -43,20 +43,30 @@ class Mesh(np.ndarray):
         rank.  this shows the labeling in a table like form
         :return:
         """
-        max_i, max_j, max_k = self.shape
-
         if message:
             print("Mesh print {} shape {}".format(message, self.shape))
 
-        for i in range(max_i-1, -1, -1):
-            # print("i  {}".format(i))
-            for j in range(max_j-1, -1, -1):
-                print(" "*j, end="")
-                for k in range(max_k):
-                    print("{:4.1f}".format(self[(i, j, k)]), end=" ")
+        if len(self.space) == 3:
+            max_i, max_j, max_k = self.shape
+
+            for i in range(max_i-1, -1, -1):
+                # print("i  {}".format(i))
+                for j in range(max_j-1, -1, -1):
+                    print(" "*j, end="")
+                    for k in range(max_k):
+                        print("{:4.1f}".format(self[(i, j, k)]), end=" ")
+                    print()
                 print()
             print()
-        print()
+        elif len(self.space) == 2:
+            max_i, max_j = self.shape
+
+            for i in range(max_i-1, -1, -1):
+                # print("i  {}".format(i))
+                for j in range(max_j-1, -1, -1):
+                    print("{:6.3f}".format(self[(i, j)]), end=" ")
+                print()
+            print()
 
     def zero(self):
         for index in self.indices():
