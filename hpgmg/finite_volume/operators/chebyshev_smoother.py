@@ -60,6 +60,8 @@ class ChebyshevSmoother(Smoother):
                 working_source = level.temp
                 working_source_prev = mesh_to_smooth
                 working_target = mesh_to_smooth
+
+            level.solver.boundary_updater.apply(level, working_source)
             c1 = chebyshev_c1[s % self.degree]
             c2 = chebyshev_c2[s % self.degree]
 
@@ -76,4 +78,4 @@ class ChebyshevSmoother(Smoother):
             need_copy = not need_copy
 
         if need_copy:
-            level.shift_mesh(mesh_to_smooth, 1.0, level.temp)
+            level.scale_mesh(mesh_to_smooth, 1.0, level.temp)

@@ -278,7 +278,7 @@ class SimpleMultigridSolver(object):
                     level.shift_mesh(level.cell_values, -average_value_of_u, level.cell_values)
 
                 self.residual.run(level, level.temp, level.cell_values, level.right_hand_side,)
-                level.shift_mesh(level.residual, 1.0, level.temp)
+                level.scale_mesh(level.residual, 1.0, level.temp)
                 if d_tolerance > 0.0:
                     level.multiply_meshes(level.temp, 1.0, level.temp, level.d_inverse)
                 norm_of_residual = level.norm_mesh(level.temp)
