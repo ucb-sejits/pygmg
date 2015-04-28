@@ -1,12 +1,13 @@
 from __future__ import print_function
 from stencil_code.neighborhood import Neighborhood
+from hpgmg.finite_volume.operators.base_operator import BaseOperator
 from hpgmg.finite_volume.operators.restriction import Restriction
 from hpgmg.finite_volume.space import Coord
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 
-class StencilVonNeumannR1(object):
+class StencilVonNeumannR1(BaseOperator):
     """
     implements a stencil using a radius 1 von neumann neighborhood
     i.e. 7 point in 3d
@@ -150,6 +151,7 @@ class StencilVonNeumannR1(object):
 
     def rebuild_operator(self, target_level, source_level=None):
         self.set_scale(target_level.h)
+
         if source_level is not None:
             self.restrictor.restrict(target_level, target_level.alpha, source_level.alpha, Restriction.RESTRICT_CELL)
             for dim in range(self.dimensions):
@@ -209,10 +211,10 @@ class StencilVonNeumannR1(object):
                 )
             else:
                 sum_abs = abs(self.b * self.h2inv) * sum(
-                    [target_level.valid[neighbor_index] for neighbor_index in self.neighborhood_offsets]
+                    [target_level.valid[index + neighbor_offset] for neighbor_offset in self.neighborhood_offsets]
                 )
                 a_diagonal = self.a * target_level.alpha[index] - self.b * self.h2inv * sum(
-                    [target_level.valid[neighbor_index]-2.0 for neighbor_index in self.neighborhood_offsets]
+                    [target_level.valid[index + neighbor_offset]-2.0 for neighbor_offset in self.neighborhood_offsets]
                 )
 
             # compute the d_inverse, l1_inverse and dominant eigen_value

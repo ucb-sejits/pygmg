@@ -1,4 +1,6 @@
 from __future__ import print_function
+from hpgmg.finite_volume.operators.base_operator import BaseOperator
+from hpgmg.finite_volume.operators.smoother import Smoother
 
 __author__ = 'Shiv Sundram shivsundram@berkeley.edu U.C. Berkeley, shivsundram@lbl.gov LBNL'
 
@@ -6,7 +8,7 @@ __author__ = 'Shiv Sundram shivsundram@berkeley.edu U.C. Berkeley, shivsundram@l
 # with algorithmic corrections provided by Sam Williams
 
 
-class ChebyshevSmoother(object):
+class ChebyshevSmoother(Smoother):
     def __init__(self, op, degree=4, iterations=10):
         """
         :param op:
@@ -14,6 +16,10 @@ class ChebyshevSmoother(object):
         :param iterations:
         :return:
         """
+        assert isinstance(op, BaseOperator)
+        assert isinstance(degree, int)
+        assert isinstance(iterations, int)
+
         self.operator = op
         self.iterations = iterations
         self.degree = degree
@@ -42,6 +48,8 @@ class ChebyshevSmoother(object):
             chebyshev_c1[s] = rho_n*rho_nm1
             chebyshev_c2[s] = rho_n*2.0/delta
 
+        self.operator.set_scale(level.h)
+
         need_copy = False
         for s in range(self.degree*self.iterations):  # need to store 2 prev src meshes
             if (s & 1) == 0:
@@ -69,21 +77,3 @@ class ChebyshevSmoother(object):
 
         if need_copy:
             level.shift_mesh(mesh_to_smooth, 1.0, level.temp)
-
-
-if __name__ == '__main__':
-    import hpgmg.finite_volume.simple_hpgmg as simple_hpgmg
-
-    solver = simple_hpgmg.SimpleMultigridSolver.get_solver("0 -sm c ".split())
-
-    #assert isinstance(solver.smoother, ChebyshevSmoother), "solver.smoother {} is not a ChebyshevSmoother".format(
-    #    solver.smoother)
-
-    base_level = solver.fine_level
-    mesh = base_level.cell_values
-    for point in mesh.indices():
-        mesh[point] = sum(list(point))
-    mesh.print("mesh")
-
-    solver.smoother.smooth(base_level, base_level.cell_values, base_level.exact_solution)
-    base_level.cell_values.print("smoothed mesh")

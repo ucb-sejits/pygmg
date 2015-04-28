@@ -1,10 +1,13 @@
 from __future__ import print_function
 
+from hpgmg.finite_volume.operators.base_operator import BaseOperator
+from hpgmg.finite_volume.operators.smoother import Smoother
+
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 
-class JacobiSmoother(object):
-    def __init__(self, op, use_l1_jacobi=True, iterations=10):
+class JacobiSmoother(Smoother):
+    def __init__(self, op, use_l1_jacobi=True, iterations=6):
         """
 
         :param op:
@@ -12,7 +15,7 @@ class JacobiSmoother(object):
         :param iterations:
         :return:
         """
-        assert(isinstance(op, object))
+        assert(isinstance(op, BaseOperator))
         assert(isinstance(use_l1_jacobi, bool))
         assert(isinstance(iterations, int))
         assert iterations % 2 == 0
@@ -31,32 +34,14 @@ class JacobiSmoother(object):
         :return:
         """
         lambda_mesh = level.l1_inverse if self.use_l1_jacobi else level.d_inverse
-        working_target = mesh_to_smooth
-        working_source = level.temp
+        working_target, working_source = mesh_to_smooth, level.temp
 
+        self.operator.set_scale(level.h)
         for i in range(self.iterations):
             working_target, working_source = working_source, working_target
+            level.solver.boundary_updater.apply(level, working_source)
 
             for index in level.interior_points():
-                a_x = self.operator.apply_op(rhs_mesh, index, level)
+                a_x = self.operator.apply_op(working_source, index, level)
                 b = rhs_mesh[index]
-                working_target[index] = mesh_to_smooth[index] + (self.weight * lambda_mesh[index] * (b - a_x))
-
-
-if __name__ == '__main__':
-    import hpgmg.finite_volume.simple_hpgmg as simple_hpgmg
-
-    solver = simple_hpgmg.SimpleMultigridSolver.get_solver("3 -fb".split())
-
-    assert isinstance(solver.smoother, JacobiSmoother), "solver.smoother {} is not a JacobiSmoother".format(
-        solver.smoother)
-
-
-    base_level = solver.fine_level
-    mesh = base_level.cell_values
-    for point in mesh.indices():
-        mesh[point] = sum(list(point))
-    mesh.print("mesh")
-
-    solver.smoother.smooth(base_level, base_level.cell_values, base_level.exact_solution)
-    base_level.cell_values.print("smoothed mesh")
+                working_target[index] = working_source[index] + (self.weight * lambda_mesh[index] * (b - a_x))

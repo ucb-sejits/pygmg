@@ -61,10 +61,10 @@ class Mesh(np.ndarray):
         elif len(self.space) == 2:
             max_i, max_j = self.shape
 
-            for i in range(max_i-1, -1, -1):
+            for i in range(max_i):
                 # print("i  {}".format(i))
-                for j in range(max_j-1, -1, -1):
-                    print("{:6.3f}".format(self[(i, j)]), end=" ")
+                for j in range(max_j):
+                    print("{:10.5f}".format(self[(i, j)]), end=" ")
                 print()
             print()
 

@@ -5,7 +5,7 @@ from __future__ import division, print_function
 import argparse
 import os
 import logging
-from hpgmg.finite_volume.operators.chebyshevsmoother import ChebyshevSmoother
+from hpgmg.finite_volume.operators.chebyshev_smoother import ChebyshevSmoother
 
 from hpgmg.finite_volume.operators.stencil_von_neumann_r1 import StencilVonNeumannR1
 from hpgmg.finite_volume.iterative_solver import IterativeSolver
@@ -56,7 +56,7 @@ class SimpleMultigridSolver(object):
         self.is_poisson = configuration.equation == 'p'
 
         self.number_of_v_cycles = configuration.number_of_vcycles
-        self.interpolator = InterpolatorPC(pre_scale=0.0)
+        self.interpolator = InterpolatorPC(pre_scale=1.0)
         self.restrictor = Restriction(solver=self)
 
         self.problem_operator = StencilVonNeumannR1(solver=self)
@@ -221,7 +221,7 @@ class SimpleMultigridSolver(object):
             self.residual.run(level, level.temp, level.cell_values, level.right_hand_side)
 
             coarser_level = level.make_coarser_level()
-            # self.problem_operator.rebuild_operator(coarser_level, level)
+            self.problem_operator.rebuild_operator(coarser_level, level)
             self.restrictor.restrict(coarser_level, coarser_level.residual, level.temp, Restriction.RESTRICT_CELL)
             coarser_level.fill_mesh(coarser_level.cell_values, 0.0)
 
@@ -266,7 +266,9 @@ class SimpleMultigridSolver(object):
 
             for cycle in range(self.number_of_v_cycles):
                 print("Running v-cycle {}".format(cycle))
+                level.residual.print('residual before v_cycle')
                 self.v_cycle(level, level.cell_values, level.residual)
+                level.cell_values.print('cell values after v_cycle')
 
                 if self.boundary_is_periodic and self.a == 0.0 or level.alpha_is_zero:
                     # Poisson with Periodic Boundary Conditions...
@@ -276,6 +278,7 @@ class SimpleMultigridSolver(object):
                     level.shift_mesh(level.cell_values, -average_value_of_u, level.cell_values)
 
                 self.residual.run(level, level.temp, level.cell_values, level.right_hand_side,)
+                level.shift_mesh(level.residual, 1.0, level.temp)
                 if d_tolerance > 0.0:
                     level.multiply_meshes(level.temp, 1.0, level.temp, level.d_inverse)
                 norm_of_residual = level.norm_mesh(level.temp)

@@ -56,7 +56,7 @@ class Restriction(object):
     def restrict(self, level, target, source, restriction_type):
         assert(isinstance(level, SimpleLevel))
         for target_point in level.interior_points():
-            source_point = target_point * 2
+            source_point = (target_point * 2) - level.ghost_zone
             assert isinstance(target_point, Coord)
             assert isinstance(source_point, Coord)
             target[target_point] = 0.0

@@ -21,7 +21,7 @@ class TestStencilVonNeumannR1(unittest.TestCase):
         )
         self.assertEqual(solver.a, 1.0)
         self.assertEqual(solver.b, 1.0)
-        self.assertEqual(solver.problem_operator.h2inv, 64.0)  # TODO: confirm this value
+        self.assertEqual(solver.problem_operator.h2inv, 64.0)
 
         value = solver.problem_operator.apply_op(in_mesh, Coord(1, 1))
         self.assertEqual(value, 1.0)
