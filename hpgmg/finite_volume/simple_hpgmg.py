@@ -273,7 +273,7 @@ class SimpleMultigridSolver(object):
                     # by convention, we assume the solution sums to zero...
                     # so eliminate any constants from the solution...
                     average_value_of_u = level.mean_mesh(level.cell_values)
-                    level.shift_mesh(level.cell_values, average_value_of_u, level.cell_values)
+                    level.shift_mesh(level.cell_values, -average_value_of_u, level.cell_values)
 
                 self.residual.run(level, level.temp, level.cell_values, level.right_hand_side,)
                 if d_tolerance > 0.0:
@@ -293,8 +293,6 @@ class SimpleMultigridSolver(object):
                     break
                 if norm_of_residual < d_tolerance:
                     break
-
-
 
     @staticmethod
     def get_configuration(args=None):

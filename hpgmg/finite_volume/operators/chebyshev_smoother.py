@@ -5,18 +5,18 @@ __author__ = 'Shiv Sundram shivsundram@berkeley.edu U.C. Berkeley, shivsundram@l
 # Based on Yousef Saad's Iterative Methods for Sparse Linear Algebra, Algorithm 12.1, page 399
 # with algorithmic corrections provided by Sam Williams
 
+
 class ChebyshevSmoother(object):
     def __init__(self, op, degree=4, iterations=10):
         """
-
         :param op:
-        :param use_l1_jacobi:
+        :param degree:
         :param iterations:
         :return:
         """
         self.operator = op
-        self.iterations = 7
-        self.degree = 4
+        self.iterations = iterations
+        self.degree = degree
 
     def smooth(self, level, mesh_to_smooth, rhs_mesh):
         """
@@ -33,15 +33,16 @@ class ChebyshevSmoother(object):
         sigma = theta/delta
         rho_n = 1/sigma			# rho_0
         chebyshev_c1 = [float] * self.degree  # + c1*(x_n-x_nm1) == rho_n*rho_nm1
-        chebyshev_c2 = [float] * self.degree  # + c2*(b-Ax_n)
+        chebyshev_c2 = [float] * self.degree  # + c2*(b-a_x_n)
         chebyshev_c1[0] = 0.0
         chebyshev_c2[0] = 1/theta
-        for s in range (1, self.degree):   # generate chebyshev polynomial coefficients
+        for s in range(1, self.degree):   # generate chebyshev polynomial coefficients
             rho_nm1 = rho_n
             rho_n = 1.0/(2.0*sigma - rho_nm1)
             chebyshev_c1[s] = rho_n*rho_nm1
             chebyshev_c2[s] = rho_n*2.0/delta
 
+        need_copy = False
         for s in range(self.degree*self.iterations):  # need to store 2 prev src meshes
             if (s & 1) == 0:
                 working_source = mesh_to_smooth
@@ -58,11 +59,11 @@ class ChebyshevSmoother(object):
 
             need_copy = False
             for index in level.interior_points():
-                Ax = self.operator.apply_op(rhs_mesh, index, level)
+                a_x = self.operator.apply_op(rhs_mesh, index, level)
                 b = rhs_mesh[index]
                 working_target[index] = mesh_to_smooth[index] + (
                     c1 * (working_source[index] - working_source_prev[index]) +
-                    c2 * lambda_mesh[index] * (b - Ax)
+                    c2 * lambda_mesh[index] * (b - a_x)
                 )
             need_copy = not need_copy
 
@@ -77,7 +78,6 @@ if __name__ == '__main__':
 
     #assert isinstance(solver.smoother, ChebyshevSmoother), "solver.smoother {} is not a ChebyshevSmoother".format(
     #    solver.smoother)
-
 
     base_level = solver.fine_level
     mesh = base_level.cell_values
