@@ -11,6 +11,7 @@ from hpgmg.finite_volume.operators.stencil_von_neumann_r1 import StencilVonNeuma
 from hpgmg.finite_volume.iterative_solver import IterativeSolver
 from hpgmg.finite_volume.operators.interpolation import InterpolatorPC
 from hpgmg.finite_volume.operators.jacobi_smoother import JacobiSmoother
+from hpgmg.finite_volume.problems.problem_p4 import ProblemP4
 from hpgmg.finite_volume.problems.problem_sine_n_dim import SineProblemND
 from hpgmg.finite_volume.operators.residual import Residual
 from hpgmg.finite_volume.operators.restriction import Restriction
@@ -82,6 +83,8 @@ class SimpleMultigridSolver(object):
 
         if configuration.problem_name == 'sine':
             self.problem = SineProblemND(dimensions=self.dimensions)
+        elif configuration.problem_name == 'p4':
+            self.problem = ProblemP4(dimensions=self.dimensions)
 
         if configuration.variable_coefficient:
             self.beta_generator = VariableBeta(self.dimensions)
@@ -311,9 +314,9 @@ class SimpleMultigridSolver(object):
         parser.add_argument('-nv', '--number-of-vcycles', help='number of vcycles to run',
                             default=1, type=int)
         parser.add_argument('-pn', '--problem-name',
-                            help="problem name, one of [sine]",
+                            help="problem name, one of [sine, p4]",
                             default='sine',
-                            choices=['sine'], )
+                            choices=['sine', 'p4'], )
         parser.add_argument('-bc', '--boundary-condition',
                             help="Type of boundary condition. Use p for Periodic and d for Dirichlet. Default is d",
                             default=('p' if os.environ.get('USE_PERIODIC_BC', 0) else 'd'),

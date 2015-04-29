@@ -8,47 +8,7 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 
 class ProblemP4(Problem):
-    @staticmethod
-    def symbolic_version(coord):
-        from sympy import diff, Symbol
-
-        x, y, z = Symbol('x'), Symbol('y'), Symbol('z')
-        shift = Symbol('shift')
-
-        expr = (
-            (1.0 * x**4 - 2.0 * x**3 + 1.0 * x**2 + shift) +
-            (1.0 * y**4 - 2.0 * y**3 + 1.0 * y**2 + shift) +
-            (1.0 * z**4 - 2.0 * z**3 + 1.0 * z**2 + shift)
-        )
-
-        d_dx = diff(expr, x)
-        d_dy = diff(expr, y)
-        d_dz = diff(expr, z)
-
-        d2_dx2 = diff(expr, x, 2)
-        d2_dy2 = diff(expr, y, 2)
-        d2_dz2 = diff(expr, z, 2)
-
-        print("d/dx    {}".format(d_dx))
-        print("d/dy    {}".format(d_dy))
-        print("d/dz    {}".format(d_dz))
-        print("d2/dx2  {}".format(d2_dx2))
-        print("d2/dy2  {}".format(d2_dy2))
-        print("d2/dz2  {}".format(d2_dz2))
-        # import ast
-        # t = ast.parse(s)
-        #
-        # print(ast.dump(t, include_attributes=True))
-
-        import math
-
-        pi4 = math.pi / 2.0
-        print("expr {}\nvalue {}".format(
-            expr,
-            expr.evalf(subs={shift: 0.0, x: pi4, y: pi4, z: pi4})
-        ))
-
-    def __init__(self, dimensions=3):
+    def __init__(self, dimensions=3, shift=0.0):
         self.source = []
         expr = None
         dimension_names = ['x', 'y', 'z'][:dimensions]
@@ -61,25 +21,14 @@ class ProblemP4(Problem):
             self.source.append(declaration)
             exec declaration
             dimension_symbols.append(sympy.Symbol(dimension_name))
-        c1, c2 = 2.0 * np.pi, 6.0 * np.pi
-        power = 13.0
-        self.source.append("c1, c2 = {}, {}".format(c1, c2))  # 2.0 * np.pi, 6.0 * np.pi)
-        self.source.append("power = {}".format(power))
 
-        expr = (
-            (1.0 * x**4 - 2.0 * x**3 + 1.0 * x**2 + shift) +
-            (1.0 * y**4 - 2.0 * y**3 + 1.0 * y**2 + shift) +
-            (1.0 * z**4 - 2.0 * z**3 + 1.0 * z**2 + shift)
-        )
+        first_terms = [
+            "(1.0 * {sym}**4 - 2.0 * {sym}**3 + 1.0 * {sym}**2 + {shift})".format(sym=sym, shift=shift)
+            for sym in dimension_symbols
+        ]
+        summed_terms = " + ".join(first_terms)
 
-        first_terms = ["(1.0 * {}**4 - 2.0 * {}**3 + 1.0 * {}**2 + shift".format(sym) for sym in dimension_symbols]
-
-        first_terms = ["(sympy.sin(c1*{})**power)".format(sym) for sym in dimension_symbols]
-        first_product = " * ".join(first_terms)
-
-        second_terms = ["(sympy.sin(c2*{})**power)".format(sym) for sym in dimension_symbols]
-        second_product = " * ".join(second_terms)
-        text_expression = "expr = " + first_product + " + " + second_product
+        text_expression = "expr = " + summed_terms
         self.source.append(text_expression)
 
         exec text_expression
@@ -98,14 +47,6 @@ class ProblemP4(Problem):
                 sympy.diff(expr, dimension_symbol, 2)
             )
             self.source.append("d2u_d{}2_expr = {}".format(dimension_symbol, second_derivatives[-1]))
-
-        # print("first derivatives")
-        # for first_derivative in first_derivatives:
-        #     print(first_derivatives)
-        #
-        # print("second derivatives")
-        # for second_derivative in second_derivatives:
-        #     print(second_derivatives)
 
         self.u_function = sympy.lambdify(dimension_symbols, expr)
         self.u_first_derivatives = [
@@ -130,8 +71,3 @@ class ProblemP4(Problem):
             u_second_derivative(*vector) for u_second_derivative in self.u_second_derivatives
         )
         return u, Vector(du_dv), Vector(d2u_dv2)
-
-if __name__ == '__main__':
-    import math
-    pi4 = math.pi / 2.0
-    ProblemP4.symbolic_version(Vector(pi4, pi4, pi4))
