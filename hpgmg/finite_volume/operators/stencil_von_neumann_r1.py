@@ -205,7 +205,7 @@ class StencilVonNeumannR1(BaseOperator):
                 a_diagonal = self.a * target_level.alpha[index] - self.b * self.h2inv * (
                     sum(
                         target_level.beta_face_values[dim][index] *
-                        target_level.valid[index-self.unit_vectors[dim]] - adjust_value
+                        (target_level.valid[index-self.unit_vectors[dim]] - adjust_value)
                         for dim in range(self.dimensions)
                     ) +
                     sum(
