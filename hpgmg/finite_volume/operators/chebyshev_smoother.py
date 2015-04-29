@@ -67,15 +67,14 @@ class ChebyshevSmoother(Smoother):
 
             lambda_mesh = level.d_inverse
 
-            need_copy = False
             for index in level.interior_points():
-                a_x = self.operator.apply_op(rhs_mesh, index, level)
+                a_x = self.operator.apply_op(working_source, index, level)
                 b = rhs_mesh[index]
-                working_target[index] = mesh_to_smooth[index] + (
+                working_target[index] = working_source[index] + (
                     c1 * (working_source[index] - working_source_prev[index]) +
                     c2 * lambda_mesh[index] * (b - a_x)
                 )
             need_copy = not need_copy
 
         if need_copy:
-            level.scale_mesh(mesh_to_smooth, 1.0, level.temp)
+            level.copy_mesh(mesh_to_smooth, level.temp)

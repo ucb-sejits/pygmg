@@ -112,6 +112,10 @@ class SimpleLevel(object):
         for index in self.valid_indices():
             target_mesh[index] = scale_factor / mesh_to_invert[index]
 
+    def copy_mesh(self, target_mesh, source_mesh):
+        for index in self.valid_indices():
+            target_mesh[index] = source_mesh[index]
+
     def scale_mesh(self, target_mesh, scale_factor, source_mesh):
         for index in self.valid_indices():
             target_mesh[index] = scale_factor * source_mesh[index]

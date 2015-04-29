@@ -70,7 +70,11 @@ class SimpleMultigridSolver(object):
                 iterations=configuration.smoother_iterations
             )
         elif configuration.smoother == 'c':
-            self.smoother = ChebyshevSmoother(self.problem_operator, 1, 1)
+            self.smoother = ChebyshevSmoother(
+                self.problem_operator,
+                degree=1,
+                iterations=configuration.smoother_iterations
+            )
         else:
             raise Exception()
 
