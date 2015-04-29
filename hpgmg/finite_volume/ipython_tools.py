@@ -7,8 +7,17 @@ import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
 
 
-def plot(mesh, shape=None, title='surface', use_heat=True):
-    surface = np.array(mesh)
+def plot(mesh, shape=None, title='surface', use_heat=True, ghost_size=1):
+    """
+    plots mesh, removing ghost zone if specified.
+
+    :param mesh: a 2d shape, currently this
+    :param shape:
+    :param title:
+    :param use_heat:
+    :return:
+    """
+    surface = np.array(mesh[ghost_size:-ghost_size, ghost_size:-ghost_size])
     surface = surface if not shape else surface.reshape(shape)
     xs, ys = np.indices(surface.shape)
 

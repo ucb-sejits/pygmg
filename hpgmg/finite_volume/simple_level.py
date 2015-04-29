@@ -40,6 +40,11 @@ class SimpleLevel(object):
         self.krylov_iterations = 0
 
         self.ghost_zone = solver.ghost_zone
+        self.half_cell = Vector([0.5 for _ in range(self.solver.dimensions)])
+        self.half_unit_vectors = [
+            Vector([0.5 if d == dim else 0 for d in range(self.solver.dimensions)])
+            for dim in range(self.solver.dimensions)
+        ]
 
         self.cell_values = Mesh(self.space)
         self.right_hand_side = Mesh(self.space)
@@ -60,7 +65,6 @@ class SimpleLevel(object):
 
         self.dominant_eigen_value_of_d_inv_a = 0.0
 
-        # TODO: confirm the divisor should not include the ghost zone
         self.cell_size = 1.0 / space[0]
         self.alpha_is_zero = None
 
@@ -112,6 +116,10 @@ class SimpleLevel(object):
         for index in self.valid_indices():
             target_mesh[index] = scale_factor / mesh_to_invert[index]
 
+    def copy_mesh(self, target_mesh, source_mesh):
+        for index in self.valid_indices():
+            target_mesh[index] = source_mesh[index]
+
     def scale_mesh(self, target_mesh, scale_factor, source_mesh):
         for index in self.valid_indices():
             target_mesh[index] = scale_factor * source_mesh[index]
@@ -142,36 +150,41 @@ class SimpleLevel(object):
 
     def mean_mesh(self, mesh):
         """
-
+        compute the simple mean of interior of mesh
         :param mesh:
         :return:
         """
-        # TODO: original used computed cell count, is this over valid or what
         accumulator = 0.0
         cell_count = 0
-        for index in self.valid_indices():
+        for index in self.interior_points():
             accumulator += mesh[index]
             cell_count += 1
         return accumulator / cell_count
 
-    def print(self, title=None):
-        if title:
-            print(title)
+    def coord_to_cell_center_point(self, coord):
+        """
+        a coordinate in one of the level
+        :param coord:
+        :return:
+        """
+        # shifted = Vector(coord) - self.ghost_zone
+        # halved = shifted + self.half_cell
+        # result = halved * self.h
+        # return result
+        return ((Vector(coord) - self.ghost_zone) + self.half_cell) * self.h
 
-        if self.space.ndim == 3:
-            for i in range(self.space.i-1, -1, -1):
-                for j in range(self.space.j-1, -1, -1):
-                    print(" "*j*4, end="")
-                    for k in range(self.space.k):
-                        print("{:6.2f}".format(self.cell_values[(i, j, k)]), end="")
-                    print()
-                print()
-                print()
-        elif self.space.ndim == 2:
-            for i in range(self.space.i-1, -1, -1):
-                for j in range(self.space.j-1, -1, -1):
-                    print("{:6.2f}".format(self.cell_values[(i, j)]), end="")
-                print()
-            print()
-        else:
-            print("I don't know how to print level with {} dimensions".format(self.space.ndim))
+    def coord_to_face_center_point(self, coord, face_dimension):
+        """
+        a coordinate in one of the level, shifted to the face center on the specified dimension
+        :param coord:
+        :return:
+        """
+        return self.coord_to_cell_center_point(coord) - (self.half_unit_vectors[face_dimension] * self.h)
+
+    def print(self, title=None):
+        """
+        prints the cell values mesh
+        :param title:
+        :return:
+        """
+        self.cell_values.print(message=title)

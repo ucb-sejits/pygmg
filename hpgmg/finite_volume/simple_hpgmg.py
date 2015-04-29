@@ -11,6 +11,7 @@ from hpgmg.finite_volume.operators.stencil_von_neumann_r1 import StencilVonNeuma
 from hpgmg.finite_volume.iterative_solver import IterativeSolver
 from hpgmg.finite_volume.operators.interpolation import InterpolatorPC
 from hpgmg.finite_volume.operators.jacobi_smoother import JacobiSmoother
+from hpgmg.finite_volume.problems.problem_p4 import ProblemP4
 from hpgmg.finite_volume.problems.problem_sine_n_dim import SineProblemND
 from hpgmg.finite_volume.operators.residual import Residual
 from hpgmg.finite_volume.operators.restriction import Restriction
@@ -46,6 +47,7 @@ class SimpleMultigridSolver(object):
         self.configuration = configuration
         self.dimensions = configuration.dimensions
         self.global_size = Space([2**configuration.log2_level_size for _ in range(self.dimensions)])
+
         self.is_variable_coefficient = configuration.variable_coefficient
 
         self.boundary_is_periodic = configuration.boundary_condition == 'p'
@@ -70,7 +72,11 @@ class SimpleMultigridSolver(object):
                 iterations=configuration.smoother_iterations
             )
         elif configuration.smoother == 'c':
-            self.smoother = ChebyshevSmoother(self.problem_operator, 1, 1)
+            self.smoother = ChebyshevSmoother(
+                self.problem_operator,
+                degree=1,
+                iterations=configuration.smoother_iterations
+            )
         else:
             raise Exception()
 
@@ -78,6 +84,8 @@ class SimpleMultigridSolver(object):
 
         if configuration.problem_name == 'sine':
             self.problem = SineProblemND(dimensions=self.dimensions)
+        elif configuration.problem_name == 'p4':
+            self.problem = ProblemP4(dimensions=self.dimensions)
 
         if configuration.variable_coefficient:
             self.beta_generator = VariableBeta(self.dimensions)
@@ -176,12 +184,12 @@ class SimpleMultigridSolver(object):
             beta_generator = self.beta_generator
 
         for element_index in level.indices():
-            absolute_position = (Vector(element_index) + half_cell) * level.cell_size
+            absolute_position = level.coord_to_cell_center_point(element_index)
 
             if level.is_variable_coefficient:
                 for face_index in range(self.dimensions):
                     face_betas[face_index], _ = beta_generator.evaluate_beta(
-                        absolute_position-half_unit_vectors[face_index]
+                        level.coord_to_face_center_point(element_index, face_index)
                     )
                 beta, beta_xyz = beta_generator.evaluate_beta(absolute_position)
 
@@ -266,9 +274,9 @@ class SimpleMultigridSolver(object):
 
             for cycle in range(self.number_of_v_cycles):
                 print("Running v-cycle {}".format(cycle))
-                level.residual.print('residual before v_cycle')
+                # level.residual.print('residual before v_cycle')
                 self.v_cycle(level, level.cell_values, level.residual)
-                level.cell_values.print('cell values after v_cycle')
+                # level.cell_values.print('cell values after v_cycle')
 
                 if self.boundary_is_periodic and self.a == 0.0 or level.alpha_is_zero:
                     # Poisson with Periodic Boundary Conditions...
@@ -307,9 +315,9 @@ class SimpleMultigridSolver(object):
         parser.add_argument('-nv', '--number-of-vcycles', help='number of vcycles to run',
                             default=1, type=int)
         parser.add_argument('-pn', '--problem-name',
-                            help="problem name, one of [sine]",
+                            help="problem name, one of [sine, p4]",
                             default='sine',
-                            choices=['sine'], )
+                            choices=['sine', 'p4'], )
         parser.add_argument('-bc', '--boundary-condition',
                             help="Type of boundary condition. Use p for Periodic and d for Dirichlet. Default is d",
                             default=('p' if os.environ.get('USE_PERIODIC_BC', 0) else 'd'),

@@ -9,3 +9,11 @@ class BaseOperator(object):
 
     def apply_op(self, mesh, index, level):
         pass
+
+    @abstractmethod
+    def set_scale(self, level_h):
+        pass
+
+    @abstractmethod
+    def rebuild_operator(self, target_level, source_level=None):
+        pass
