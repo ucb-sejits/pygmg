@@ -13,59 +13,63 @@ class TestVariableBetaGenerators(unittest.TestCase):
         size = 16
         num_dimensions = 3
         h = 1.0 / size
+        half_cell = Vector([0.5 for _ in range(num_dimensions)])
 
         variable_beta = VariableBeta(dimensions=num_dimensions)
 
         mesh = Mesh([size for _ in range(num_dimensions)])
 
         for coord in mesh.indices():
-            index = coord.to_vector()
+            point = (coord.to_vector() + half_cell) * h
 
-            a_beta_d, a_beta = variable_beta.evaluate_beta(index)
-            b_beta_d, b_beta = variable_beta.evaluate_beta_3d(index)
+            a_beta_d, a_beta = variable_beta.evaluate_beta(point)
+            b_beta_d, b_beta = variable_beta.evaluate_beta_3d(point)
 
             self.assertAlmostEqual(
                 a_beta_d, b_beta_d,
-                "at {} a_beta_d did not match b_beta_d {} != {}".format(index, a_beta_d, b_beta_d)
+                "at {} a_beta_d did not match b_beta_d {} != {}".format(point, a_beta_d, b_beta_d)
             )
             self.assertTrue(
                 a_beta.near(b_beta),
-                "at {} a_beta_d did not match b_beta_d {} != {}".format(index, a_beta, b_beta)
+                "at {} a_beta_d did not match b_beta_d {} != {}".format(point, a_beta, b_beta)
             )
 
             for d in range(num_dimensions):
-                index_at_face_d = Vector(
-                    v if d != dim else v - 0.5 * h for dim, v in enumerate(index)
+                point_at_face_d = Vector(
+                    v if d != dim else v - 0.5 * h for dim, v in enumerate(point)
                 )
 
-                b_beta_d, b_beta = variable_beta.evaluate_beta_3d(index_at_face_d)
-                a_beta_d, a_beta = variable_beta.evaluate_beta(index_at_face_d)
+                b_beta_d, b_beta = variable_beta.evaluate_beta_3d(point_at_face_d)
+                a_beta_d, a_beta = variable_beta.evaluate_beta(point_at_face_d)
 
                 self.assertAlmostEqual(
                     a_beta_d, b_beta_d,
-                    "at {} a_beta_d did not match b_beta_d {} != {}".format(index_at_face_d, a_beta_d, b_beta_d)
+                    "at {} a_beta_d did not match b_beta_d {} != {}".format(point_at_face_d, a_beta_d, b_beta_d)
                 )
                 self.assertTrue(
                     a_beta.near(b_beta),
-                    "at {} a_beta_d did not match b_beta_d {} != {}".format(index_at_face_d, a_beta, b_beta)
+                    "at {} a_beta_d did not match b_beta_d {} != {}".format(point_at_face_d, a_beta, b_beta)
                 )
 
     def test_runs_at_2d(self):
         size = 8
         num_dimensions = 2
         h = 1.0 / size
+        half_cell = Vector([0.5 for _ in range(num_dimensions)])
 
         variable_beta = VariableBeta(dimensions=num_dimensions)
         mesh = Mesh([size for _ in range(num_dimensions)])
+        beta_face_values = [Mesh(mesh.space) for _ in range(num_dimensions)]
+
         beta_mesh = Mesh(mesh.space)
         for coord in mesh.indices():
-            index = coord.to_vector()
+            point = (coord.to_vector() + half_cell) * h
 
-            beta_i, beta = variable_beta.evaluate_beta(index)
-            beta_mesh[coord] = beta[1]
+            beta_i, beta = variable_beta.evaluate_beta(point)
 
-        for i in range(size):
-            for j in range(size):
-                print("{:12.4e}".format(beta_mesh[(i, j)]), end="")
-            print()
+            beta_mesh
+            for face_id in range(num_dimensions):
+                beta_face_values[face_id][coord] = beta[face_id]
 
+        for face_id in range(num_dimensions):
+            beta_face_values[face_id].print("beta_face[{}]".format(face_id))

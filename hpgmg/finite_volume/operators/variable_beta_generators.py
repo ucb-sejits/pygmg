@@ -5,6 +5,7 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 from math import tanh
 from hpgmg.finite_volume.space import Vector
 
+
 class VariableBeta(object):
     def __init__(self, dimensions):
         self.dimensions = dimensions

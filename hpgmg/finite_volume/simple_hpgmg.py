@@ -47,6 +47,7 @@ class SimpleMultigridSolver(object):
         self.configuration = configuration
         self.dimensions = configuration.dimensions
         self.global_size = Space([2**configuration.log2_level_size for _ in range(self.dimensions)])
+
         self.is_variable_coefficient = configuration.variable_coefficient
 
         self.boundary_is_periodic = configuration.boundary_condition == 'p'

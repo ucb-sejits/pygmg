@@ -40,6 +40,11 @@ class SimpleLevel(object):
         self.krylov_iterations = 0
 
         self.ghost_zone = solver.ghost_zone
+        self.half_cell = Vector([0.5 for _ in range(self.solver.dimensions)])
+        self.half_unit_vectors = [
+            Vector([0.5 if d == dim else 0 for d in range(self.solver.dimensions)])
+            for dim in range(self.solver.dimensions)
+        ]
 
         self.cell_values = Mesh(self.space)
         self.right_hand_side = Mesh(self.space)
@@ -155,6 +160,26 @@ class SimpleLevel(object):
             accumulator += mesh[index]
             cell_count += 1
         return accumulator / cell_count
+
+    def coord_to_cell_center_point(self, coord):
+        """
+        a coordinate in one of the level
+        :param coord:
+        :return:
+        """
+        # shifted = Vector(coord) - self.ghost_zone
+        # halved = shifted + self.half_cell
+        # result = halved * self.h
+        # return result
+        return ((Vector(coord) - self.ghost_zone) + self.half_cell) * self.h
+
+    def coord_to_face_center_point(self, coord, face_dimension):
+        """
+        a coordinate in one of the level, shifted to the face center on the specified dimension
+        :param coord:
+        :return:
+        """
+        return self.coord_to_cell_center_point(coord) - (self.half_unit_vectors[face_dimension] * self.h)
 
     def print(self, title=None):
         """
