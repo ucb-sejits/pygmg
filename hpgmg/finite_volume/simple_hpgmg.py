@@ -184,12 +184,12 @@ class SimpleMultigridSolver(object):
             beta_generator = self.beta_generator
 
         for element_index in level.indices():
-            absolute_position = (Vector(element_index) + half_cell) * level.cell_size
+            absolute_position = level.coord_to_cell_center_point(element_index)
 
             if level.is_variable_coefficient:
                 for face_index in range(self.dimensions):
                     face_betas[face_index], _ = beta_generator.evaluate_beta(
-                        absolute_position-half_unit_vectors[face_index]
+                        level.coord_to_face_center_point(element_index, face_index)
                     )
                 beta, beta_xyz = beta_generator.evaluate_beta(absolute_position)
 

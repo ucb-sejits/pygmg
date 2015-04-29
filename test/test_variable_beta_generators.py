@@ -1,6 +1,7 @@
 from __future__ import print_function
 import unittest
 from hpgmg.finite_volume.mesh import Mesh
+from hpgmg.finite_volume.simple_hpgmg import SimpleMultigridSolver
 from hpgmg.finite_volume.space import Vector
 from hpgmg.finite_volume.operators.variable_beta_generators import VariableBeta
 
@@ -9,18 +10,13 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 class TestVariableBetaGenerators(unittest.TestCase):
     def test_n_d_beta_generator_matches_3d(self):
+        solver = SimpleMultigridSolver.get_solver(["4", "-d", "3"])
+        level = solver.fine_level
 
-        size = 16
-        num_dimensions = 3
-        h = 1.0 / size
-        half_cell = Vector([0.5 for _ in range(num_dimensions)])
+        variable_beta = VariableBeta(dimensions=solver.dimensions)
 
-        variable_beta = VariableBeta(dimensions=num_dimensions)
-
-        mesh = Mesh([size for _ in range(num_dimensions)])
-
-        for coord in mesh.indices():
-            point = (coord.to_vector() + half_cell) * h
+        for coord in level.indices():
+            point = level.coord_to_cell_center_point(coord)
 
             a_beta_d, a_beta = variable_beta.evaluate_beta(point)
             b_beta_d, b_beta = variable_beta.evaluate_beta_3d(point)
@@ -34,10 +30,8 @@ class TestVariableBetaGenerators(unittest.TestCase):
                 "at {} a_beta_d did not match b_beta_d {} != {}".format(point, a_beta, b_beta)
             )
 
-            for d in range(num_dimensions):
-                point_at_face_d = Vector(
-                    v if d != dim else v - 0.5 * h for dim, v in enumerate(point)
-                )
+            for d in range(solver.dimensions):
+                point_at_face_d = level.coord_to_face_center_point(coord, d)
 
                 b_beta_d, b_beta = variable_beta.evaluate_beta_3d(point_at_face_d)
                 a_beta_d, a_beta = variable_beta.evaluate_beta(point_at_face_d)
@@ -52,24 +46,19 @@ class TestVariableBetaGenerators(unittest.TestCase):
                 )
 
     def test_runs_at_2d(self):
-        size = 8
-        num_dimensions = 2
-        h = 1.0 / size
-        half_cell = Vector([0.5 for _ in range(num_dimensions)])
+        solver = SimpleMultigridSolver.get_solver(["3", "-d", "2", "-vc"])
+        level = solver.fine_level
 
-        variable_beta = VariableBeta(dimensions=num_dimensions)
-        mesh = Mesh([size for _ in range(num_dimensions)])
-        beta_face_values = [Mesh(mesh.space) for _ in range(num_dimensions)]
+        variable_beta = VariableBeta(dimensions=solver.dimensions)
 
-        beta_mesh = Mesh(mesh.space)
-        for coord in mesh.indices():
-            point = (coord.to_vector() + half_cell) * h
+        for dim in range(solver.dimensions):
+            level.beta_face_values[dim].print("beta_face_values[{}]".format(dim))
 
-            beta_i, beta = variable_beta.evaluate_beta(point)
+        for coord in level.indices():
+            point = level.coord_to_cell_center_point(coord)
 
-            beta_mesh
-            for face_id in range(num_dimensions):
-                beta_face_values[face_id][coord] = beta[face_id]
+            for dim in range(solver.dimensions):
+                face_point = level.coord_to_face_center_point(coord, dim)
+                beta_face, _ = variable_beta.evaluate_beta(face_point)
 
-        for face_id in range(num_dimensions):
-            beta_face_values[face_id].print("beta_face[{}]".format(face_id))
+                self.assertEqual(beta_face, level.beta_face_values[dim][coord])
