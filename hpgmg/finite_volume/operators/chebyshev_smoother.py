@@ -1,11 +1,9 @@
-<<<<<<< HEAD
+
 __author__ = 'Shiv Sundram shivsundram@berkeley.edu U.C. Berkeley, shivsundram@lbl.gov, LBNL'
-=======
+
 from __future__ import print_function
 from hpgmg.finite_volume.operators.base_operator import BaseOperator
 from hpgmg.finite_volume.operators.smoother import Smoother
-
-__author__ = 'Shiv Sundram shivsundram@berkeley.edu U.C. Berkeley, shivsundram@lbl.gov LBNL'
 
 # Based on Yousef Saad's Iterative Methods for Sparse Linear Algebra, Algorithm 12.1, page 399
 # with algorithmic corrections provided by Sam Williams
@@ -81,4 +79,3 @@ class ChebyshevSmoother(Smoother):
 
         if need_copy:
             level.copy_mesh(mesh_to_smooth, level.temp)
->>>>>>> 32e89dd5b9e14369f72787b756946aada1bfb4fe
