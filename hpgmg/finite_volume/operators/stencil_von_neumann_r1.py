@@ -12,7 +12,6 @@ class StencilVonNeumannR1(BaseOperator):
     implements a stencil using a radius 1 von neumann neighborhood
     i.e. 7 point in 3d
     """
-    # TODO: implement variable coefficient cases
     def __init__(self, solver):
         self.solver = solver
         self.a = solver.a
@@ -31,10 +30,17 @@ class StencilVonNeumannR1(BaseOperator):
             for dim in range(solver.dimensions)
         ]
         self.num_neighbors = len(self.neighborhood_offsets)
-        if solver.is_helmholtz:
-            self.apply_op = self.apply_op_constant_coefficient_unfused_boundary_conditions
+
+        if solver.is_variable_coefficient:
+            if solver.is_helmholtz:
+                self.apply_op = self.apply_op_variable_coefficient_unfused_boundary_conditions_helmholtz
+            else:
+                self.apply_op = self.apply_op_variable_coefficient_unfused_boundary_conditions_poisson
         else:
-            self.apply_op = self.apply_op_constant_coefficient_unfused_boundary_conditions
+            if solver.is_helmholtz:
+                self.apply_op = self.apply_op_constant_coefficient_unfused_boundary_conditions
+            else:
+                self.apply_op = self.apply_op_constant_coefficient_unfused_boundary_conditions
 
     def set_scale(self, level_h):
         self.h2inv = 1.0 / (level_h ** 2)
@@ -158,6 +164,7 @@ class StencilVonNeumannR1(BaseOperator):
                 self.restrictor.restrict(target_level, target_level.beta_face_values[dim],
                                          source_level.beta_face_values[dim], dim+1)
 
+        adjust_value = 2.0
         dominant_eigenvalue = -1e9
         for index in target_level.interior_points():
             if self.is_variable_coefficient:
@@ -195,8 +202,6 @@ class StencilVonNeumannR1(BaseOperator):
                         for dim in range(self.dimensions)
                     )
                 )
-                # TODO: confirm the value of adjust for dimensions other than 3
-                adjust_value = 2.0
                 a_diagonal = self.a * target_level.alpha[index] - self.b * self.h2inv * (
                     sum(
                         target_level.beta_face_values[dim][index] *
@@ -214,7 +219,7 @@ class StencilVonNeumannR1(BaseOperator):
                     [target_level.valid[index + neighbor_offset] for neighbor_offset in self.neighborhood_offsets]
                 )
                 a_diagonal = self.a * target_level.alpha[index] - self.b * self.h2inv * sum(
-                    [target_level.valid[index + neighbor_offset]-2.0 for neighbor_offset in self.neighborhood_offsets]
+                    [target_level.valid[index + neighbor_offset]-adjust_value for neighbor_offset in self.neighborhood_offsets]
                 )
 
             # compute the d_inverse, l1_inverse and dominant eigen_value

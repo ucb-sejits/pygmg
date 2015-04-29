@@ -17,7 +17,11 @@ def plot(mesh, shape=None, title='surface', use_heat=True, ghost_size=1):
     :param use_heat:
     :return:
     """
-    surface = np.array(mesh[ghost_size:-ghost_size, ghost_size:-ghost_size])
+    if ghost_size > 0:
+        surface = np.array(mesh[ghost_size:-ghost_size, ghost_size:-ghost_size])
+    else:
+        surface = np.array(mesh)
+
     surface = surface if not shape else surface.reshape(shape)
     xs, ys = np.indices(surface.shape)
 

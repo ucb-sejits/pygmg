@@ -1,8 +1,6 @@
 from __future__ import print_function
 import unittest
-from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.simple_hpgmg import SimpleMultigridSolver
-from hpgmg.finite_volume.space import Vector
 from hpgmg.finite_volume.operators.variable_beta_generators import VariableBeta
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'

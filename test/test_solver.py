@@ -1,6 +1,7 @@
 from __future__ import print_function
 import unittest
 import numpy as np
+from hpgmg.finite_volume.operators.chebyshev_smoother import ChebyshevSmoother
 
 from hpgmg.finite_volume.operators.stencil_von_neumann_r1 import StencilVonNeumannR1
 from hpgmg.finite_volume.iterative_solver import IterativeSolver
@@ -81,3 +82,48 @@ class TestSimpleMultigridSolver(unittest.TestCase):
         self.assertEqual(f(c(1, 1), 0), v(0.0000, 0.0625))
         self.assertEqual(f(c(8, 8), 0), v(0.8750, 0.9375))
 
+    def test_operator_construction(self):
+        solver = SimpleMultigridSolver.get_solver(["3", "-d", "2"])
+        self.assertIsInstance(solver.smoother, JacobiSmoother)
+
+        solver = SimpleMultigridSolver.get_solver(["3", "-d", "2", "-sm", "j"])
+        self.assertIsInstance(solver.smoother, JacobiSmoother)
+        self.assertEqual(
+            solver.problem_operator.apply_op,
+            solver.problem_operator.apply_op_constant_coefficient_unfused_boundary_conditions
+        )
+
+        solver = SimpleMultigridSolver.get_solver(["3", "-d", "2", "-sm", "c"])
+        self.assertIsInstance(solver.smoother, ChebyshevSmoother)
+        self.assertEqual(
+            solver.problem_operator.apply_op,
+            solver.problem_operator.apply_op_constant_coefficient_unfused_boundary_conditions
+        )
+
+        solver = SimpleMultigridSolver.get_solver(["3", "-d", "2", "-sm", "c"])
+        self.assertIsInstance(solver.smoother, ChebyshevSmoother)
+        self.assertEqual(
+            solver.problem_operator.apply_op,
+            solver.problem_operator.apply_op_constant_coefficient_unfused_boundary_conditions
+        )
+
+        solver = SimpleMultigridSolver.get_solver(["3", "-d", "2", "-sm", "c", "-vc"])
+        self.assertIsInstance(solver.smoother, ChebyshevSmoother)
+        self.assertEqual(
+            solver.problem_operator.apply_op,
+            solver.problem_operator.apply_op_variable_coefficient_unfused_boundary_conditions_helmholtz
+        )
+
+        solver = SimpleMultigridSolver.get_solver(["3", "-d", "2", "-sm", "c", "-vc", "-eq", "h"])
+        self.assertIsInstance(solver.smoother, ChebyshevSmoother)
+        self.assertEqual(
+            solver.problem_operator.apply_op,
+            solver.problem_operator.apply_op_variable_coefficient_unfused_boundary_conditions_helmholtz
+        )
+
+        solver = SimpleMultigridSolver.get_solver(["3", "-d", "2", "-sm", "c", "-vc", "-eq", "p"])
+        self.assertIsInstance(solver.smoother, ChebyshevSmoother)
+        self.assertEqual(
+            solver.problem_operator.apply_op,
+            solver.problem_operator.apply_op_variable_coefficient_unfused_boundary_conditions_poisson
+        )

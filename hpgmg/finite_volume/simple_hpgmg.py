@@ -173,11 +173,6 @@ class SimpleMultigridSolver(object):
         beta = 1.0
         beta_xyz = Vector(0.0, 0.0, 0.0)
         face_betas = [1.0 for _ in range(self.dimensions)]
-        half_cell = Vector([0.5 for _ in level.space])
-        half_unit_vectors = [
-            Vector([0.5 if d == dim else 0 for d in range(self.dimensions)])
-            for dim in range(self.dimensions)
-        ]
 
         problem = self.problem
         if level.is_variable_coefficient:
