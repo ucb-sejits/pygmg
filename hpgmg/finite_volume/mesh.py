@@ -39,8 +39,8 @@ class Mesh(np.ndarray):
 
     def print(self, message=None):
         """
-        decomposition labels each possible box referenced in rank_of_box with a
-        rank.  this shows the labeling in a table like form
+        print this mesh, if 3d axes go up the page
+        if 2d then standard over and down
         :return:
         """
         if message:
@@ -67,6 +67,8 @@ class Mesh(np.ndarray):
                     print("{:10.5f}".format(self[(i, j)]), end=" ")
                 print()
             print()
+        else:
+            print("I don't know how to mesh with {} dimensions".format(self.space.ndim))
 
     def zero(self):
         for index in self.indices():

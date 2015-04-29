@@ -270,9 +270,9 @@ class SimpleMultigridSolver(object):
 
             for cycle in range(self.number_of_v_cycles):
                 print("Running v-cycle {}".format(cycle))
-                level.residual.print('residual before v_cycle')
+                # level.residual.print('residual before v_cycle')
                 self.v_cycle(level, level.cell_values, level.residual)
-                level.cell_values.print('cell values after v_cycle')
+                # level.cell_values.print('cell values after v_cycle')
 
                 if self.boundary_is_periodic and self.a == 0.0 or level.alpha_is_zero:
                     # Poisson with Periodic Boundary Conditions...

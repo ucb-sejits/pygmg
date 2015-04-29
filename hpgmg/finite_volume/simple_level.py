@@ -60,7 +60,6 @@ class SimpleLevel(object):
 
         self.dominant_eigen_value_of_d_inv_a = 0.0
 
-        # TODO: confirm the divisor should not include the ghost zone
         self.cell_size = 1.0 / space[0]
         self.alpha_is_zero = None
 
@@ -146,36 +145,21 @@ class SimpleLevel(object):
 
     def mean_mesh(self, mesh):
         """
-
+        compute the simple mean of interior of mesh
         :param mesh:
         :return:
         """
-        # TODO: original used computed cell count, is this over valid or what
         accumulator = 0.0
         cell_count = 0
-        for index in self.valid_indices():
+        for index in self.interior_points():
             accumulator += mesh[index]
             cell_count += 1
         return accumulator / cell_count
 
     def print(self, title=None):
-        if title:
-            print(title)
-
-        if self.space.ndim == 3:
-            for i in range(self.space.i-1, -1, -1):
-                for j in range(self.space.j-1, -1, -1):
-                    print(" "*j*4, end="")
-                    for k in range(self.space.k):
-                        print("{:6.2f}".format(self.cell_values[(i, j, k)]), end="")
-                    print()
-                print()
-                print()
-        elif self.space.ndim == 2:
-            for i in range(self.space.i-1, -1, -1):
-                for j in range(self.space.j-1, -1, -1):
-                    print("{:6.2f}".format(self.cell_values[(i, j)]), end="")
-                print()
-            print()
-        else:
-            print("I don't know how to print level with {} dimensions".format(self.space.ndim))
+        """
+        prints the cell values mesh
+        :param title:
+        :return:
+        """
+        self.cell_values.print(message=title)
