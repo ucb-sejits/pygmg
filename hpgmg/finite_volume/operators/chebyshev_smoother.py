@@ -1,9 +1,8 @@
-
-__author__ = 'Shiv Sundram shivsundram@berkeley.edu U.C. Berkeley, shivsundram@lbl.gov, LBNL'
-
 from __future__ import print_function
 from hpgmg.finite_volume.operators.base_operator import BaseOperator
 from hpgmg.finite_volume.operators.smoother import Smoother
+
+__author__ = 'Shiv Sundram shivsundram@berkeley.edu U.C. Berkeley, shivsundram@lbl.gov, LBNL'
 
 # Based on Yousef Saad's Iterative Methods for Sparse Linear Algebra, Algorithm 12.1, page 399
 # with algorithmic corrections provided by Sam Williams

@@ -210,7 +210,7 @@ class StencilVonNeumannR1(BaseOperator):
                     ) +
                     sum(
                         target_level.beta_face_values[dim][index + self.unit_vectors[dim]] *
-                        target_level.valid[index + self.unit_vectors[dim]] - adjust_value
+                        (target_level.valid[index + self.unit_vectors[dim]] - adjust_value)
                         for dim in range(self.dimensions)
                     )
                 )
