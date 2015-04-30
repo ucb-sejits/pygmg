@@ -58,7 +58,7 @@ class SimpleMultigridSolver(object):
         self.is_poisson = configuration.equation == 'p'
 
         self.number_of_v_cycles = configuration.number_of_vcycles
-        self.interpolator = InterpolatorPC(pre_scale=1.0)
+        self.interpolator = InterpolatorPC(solver=self, pre_scale=1.0)
         self.restrictor = Restriction(solver=self)
 
         self.problem_operator = StencilVonNeumannR1(solver=self)
@@ -231,7 +231,7 @@ class SimpleMultigridSolver(object):
         self.v_cycle(coarser_level, coarser_level.cell_values, coarser_level.residual)
 
         with Timer("v-cycle level {}".format(level.level_number)):
-            self.interpolator.interpolate(level.cell_values, coarser_level.cell_values)
+            self.interpolator.interpolate(level, level.cell_values, coarser_level.cell_values)
             self.smoother.smooth(level, level.cell_values, level.right_hand_side)
 
         # level.print("Interpolated level {}".format(level.level_number))

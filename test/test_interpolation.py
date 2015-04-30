@@ -1,5 +1,6 @@
 from __future__ import print_function
 from hpgmg.finite_volume.mesh import Mesh
+from hpgmg.finite_volume.simple_hpgmg import SimpleMultigridSolver
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
@@ -45,20 +46,23 @@ class TestInterpolationPQ(unittest.TestCase):
 
 class TestInterpolationPC(unittest.TestCase):
     def test_interpolation_on_uniform_space(self):
-        mesh = Mesh(Space(2, 2, 2))
-        for point in mesh.indices():
-            mesh[point] = 1.0
+        solver = SimpleMultigridSolver.get_solver(["3", "--dimensions", "2"])
+        level = solver.fine_level
+        coarser_level = level.make_coarser_level()
 
-        finer_mesh = Mesh(mesh.space*2)
+        for index in coarser_level.indices():
+            coarser_level.cell_values[index] = sum(index-coarser_level.ghost_zone)
+        # coarser_level.fill_mesh(coarser_level.cell_values, 1.0)
+        level.fill_mesh(level.cell_values, 0.0)
 
-        interpolator = InterpolatorPC(0.0)
+        self.assertIsInstance(solver.interpolator, InterpolatorPC)
 
-        interpolator.interpolate(finer_mesh, mesh)
+        solver.interpolator.interpolate(level, level.cell_values, coarser_level.cell_values)
 
-        finer_mesh.print("Finer mesh")
+        coarser_level.cell_values.print("coarse cell values")
+        level.cell_values.print("finer cell values")
 
-        for point in finer_mesh.indices():
-            self.assertEqual(finer_mesh[point], 1.0)
+        self.assertTrue(all(level.cell_values[index] == 1.0 for index in level.interior_points()))
 
     def test_interpolation_on_singularity(self):
         mesh = Mesh(Space(2, 2, 2))
@@ -74,3 +78,17 @@ class TestInterpolationPC(unittest.TestCase):
 
         for point in finer_mesh.indices():
             self.assertEqual(finer_mesh[point], 1.0 if point.i > 1 and point.j > 1 and point.k > 1 else 0.0)
+
+
+class TestInterpolationPQ(unittest.TestCase):
+    def test_pq(self):
+        print(len([
+            0.421875,
+            0.140625,
+            0.140625,
+            0.046875,
+            0.140625,
+            0.046875,
+            0.046875,
+            0.015625,
+        ]))

@@ -1,27 +1,40 @@
 from __future__ import print_function
+from abc import ABCMeta, abstractmethod
 from hpgmg.finite_volume.space import Space, Coord
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 
 class Interpolator(object):
-    pass
+    __metaclass__ = ABCMeta
+
+    @abstractmethod
+    def interpolate(self, target_level, target_mesh, source_mesh, ):
+        pass
 
 
 class InterpolatorPC(Interpolator):
-    def __init__(self, pre_scale):
+    """
+    interpolates by sampling
+    """
+    def __init__(self, solver, pre_scale):
+        self.solver = solver
+        self.dimensions = solver.dimensions
         self.pre_scale = pre_scale
 
-    def interpolate(self, target_mesh, source_mesh):
-        for target_index in target_mesh.space.points:
-            source_index = target_index // 2
+    def interpolate(self, finer_level, target_mesh, source_mesh):
+        for target_index in finer_level.interior_points():
+            source_index = ((target_index - finer_level.ghost_zone) // 2) + finer_level.ghost_zone
             target_mesh[target_index] *= self.pre_scale
             target_mesh[target_index] += source_mesh[source_index]
 
 
 class InterpolatorPQ(Interpolator):
-    def __init__(self, prescale=1.0):
+    def __init__(self, solver, prescale=1.0):
+        self.solver = solver
         self.pre_scale = prescale
+
+        assert self.solver.dimensions == 3, "PQ interpolator currently only works in 3d"
         #
         # the interpolation is based on by associating a coefficient with a neighbor of
         # a position in the grid being interpolated
