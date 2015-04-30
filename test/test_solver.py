@@ -35,17 +35,86 @@ class TestSimpleMultigridSolver(unittest.TestCase):
 
         self.assertIsInstance(solver.fine_level, SimpleLevel, "solver initialized with a default level")
 
-    def test_nd_initializer(self):
-        solver = SimpleMultigridSolver.get_solver(["3"])
+    @staticmethod
+    def original_initialize_3d(solver, level):
+        """
+        This function is deprecated, it is hard coded for 3d and is kept here at present for
+        testing purposes
+        :param level:
+        :return:
+        """
+        alpha = 1.0
+        beta = 1.0
+        beta_xyz = Vector(0.0, 0.0, 0.0)
+        beta_i, beta_j, beta_k = 1.0, 1.0, 1.0
 
-        save_beta_arrays = [np.copy(solver.fine_level.beta_face_values[x]) for x in range(3)]
-        for x in range(3):
+        problem = solver.problem
+        if level.is_variable_coefficient:
+            beta_generator = solver.beta_generator
+
+        for element_index in level.indices():
+            absolute_position = level.coord_to_cell_center_point(element_index)
+
+            if level.is_variable_coefficient:
+                beta_i, _ = beta_generator.evaluate_beta(level.coord_to_face_center_point(element_index, 0))
+                beta_j, _ = beta_generator.evaluate_beta(level.coord_to_face_center_point(element_index, 1))
+                beta_k, _ = beta_generator.evaluate_beta(level.coord_to_face_center_point(element_index, 2))
+                beta, beta_xyz = beta_generator.evaluate_beta(absolute_position)
+
+            u, u_xyz, u_xxyyzz = problem.evaluate_u(absolute_position)
+
+            # double F = a*A*U - b*( (Bx*Ux + By*Uy + Bz*Uz)  +  B*(Uxx + Uyy + Uzz) );
+            f = solver.a * alpha * u - (
+                solver.b * (
+                    (beta_xyz.i * u_xyz.i + beta_xyz.j * u_xyz.j + beta_xyz.k * u_xyz.k) +
+                    beta * (u_xxyyzz.i + u_xxyyzz.j + u_xxyyzz.k)
+                )
+            )
+
+            level.right_hand_side[element_index] = f
+            level.exact_solution[element_index] = u
+
+            level.alpha[element_index] = alpha
+            level.beta_face_values[0][element_index] = beta_i
+            level.beta_face_values[1][element_index] = beta_j
+            level.beta_face_values[2][element_index] = beta_k
+
+        if (solver.a == 0.0 or solver.fine_level.alpha_is_zero) and solver.boundary_is_periodic:
+            # Poisson w/ periodic BC's...
+            # nominally, u shifted by any constant is still a valid solution.
+            # However, by convention, we assume u sums to zero.
+            mean = solver.fine_level.mean_mesh(solver.fine_level.exact_solution)
+            solver.fine_level.shift_mesh(solver.fine_level.exact_solution, -mean, solver.fine_level.exact_solution)
+
+        if solver.boundary_is_periodic:
+            average_value_of_rhs = solver.fine_level.mean_mesh(solver.fine_level.right_hand_side)
+            if average_value_of_rhs != 0.0:
+                solver.fine_level.shift_mesh(
+                    solver.fine_level.right_hand_side,
+                    average_value_of_rhs,
+                    solver.fine_level.right_hand_side
+                )
+
+        solver.problem_operator.rebuild_operator(solver.fine_level, source_level=None)
+
+    def test_backward_compatibility_of_initializer(self):
+        solver = SimpleMultigridSolver.get_solver(["2"])
+
+        save_right_hand_side = np.copy(solver.fine_level.right_hand_side)
+        save_exact_solution = np.copy(solver.fine_level.exact_solution)
+
+        save_beta_arrays = [np.copy(solver.fine_level.beta_face_values[x]) for x in range(solver.dimensions)]
+        for x in range(solver.dimensions):
             solver.fine_level.fill_mesh(solver.fine_level.beta_face_values[x], 0.0)
 
-        solver.initialize_3d(solver.fine_level)
+        TestSimpleMultigridSolver.original_initialize_3d(solver, solver.fine_level)
 
-        for face_index in range(3):
-            for index in solver.fine_level.beta_face_values[face_index].indices():
+        for index in solver.fine_level.indices():
+            x = save_exact_solution[index]
+            y = solver.fine_level.exact_solution[index]
+
+            self.assertAlmostEqual(x, y, msg="at {} current {} original {}".format(str(index), x, y))
+            for face_index in range(solver.dimensions):
                 self.assertEqual(
                     save_beta_arrays[face_index][index],
                     solver.fine_level.beta_face_values[face_index][index]

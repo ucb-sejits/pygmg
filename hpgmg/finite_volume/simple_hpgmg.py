@@ -118,50 +118,6 @@ class SimpleMultigridSolver(object):
         self.problem_operator.rebuild_operator(self.fine_level, source_level=None)
         # self.fine_level.print()
 
-    def initialize_3d(self, level):
-        """
-        This function is deprecated, it is hard coded for 3d and is kept here at present for
-        testing purposes
-        :param level:
-        :return:
-        """
-        alpha = 1.0
-        beta = 1.0
-        beta_xyz = Vector(0.0, 0.0, 0.0)
-        beta_i, beta_j, beta_k = 1.0, 1.0, 1.0
-
-        problem = self.problem
-        if level.is_variable_coefficient:
-            beta_generator = self.beta_generator
-
-        for element_index in level.indices():
-            half_cell = Vector([0.5 for _ in level.space])
-            absolute_position = (Vector(element_index) + half_cell) * level.cell_size
-
-            if level.is_variable_coefficient:
-                beta_i, _ = beta_generator.evaluate_beta(absolute_position-Vector(level.h*0.5, 0.0, 0.0))
-                beta_j, _ = beta_generator.evaluate_beta(absolute_position-Vector(0.0, level.h*0.5, 0.0))
-                beta_k, _ = beta_generator.evaluate_beta(absolute_position-Vector(0.0, 0.0, level.h*0.5))
-                beta, beta_xyz = beta_generator.evaluate_beta(absolute_position)
-
-            u, u_xyz, u_xxyyzz = problem.evaluate_u(absolute_position)
-
-            # double F = a*A*U - b*( (Bx*Ux + By*Uy + Bz*Uz)  +  B*(Uxx + Uyy + Uzz) );
-            f = self.a * alpha * u - (
-                self.b * (
-                    (beta_xyz.i * u_xyz.i + beta_xyz.j * u_xyz.j + beta_xyz.k * u_xyz.k) +
-                    beta * (u_xxyyzz.i + u_xxyyzz.j + u_xxyyzz.k)
-                )
-            )
-
-            level.right_hand_side[element_index] = f
-            level.exact_solution[element_index] = u
-
-            level.alpha[element_index] = alpha
-            level.beta_face_values[0][element_index] = beta_i
-            level.beta_face_values[1][element_index] = beta_j
-            level.beta_face_values[2][element_index] = beta_k
-
     def initialize(self, level):
         """
         Initialize the right_hand_side(VECTOR_F), exact_solution(VECTOR_UTRUE)
