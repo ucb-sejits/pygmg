@@ -1,7 +1,7 @@
 from __future__ import print_function, division
 from hpgmg.finite_volume import VECTOR_F, VECTOR_UTRUE
+from hpgmg.other_work import misc
 from hpgmg.other_work.boundary_condition import BoundaryCondition
-from hpgmg.finite_volume.operators import misc
 from hpgmg.finite_volume.problems.problem_sine import SineProblem
 from hpgmg.finite_volume.space import Space
 
