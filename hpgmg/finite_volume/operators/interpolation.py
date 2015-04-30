@@ -67,7 +67,7 @@ class InterpolatorPQ(Interpolator):
             [750.0, Coord(0, +1, +1)],
             [125.0, Coord(+1, +1, +1)],
         ]
-        # but we want the a given neighbor coord to be either backward or forward looking depending on whether
+        # but we want the given neighbor coord to be either backward or forward looking depending on whether
         # the grid index for that dimension is odd or even respectively
         # to do this we we convert each coord above into an array of 8 coords where each index is flipped
         # depending on the evenness of the source interpolation point
@@ -107,9 +107,6 @@ if __name__ == '__main__':
     for index in Space(2, 2, 2).points:
         print("{:3d}{:3d}{:3d}=>{:4d}  ".format(index.i, index.j, index.k, compute_neighbor_index(index)), end="")
     print()
-
-    # for i in n:
-    #     print(i)
 
     interpolator = InterpolatorPQ(1.0)
     print("nd {}".format([(x, i) for x, i in enumerate(interpolator.neighbor_directions)]))

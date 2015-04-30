@@ -52,9 +52,9 @@ class Mesh(np.ndarray):
             for i in range(max_i-1, -1, -1):
                 # print("i  {}".format(i))
                 for j in range(max_j-1, -1, -1):
-                    print(" "*j, end="")
+                    print(" "*j*2, end="")
                     for k in range(max_k):
-                        print("{:4.1f}".format(self[(i, j, k)]), end=" ")
+                        print("{:10.2f}".format(self[(i, j, k)]), end=" ")
                     print()
                 print()
             print()
