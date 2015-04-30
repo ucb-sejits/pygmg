@@ -97,7 +97,7 @@ class TestSimpleMultigridSolver(unittest.TestCase):
         solver.problem_operator.rebuild_operator(solver.fine_level, source_level=None)
 
     def test_backward_compatibility_of_initializer(self):
-        solver = SimpleMultigridSolver.get_solver(["2"])
+        solver = SimpleMultigridSolver.get_solver(["3"])
 
         save_right_hand_side = np.copy(solver.fine_level.right_hand_side)
         save_exact_solution = np.copy(solver.fine_level.exact_solution)
