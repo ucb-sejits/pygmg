@@ -4,8 +4,15 @@ import collections
 import numbers
 import itertools
 import numpy as np
+try:
+    # Python 2
+    from itertools import izip_longest
+except ImportError:
+    # Python 3
+    from itertools import zip_longest as izip_longest
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
+
 
 class Vector(tuple):
     def __new__(cls, *args):
@@ -15,10 +22,10 @@ class Vector(tuple):
 
     def __mul__(self, other):
         """scalar product if other is a number, otherwise does inner product"""
-        if isinstance(other, numbers.Number):
+        if isinstance(other, numbers.Real):
             return type(self)(other*el for el in self)
         elif isinstance(other, collections.Iterable):
-            return sum(i*j for i,j in itertools.izip_longest(self, other, fillvalue=0))
+            return sum(i*j for i, j in izip_longest(self, other, fillvalue=0))
         else:
             return NotImplemented
 
@@ -26,14 +33,28 @@ class Vector(tuple):
 
     def __add__(self, other):
         """adds a constant to each element if other is a number, otherwise does pairwise addition"""
-        if isinstance(other, numbers.Number):
+        if isinstance(other, numbers.Real):
             return type(self)(other+el for el in self)
         elif isinstance(other, collections.Iterable):
-            return type(self)(i+j for i,j in itertools.izip_longest(self, other, fillvalue=0))
+            return type(self)(i+j for i, j in izip_longest(self, other, fillvalue=0))
         else:
             return NotImplemented
 
     __radd__ = __add__
+
+    def near(self, other, threshold=1e-6):
+        """
+        checks to see if one vector is near another, this function considers the magnitude of
+        the numbers involved, this function siu
+        :param other:
+        :param threshold:
+        :return:
+        """
+        if isinstance(other, Vector):
+            # return all(abs(self[d] - other[d]) < abs(self[d]/threshold) for d in range(self.ndim))
+            return all(abs(self[d] - other[d]) < abs(threshold) for d in range(self.ndim))
+        else:
+            return NotImplemented
 
     @property
     def i(self):
@@ -47,6 +68,10 @@ class Vector(tuple):
     def k(self):
         return self[2]
 
+    @property
+    def ndim(self):
+        return len(self)
+
     def __neg__(self):
         return self * -1
 
@@ -57,29 +82,71 @@ class Vector(tuple):
         return other + -self
 
     def __div__(self, other):
-        if isinstance(other, numbers.Number):
-            return self * 1/other
+        if isinstance(other, numbers.Real):
+            return self * (1/other)
         if isinstance(other, collections.Iterable):
-            return type(self)(i/j for i,j in itertools.izip_longest(self, other, fillvalue=0))
+            return type(self)(i/j for i, j in izip_longest(self, other, fillvalue=0))
         return NotImplemented
 
+    __truediv__ = __div__
+
     def __floordiv__(self, other):
-        if isinstance(other, numbers.Number):
+        if isinstance(other, numbers.Real):
             return type(self)(i//other for i in self)
         elif isinstance(other, collections.Iterable):
-            return type(self)(i//j for i,j in itertools.izip_longest(self, other, fillvalue=0))
+            return type(self)(i//j for i, j in izip_longest(self, other, fillvalue=0))
         return NotImplemented
 
     def in_space(self, space):
         assert isinstance(space, (Space, Coord, Vector)), "error space {} {}".format(type(space), space)
         return 0 <= self.i < space.i and 0 <= self.j < self.j and 0 <= self.k < space.k
 
+    def to_1d(self, space):
+        assert self.ndim == space.ndim
+        return sum([x * y for x, y in zip(self, space.strides())])
+
 
 class Coord(Vector):
-    pass
+    def __new__(cls, *args):
+        args = args if len(args) > 1 else args[0]
+        return Vector.__new__(cls, map(int, args))
+
+    def __mul__(self, other):
+        """
+        element-wise multiplication
+        :param other:
+        :return:
+        """
+        if isinstance(other, numbers.Real):
+            return type(self)(int(dim * other) for dim in self)
+        if isinstance(other, collections.Iterable):
+            return type(self)(dim * scale for dim, scale in izip_longest(self, other, fillvalue=0))
+        return NotImplemented
+
+    def __rmul__(self, other):
+        """
+        only multiplying a space by an int makes sense
+        """
+        if isinstance(other, int):
+            return self * other
+        return NotImplemented
+
+    def __div__(self, other):
+        if isinstance(other, numbers.Real):
+            x = self * (1//other)
+            return x
+        if isinstance(other, collections.Iterable):
+            return type(self)(i//j for i, j in izip_longest(self, other, fillvalue=0))
+        return NotImplemented
+
+    def __sub__(self, other):
+        return self + -other
+
+    def to_vector(self):
+        return Vector(float(x) for x in self)
 
 
-class Space(Vector):
+class Space(Coord):
     """
     represents a multidimensional space, i.e. a 3x3x3 space would have indices
     0-2 in each dimension, created with Space(3,3,3).
@@ -94,11 +161,6 @@ class Space(Vector):
             return tuple.__new__(cls, args)
         return tuple.__new__(cls, args[0])
 
-
-    @property
-    def ndim(self):
-        return len(self)
-
     @property
     def volume(self):
         return np.multiply.reduce(self)
@@ -108,51 +170,34 @@ class Space(Vector):
         """Iterates over the points in the space"""
         return (Coord(coord) for coord in itertools.product(*[range(i) for i in self]))
 
+    def interior_points(self, halo):
+        """Iterates over the points in the space"""
+        return (Coord(coord) for coord in itertools.product(*[range(g, i-g) for i, g in zip(self, halo)]))
+
     def __contains__(self, item):
         """Determines if the coordinate is in this space"""
         if isinstance(item, collections.Iterable):
-            return all(0 <= i < bound for i, bound in itertools.izip_longest(item, self, fillvalue=0))
+            return all(0 <= item[dim] < self[dim] for dim in range(self.ndim))
         return NotImplemented
-
-    def __mul__(self, other):
-        if isinstance(other, int):
-            return Space((dim - 1) * other + 1 for dim in self)
-        if isinstance(other, collections.Iterable):
-            return Space((dim - 1) * scale + 1 for dim, scale in itertools.izip_longest(self, other, fillvalue=0))
-        return NotImplemented
-
-    def __rmul__(self, other):
-        """
-        only multiplying a space by an int makes sense
-        """
-        if isinstance(other, int):
-            return self * other
-        return NotImplemented
-
-    def __div__(self, other):
-        """
-        performs integer division only. Can't have decimal dimensions
-        """
-        if isinstance(other, int):
-            return Space((dim - 1)//other + 1 for dim in self)
-        if isinstance(other, collections.Iterable):
-            return Space((dim - 1) // scale for dim, scale in itertools.izip_longest(self, other, fillvalue=0))
-        return NotImplemented
-
-    __truediv__ = __floordiv__ = __div__
-
-    def __add__(self, other):
-        if isinstance(other, int):
-            return Space(i + other for i in self)
-        return NotImplemented
-
-    __radd__ = __add__
-
-    def __sub__(self, other):
-        return self + -other
 
     def neighbor_deltas(self):
         return itertools.product((-1, 0, 1), repeat=len(self))
+
+    def clamp(self, index):
+        def do_clamp(x, limit):
+            if x < 0:
+                return 0
+            elif x > limit:
+                return limit
+            else:
+                return x
+
+        if index in self:
+            return index
+        else:
+            return Coord(
+                Coord(do_clamp(index[dim], self[dim]-1) for dim in range(self.ndim))
+            )
 
     def neighbors(self, coord, norm=None):
         """
@@ -181,6 +226,21 @@ class Space(Vector):
 
     def is_boundary_point(self, coord):
         return any(i == 0 or i == lim - 1 for i, lim in zip(coord, self))
+
+    def strides(self):
+        return [np.multiply.reduce(self[x:]) for x in range(1, len(self))] + [1]
+
+    def index_to_1d(self, index):
+        return sum([x*y for x, y in zip(index, self.strides())])
+
+    def index_from_1d(self, index):
+        def rem(value, strides):
+            if len(strides) == 1:
+                return [value]
+            else:
+                return [value // strides[0]] + rem(value % strides[0], strides[1:])
+
+        return Coord(rem(index, self.strides()))
 
 
 class Section(object):

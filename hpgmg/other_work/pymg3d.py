@@ -3,13 +3,12 @@ from __future__ import division, print_function
 __author__ = 'nzhang-dev'
 
 import numpy as np
-import itertools, functools
+import functools
 
-from space import Coord, Space
+from space import Coord
 from mesh import Mesh
 import cProfile
 
-import THeatgenerator
 
 def cache(func):
     func_cache = {}
@@ -233,8 +232,8 @@ class MultigridSolver(object):
 if __name__ == '__main__':
     n = 9
     dims = 3
-    from THeatgenerator import gen3DHeatMatrixT
-    from smoothers import gauss_siedel
+    from hpgmg.other_work.THeatgenerator import gen3DHeatMatrixT
+    from hpgmg.other_work.smoothers import gauss_siedel
     A = gen3DHeatMatrixT(9, 0.2, 1, 1/n)
     b = np.random.random((n,)*dims)
     x = np.zeros_like(b)

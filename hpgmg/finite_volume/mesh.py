@@ -4,7 +4,7 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 import numpy as np
 
-from space import Coord, Space
+import hpgmg.finite_volume.space as space
 
 
 class Mesh(np.ndarray):
@@ -15,7 +15,7 @@ class Mesh(np.ndarray):
 
     @property
     def space(self):
-        return Space(self.shape)
+        return space.Space(self.shape)
 
     def indices(self):
         return self.space.points
@@ -25,6 +25,7 @@ class Mesh(np.ndarray):
             self[index] = value
 
     def __eq__(self, other):
+        assert hasattr(other, 'space'), "mesh cannot test equality against {}".format(other)
         if self.space != other.space:
             return False
         else:
@@ -38,21 +39,37 @@ class Mesh(np.ndarray):
 
     def print(self, message=None):
         """
-        decomposition labels each possible box referenced in rank_of_box with a
-        rank.  this shows the labeling in a table like form
+        print this mesh, if 3d axes go up the page
+        if 2d then standard over and down
         :return:
         """
-        max_i, max_j, max_k = self.shape
-
         if message:
             print("Mesh print {} shape {}".format(message, self.shape))
 
-        for i in range(max_i-1, -1, -1):
-            # print("i  {}".format(i))
-            for j in range(max_j-1, -1, -1):
-                print(" "*j, end="")
-                for k in range(max_k):
-                    print("{:4.1f}".format(self[(i, j, k)]), end=" ")
+        if len(self.space) == 3:
+            max_i, max_j, max_k = self.shape
+
+            for i in range(max_i-1, -1, -1):
+                # print("i  {}".format(i))
+                for j in range(max_j-1, -1, -1):
+                    print(" "*j*2, end="")
+                    for k in range(max_k):
+                        print("{:10.2f}".format(self[(i, j, k)]), end=" ")
+                    print()
                 print()
             print()
-        print()
+        elif len(self.space) == 2:
+            max_i, max_j = self.shape
+
+            for i in range(max_i):
+                # print("i  {}".format(i))
+                for j in range(max_j):
+                    print("{:10.5f}".format(self[(i, j)]), end=" ")
+                print()
+            print()
+        else:
+            print("I don't know how to mesh with {} dimensions".format(self.space.ndim))
+
+    def zero(self):
+        for index in self.indices():
+            self[index] = 0.0

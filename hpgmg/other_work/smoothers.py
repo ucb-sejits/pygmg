@@ -2,6 +2,7 @@ import numpy as np
 import scipy as sp
 import functools
 
+
 def flatten_args(func):
     """
     :param func: function to wrap, flattens all of the args to 2-eigen_values, 1D, 1D
@@ -22,7 +23,7 @@ def gauss_siedel(A, b, x, iters = 10):
     U = A-L  # strictly upper triangular matrix of A
     for _ in range(iters):
         x = (Linv.dot(b-(U.dot(x))))     #iterate
-        #print x
+        #print(x)
     return x
 
 #Jacobi smoother
@@ -34,6 +35,18 @@ def jacobi(A, b, x, iters = 10):
     for _ in range(iters):
         x = Dinv.dot(b - R.dot(x))
     return x
+
+
+def jacobi_stencil(S, b, xmb, iterations=10):
+    dim = xmb.space[0]
+    for _ in range(0, iterations):
+        x_temp = np.zeros_like((xmb))
+        for i in range(1, dim-1):
+            for j in range(1, dim-1):
+                Ax_n = S.apply_op(xmb, i, j)
+                x_temp[i][j] = xmb[i][j] + S.Dinv(xmb, i, j)*(b[i][j]-Ax_n)
+        xmb = x_temp
+    return xmb
 
 #weighted jacobi smoother 
 @flatten_args
@@ -72,12 +85,13 @@ def chebyshevbad(A,b, x, diag, diaginv, iterations=9, delta=1, theta=1):
     return x
 
 
-# Chebychev acceleration 
+
 def chebyshev(A, b1, x1, iterations=50, diag=None, diag_inv=None, c=None, d=None):
-    '''
+    """
+    Chebychev acceleration
     This method uses chebyshev acceleration to smooth solution to Ax=b
 
-    :param A: The operator matrix in the Ax=b equation, as a numpy array
+    :param A: The operator matrix in the Ax = b equation, as a numpy array
     :param b1: The solution matrix in the Ax=b equation, as a numpy array
     :param x1: The input matrix in the Ax=b equation, as a numpy array
     :param diag: A with all but diagonal entries stripped away
@@ -86,9 +100,9 @@ def chebyshev(A, b1, x1, iterations=50, diag=None, diag_inv=None, c=None, d=None
     :param c: half-width of range of spectrum of A
     :param d: average of range of spectrum of A
     :return: a smoothed version of the input matrix x, the same shape as it was inputted in as.
-    '''
-    x=x1.flatten()
-    b=b1.flatten()
+    """
+    x = x1.flatten()
+    b = b1.flatten()
 
     if diag_inv is None:
         diag = np.diag(np.diag(A))
@@ -102,7 +116,7 @@ def chebyshev(A, b1, x1, iterations=50, diag=None, diag_inv=None, c=None, d=None
     r = b - np.dot(A,x)
     for i in range(iterations):
         z = np.dot(diag_inv,r)
-        if i==0:
+        if i == 0:
             rho = z
             alpha = 2. / d
         else:
@@ -120,7 +134,7 @@ def dominant_eigen(A):
         rowsum = np.sum(np.absolute(A[i]))-abs(A[i][i])
         upper = A[i][i] + rowsum
         if upper+rowsum>maxupper:
-            maxupper=upper+rowsum
+            maxupper = upper+rowsum
     return maxupper
 
     
@@ -128,8 +142,8 @@ def get_smoother(type):
     smoother = globals().get
     return smoother(type)
 
-def smooth_matrix(A, b, x, iterations = 10, smooth_func=gauss_siedel):
-    '''
+def smooth_matrix(A, b, x, iterations=10, smooth_func=gauss_siedel):
+    """
     This method is the wrapper for accessing smooth functions in this file. It handles the flatting
     of input matrices prior to smoothing, calling the appropriate smoothing function, and reconstituting
     the flattened, smoothed matrix back to its original shape.
@@ -140,7 +154,7 @@ def smooth_matrix(A, b, x, iterations = 10, smooth_func=gauss_siedel):
     :param iterations: The number of iterations the smoothing is to be applied for
     :param smooth_func: The function required for smoothing. Default is the gauss_siedel function
     :return: a smoothed version of the input matrix x, the same shape as it was inputted in as.
-    '''
+    """
     input_shape_x = x.shape
     x_flat = x.flatten()
 
@@ -150,41 +164,41 @@ def smooth_matrix(A, b, x, iterations = 10, smooth_func=gauss_siedel):
     return expanded_smooth_x
 
 
-if __name__=="__main__":
+if __name__ == "__main__":
     A = np.array([[10., -1., 2., 0.],
                   [-1., 11., -1., 3.],
                   [2., -1., 10., -1.],
                   [0.0, 3., -1., 8.]])
 
-    print "A:"
-    print A 
+    print("A:")
+    print(A )
     b = np.array([6., 25., -11., 15.])
     x = np.zeros_like(b)
     diag = np.diag(np.diag(A))
-    dinv=np.linalg.inv(diag)
+    dinv = np.linalg.inv(diag)
 
     alpha = dominant_eigen(A)
     beta = .125 * alpha  #Sam does this, but it seems like a hack 
     c = float(beta-alpha)/2.
     d = float(beta+alpha)/2.
 
-    print "cheby100", chebyshev(A, b , x, 100, diag, dinv, c,d)
+    print("cheby100", chebyshev(A, b , x, 100, diag, dinv, c,d))
     b = np.array([6., 25., -11., 15.])
     x = np.zeros_like(b)
 
-    print "weighted_jacobi", weighted_jacobi(A, b , x, 9)
+    print("weighted_jacobi", weighted_jacobi(A, b , x, 9))
     b = np.array([6., 25., -11., 15.])
     x = np.zeros_like(b)
-    print "jacobi", jacobi(A, b , x, 9)
+    print("jacobi", jacobi(A, b , x, 9))
 
-#A, b1, x1, iterations=50, diag=None, diag_inv=None, c=None, d=None
+    # A, b1, x1, iterations=50, diag=None, diag_inv=None, c=None, d=None
     b = np.array([6., 25., -11., 15.])
     x = np.zeros_like(b)
 
-    r=get_smoother("gauss_siedel")
-    print "gs", r(A, b, x, 10)
+    r = get_smoother("gauss_siedel")
+    print("gs", r(A, b, x, 10))
     b = np.array([6., 25., -11., 15.])
     x = np.zeros_like(b)
-    #print "gs in place ", gauss_siedel_inplace(A, b, x, 10)
+    #print("gs in place ", gauss_siedel_inplace(A, b, x, 10))
 
 
