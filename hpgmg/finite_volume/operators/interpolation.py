@@ -98,17 +98,3 @@ class InterpolatorPQ(Interpolator):
                 accumulator += coefficient * source_mesh[source_index + neighbor_index_offsets[oddness_index]]
 
             target_mesh[target_index] += self.one_over_32_cubed * accumulator
-
-
-if __name__ == '__main__':
-    def compute_neighbor_index(vector):
-        return (vector.i % 2) * 4 + (vector.j % 2) * 2 + (vector.k % 2)
-
-    for index in Space(2, 2, 2).points:
-        print("{:3d}{:3d}{:3d}=>{:4d}  ".format(index.i, index.j, index.k, compute_neighbor_index(index)), end="")
-    print()
-
-    interpolator = InterpolatorPQ(1.0)
-    print("nd {}".format([(x, i) for x, i in enumerate(interpolator.neighbor_directions)]))
-    print(interpolator.convolution[0])
-    print(interpolator.convolution[1])

@@ -47,6 +47,23 @@ class TestInterpolationPQ(unittest.TestCase):
         self.assertEqual(all_even_offset.j, k_odd_offset.j)
         self.assertNotEqual(all_even_offset.k, k_odd_offset.k)
 
+    def test_interpolator_convolution_values(self):
+
+        def compute_neighbor_index(vector):
+            return (vector.i % 2) * 4 + (vector.j % 2) * 2 + (vector.k % 2)
+
+        expected_index = 0
+        for index in Space(2, 2, 2).points:
+            self.assertEqual(expected_index, compute_neighbor_index(index))
+            print("{:3d}{:3d}{:3d}=>{:4d}  ".format(index.i, index.j, index.k, compute_neighbor_index(index)))
+            expected_index += 1
+
+        solver = SimpleMultigridSolver.get_solver("3")
+        interpolator = InterpolatorPQ(solver, 1.0)
+        print("nd {}".format([(x, i) for x, i in enumerate(interpolator.neighbor_directions)]))
+        print(interpolator.convolution[0])
+        print(interpolator.convolution[1])
+
 
 class TestInterpolationPC(unittest.TestCase):
     def test_interpolation_on_uniform_space(self):
@@ -99,6 +116,9 @@ class TestInterpolationPC(unittest.TestCase):
 
 
 class TestInterpolationPQCoefficients(unittest.TestCase):
+    """
+    attempt to divine the pq coefficients
+    """
     def test_pq(self):
         print(len([
             0.421875,
