@@ -5,7 +5,6 @@ from hpgmg.finite_volume.operators.chebyshev_smoother import ChebyshevSmoother
 
 from hpgmg.finite_volume.operators.stencil_von_neumann_r1 import StencilVonNeumannR1
 from hpgmg.finite_volume.iterative_solver import IterativeSolver
-from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.operators.jacobi_smoother import JacobiSmoother
 from hpgmg.finite_volume.simple_hpgmg import SimpleMultigridSolver
 from hpgmg.finite_volume.simple_level import SimpleLevel
@@ -112,8 +111,11 @@ class TestSimpleMultigridSolver(unittest.TestCase):
         for index in solver.fine_level.indices():
             x = save_exact_solution[index]
             y = solver.fine_level.exact_solution[index]
+            self.assertAlmostEqual(x, y, msg="exact_solution != at {} current {} original {}".format(str(index), x, y))
+            x = save_right_hand_side[index]
+            y = solver.fine_level.right_hand_side[index]
+            self.assertAlmostEqual(x, y, msg="right_hand_side != at {} current {} original {}".format(str(index), x, y))
 
-            self.assertAlmostEqual(x, y, msg="at {} current {} original {}".format(str(index), x, y))
             for face_index in range(solver.dimensions):
                 self.assertEqual(
                     save_beta_arrays[face_index][index],
