@@ -14,7 +14,8 @@ setup(
         'hpgmg.finite_volume',
         'hpgmg.finite_volume.operators',
         'hpgmg.finite_volume.problems',
-        'test', ],
+        'test',
+    ],
 
     install_requires=[
         'numpy',
