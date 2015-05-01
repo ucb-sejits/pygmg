@@ -1,0 +1,14 @@
+language: python
+python:
+  - '2.7'
+before_install:
+  - sudo apt-get update -qq
+  - sudo apt-get install -qq fglrx=2:8.960-0ubuntu1 opencl-headers cmake
+install:
+  - pip install coveralls coverage nose
+  - pip install -r requirements.txt
+  - pip install coveralls coverage
+script:
+  - nosetests --verbose --with-coverage --cover-package=hpgmg --cover-erase
+after_success:
+  - coveralls
