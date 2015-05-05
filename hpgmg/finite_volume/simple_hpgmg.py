@@ -12,13 +12,14 @@ from hpgmg.finite_volume.iterative_solver import IterativeSolver
 from hpgmg.finite_volume.operators.interpolation import InterpolatorPC
 from hpgmg.finite_volume.operators.jacobi_smoother import JacobiSmoother
 from hpgmg.finite_volume.problems.problem_p4 import ProblemP4
+from hpgmg.finite_volume.problems.problem_p6 import ProblemP6
 from hpgmg.finite_volume.problems.problem_sine_n_dim import SineProblemND
 from hpgmg.finite_volume.operators.residual import Residual
 from hpgmg.finite_volume.operators.restriction import Restriction
 from hpgmg.finite_volume.operators.variable_beta_generators import VariableBeta
 from hpgmg.finite_volume.operators.boundary_conditions_fv import BoundaryUpdaterV1
 from hpgmg.finite_volume.timer import Timer
-from hpgmg.finite_volume.space import Space, Vector, Coord
+from hpgmg.finite_volume.space import Space, Vector
 from hpgmg.finite_volume.simple_level import SimpleLevel
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
@@ -30,6 +31,7 @@ class SimpleMultigridSolver(object):
     with settings from the command line
     """
     def __init__(self, configuration):
+        self.is_logging = configuration.log
         if configuration.log:
             logging.basicConfig(level=logging.DEBUG)
 
@@ -86,6 +88,11 @@ class SimpleMultigridSolver(object):
             self.problem = SineProblemND(dimensions=self.dimensions)
         elif configuration.problem_name == 'p4':
             self.problem = ProblemP4(dimensions=self.dimensions)
+        elif configuration.problem_name == 'p6':
+            self.problem = ProblemP6(
+                dimensions=self.dimensions,
+                shift=0.0 if not self.boundary_is_periodic else 1.0/21.0
+            )
 
         if configuration.variable_coefficient:
             self.beta_generator = VariableBeta(self.dimensions)
@@ -97,8 +104,9 @@ class SimpleMultigridSolver(object):
         self.all_levels = [self.fine_level]
 
         self.initialize(self.fine_level)
-        # self.fine_level.exact_solution.dump("VECTOR_UTRUE")
-        # self.fine_level.right_hand_side.dump("VECTOR_F")
+        if self.is_logging:
+            self.fine_level.exact_solution.dump("VECTOR_UTRUE")
+            self.fine_level.right_hand_side.dump("VECTOR_F")
 
         if (self.a == 0.0 or self.fine_level.alpha_is_zero) and self.boundary_is_periodic:
             # Poisson w/ periodic BC's...
@@ -183,6 +191,9 @@ class SimpleMultigridSolver(object):
 
         with Timer("v-cycle level {}".format(level.level_number)):
             self.smoother.smooth(level, level.cell_values, level.right_hand_side)
+            if self.is_logging:
+                level.cell_values.dump("VECTOR_U level {}".format(level.level_number))
+                exit(0)
             self.residual.run(level, level.temp, level.cell_values, level.right_hand_side)
 
             coarser_level = level.make_coarser_level()
@@ -220,7 +231,7 @@ class SimpleMultigridSolver(object):
         level = self.fine_level
 
         with Timer("mg-solve time"):
-            print("MGSolve.... ", end='')
+            print("MGSolve.... \n", end='')
 
             if d_tolerance > 0.0:
                 level.multiply_meshes(level.temp, 1.0, level.right_hand_side, level.d_inverse)
@@ -230,6 +241,8 @@ class SimpleMultigridSolver(object):
 
             level.fill_mesh(level.cell_values, 0.0)
             level.scale_mesh(level.residual, 1.0, level.right_hand_side)
+            if self.is_logging:
+                level.residual.dump('VECTOR_F_MINUS_AV')
 
             for cycle in range(self.number_of_v_cycles):
                 # level.residual.print('residual before v_cycle')
@@ -272,9 +285,9 @@ class SimpleMultigridSolver(object):
         parser.add_argument('-nv', '--number-of-vcycles', help='number of vcycles to run',
                             default=1, type=int)
         parser.add_argument('-pn', '--problem-name',
-                            help="problem name, one of [sine, p4]",
+                            help="math problem name to use for initialization",
                             default='sine',
-                            choices=['sine', 'p4'], )
+                            choices=['sine', 'p4', 'p6'], )
         parser.add_argument('-bc', '--boundary-condition',
                             help="Type of boundary condition. Use p for Periodic and d for Dirichlet. Default is d",
                             default=('p' if os.environ.get('USE_PERIODIC_BC', 0) else 'd'),
@@ -285,6 +298,7 @@ class SimpleMultigridSolver(object):
                             default='h', )
         parser.add_argument('-sm', '--smoother',
                             help="Type of smoother, j for jacobi, c for chebyshev",
+                            choices=['j', 'c'],
                             default='j', )
         parser.add_argument('-ulj', '--use-l1-jacobi', action="store_true",
                             help="use l1 instead of d inverse with jacobi smoother",

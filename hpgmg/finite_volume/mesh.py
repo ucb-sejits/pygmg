@@ -77,7 +77,7 @@ class Mesh(np.ndarray):
         :return:
         """
         if message:
-            print("==,MESHSTART,{},{},{},{}\n".format(message, self.space[0]-2, self.space[1]-2, self.space[2]-2))
+            print("==,MESHSTART,{},{}\n".format(message, self.space-2))
 
         if len(self.space) == 3:
             # block_list = [

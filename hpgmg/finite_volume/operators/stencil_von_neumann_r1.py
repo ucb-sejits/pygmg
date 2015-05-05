@@ -33,122 +33,58 @@ class StencilVonNeumannR1(BaseOperator):
 
         if solver.is_variable_coefficient:
             if solver.is_helmholtz:
-                self.apply_op = self.apply_op_variable_coefficient_unfused_boundary_conditions_helmholtz
+                self.apply_op = self.apply_op_variable_coefficient_boundary_conditions_helmholtz
             else:
-                self.apply_op = self.apply_op_variable_coefficient_unfused_boundary_conditions_poisson
+                self.apply_op = self.apply_op_variable_coefficient_boundary_conditions_poisson
         else:
-            if solver.is_helmholtz:
-                self.apply_op = self.apply_op_constant_coefficient_unfused_boundary_conditions
-            else:
-                self.apply_op = self.apply_op_constant_coefficient_unfused_boundary_conditions
+            self.apply_op = self.apply_op_constant_coefficient_boundary_conditions
 
     def set_scale(self, level_h):
         self.h2inv = 1.0 / (level_h ** 2)
 
-    def apply_op_variable_coefficient_fused_boundary_conditions_helmholtz(self, mesh, index, level):
+    def apply_op_variable_coefficient_boundary_conditions_helmholtz(self, mesh, index, level):
         return self.a * level.alpha[index] * mesh[index] - self.b * self.h2inv * (
             sum(
-                level.beta_face_values[dim][index] * (
-                    level.valid[index - self.unit_vectors[dim]] * (
-                        mesh[index] + mesh[index - self.unit_vectors[dim]]
-                    ) - 2.0 * mesh[index]
-                )
+                level.beta_face_values[dim][index] * (mesh[index - self.unit_vectors[dim]] - mesh[index])
                 for dim in range(self.dimensions)
             ) +
             sum(
                 level.beta_face_values[dim][index + self.unit_vectors[dim]] * (
-                    level.valid[index + self.unit_vectors[dim]] * (
-                        mesh[index] + mesh[index + self.unit_vectors[dim]]
-                    ) - 2.0 * mesh[index]
+                    (
+                        mesh[index + self.unit_vectors[dim]] - mesh[index]
+                    )
                 )
                 for dim in range(self.dimensions)
             )
         )
 
-    def apply_op_variable_coefficient_fused_boundary_conditions_poisson(self, mesh, index, level):
-        return -self.b * self.h2inv * (
-            sum(
-                level.beta_face_values[dim][index] * (
-                    level.valid[index - self.unit_vectors[dim]] * (
-                        mesh[index] + mesh[index - self.unit_vectors[dim]]
-                    ) - 2.0 * mesh[index]
-                )
-                for dim in range(self.dimensions)
-            ) +
-            sum(
-                level.beta_face_values[dim][index + self.unit_vectors[dim]] * (
-                    level.valid[index + self.unit_vectors[dim]] * (
-                        mesh[index] + mesh[index + self.unit_vectors[dim]]
-                    ) - 2.0 * mesh[index]
-                )
-                for dim in range(self.dimensions)
-            )
-        )
-
-    def apply_op_constant_coefficient_fused_boundary_conditions(self, mesh, index, level):
-        return self.a * mesh[index] - self.b * self.h2inv * (
-            sum(
-                level.valid[index + self.unit_vectors[dim]] * (
-                    mesh[index] + mesh[index - self.unit_vectors[dim]]
-                )
-                for dim in range(self.dimensions)
-            ) +
-            sum(
-                level.valid[index + self.unit_vectors[dim]] * (
-                    mesh[index] + mesh[index - self.unit_vectors[dim]]
-                )
-                for dim in range(self.dimensions)
-            ) -
-            mesh[index] * self.num_neighbors * 2.0
-        )
-
-    def apply_op_variable_coefficient_unfused_boundary_conditions_helmholtz(self, mesh, index, level):
-        return self.a * level.alpha[index] * mesh[index] - self.b * self.h2inv * (
-            sum(
-                level.beta_face_values[dim][index] * (
-                    level.valid[index - self.unit_vectors[dim]] * (
-                        mesh[index] + mesh[index - self.unit_vectors[dim]]
-                    ) - 2.0 * mesh[index]
-                )
-                for dim in range(self.dimensions)
-            ) +
-            sum(
-                level.beta_face_values[dim][index + self.unit_vectors[dim]] * (
-                    level.valid[index + self.unit_vectors[dim]] * (
-                        mesh[index] + mesh[index + self.unit_vectors[dim]]
-                    ) - 2.0 * mesh[index]
-                )
-                for dim in range(self.dimensions)
-            )
-        )
-
-    def apply_op_variable_coefficient_unfused_boundary_conditions_poisson(self, mesh, index, level):
+    def apply_op_variable_coefficient_boundary_conditions_poisson(self, mesh, index, level):
         return -self.b * self.h2inv * (
             sum(
                 level.beta_face_values[dim][index] * (
                     (
-                        mesh[index] + mesh[index - self.unit_vectors[dim]]
-                    ) - 2.0 * mesh[index]
+                        mesh[index - self.unit_vectors[dim]] - mesh[index]
+                    )
                 )
                 for dim in range(self.dimensions)
             ) +
             sum(
                 level.beta_face_values[dim][index + self.unit_vectors[dim]] * (
                     (
-                        mesh[index] + mesh[index + self.unit_vectors[dim]]
-                    ) - 2.0 * mesh[index]
+                        mesh[index + self.unit_vectors[dim]] - mesh[index]
+                    )
                 )
                 for dim in range(self.dimensions)
             )
         )
 
-    def apply_op_constant_coefficient_unfused_boundary_conditions(self, mesh, index, _=None):
+    def apply_op_constant_coefficient_boundary_conditions(self, mesh, index, _=None):
         return self.a * mesh[index] - self.b * self.h2inv * (
             sum([mesh[index + neighbor_offset] for neighbor_offset in self.neighborhood_offsets]) -
             mesh[index] * self.num_neighbors
         )
 
-    def apply_op_constant_coefficient_unfused_boundary_conditions_verbose(self, mesh, index, _=None):
+    def apply_op_constant_coefficient_boundary_conditions_verbose(self, mesh, index, _=None):
         neighbor_sum = sum([mesh[index + neighbor_offset] for neighbor_offset in self.neighborhood_offsets])
         m_i = mesh[index]
         second_term = neighbor_sum - m_i * self.num_neighbors

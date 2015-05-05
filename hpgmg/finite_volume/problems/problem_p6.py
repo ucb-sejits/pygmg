@@ -7,7 +7,27 @@ import sympy
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 
-class ProblemP4(Problem):
+class ProblemP6(Problem):
+    """
+    should be continuous in u, u', u'', u''', and u'''' to guarantee high order and periodic boundaries
+    v(w) = ???
+    u(x,y,z) = v(x)v(y)v(z)
+    If Periodic, then the integral of the RHS should sum to zero.
+      Setting shift=1.0 should ensure that the integrals of X, Y, or Z should sum to zero...
+      That should(?) make the integrals of u,ux,uy,uz,uxx,uyy,uzz sum to zero and thus make the integral of f sum to zero
+    If dirichlet, then w(0)=w(1) = 0.0
+      Setting shift to 0 should ensure that U(x,y,z) = 0 on boundary
+       u =    ax^6 +    bx^5 +   cx^4 +  dx^3 +  ex^2 + fx + g
+      ux =   6ax^5 +   5bx^4 +  4cx^3 + 3dx^2 + 2ex   + f
+     uxx =  30ax^4 +  20bx^3 + 12cx^2 + 6dx   + 2e
+    a =   42.0
+    b = -126.0
+    c =  105.0
+    d =    0.0
+    e =  -21.0
+    f =    0.0
+    g =    1.0
+    """
     def __init__(self, dimensions=3, shift=0.0):
         self.source = []
         expr = None
@@ -23,7 +43,7 @@ class ProblemP4(Problem):
             dimension_symbols.append(sympy.Symbol(dimension_name))
 
         first_terms = [
-            "(1.0 * {sym}**4 - 2.0 * {sym}**3 + 1.0 * {sym}**2 + {shift})".format(sym=sym, shift=shift)
+            "(2.0 * {sym}**6 - 6.0 * {sym}**5 + 5.0 * {sym}**4 - 1.0 * {sym}**2  + {shift})".format(sym=sym, shift=shift)
             for sym in dimension_symbols
         ]
         summed_terms = " * ".join(first_terms)
