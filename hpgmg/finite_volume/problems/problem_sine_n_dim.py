@@ -43,7 +43,7 @@ class SineProblemND(Problem):
 
         second_terms = ["(sympy.sin(c2*{})**power)".format(sym) for sym in dimension_symbols]
         second_product = " * ".join(second_terms)
-        text_expression = "expr = " + first_product + " + " + second_product
+        text_expression = "expr = (" + first_product + ") + (" + second_product + ")"
         self.source.append(text_expression)
 
         exec text_expression

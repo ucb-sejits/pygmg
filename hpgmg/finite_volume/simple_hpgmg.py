@@ -18,7 +18,7 @@ from hpgmg.finite_volume.operators.restriction import Restriction
 from hpgmg.finite_volume.operators.variable_beta_generators import VariableBeta
 from hpgmg.finite_volume.operators.boundary_conditions_fv import BoundaryUpdaterV1
 from hpgmg.finite_volume.timer import Timer
-from hpgmg.finite_volume.space import Space, Vector
+from hpgmg.finite_volume.space import Space, Vector, Coord
 from hpgmg.finite_volume.simple_level import SimpleLevel
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
@@ -97,6 +97,8 @@ class SimpleMultigridSolver(object):
         self.all_levels = [self.fine_level]
 
         self.initialize(self.fine_level)
+        # self.fine_level.exact_solution.dump("VECTOR_UTRUE")
+        # self.fine_level.right_hand_side.dump("VECTOR_F")
 
         if (self.a == 0.0 or self.fine_level.alpha_is_zero) and self.boundary_is_periodic:
             # Poisson w/ periodic BC's...
@@ -150,6 +152,10 @@ class SimpleMultigridSolver(object):
             f = self.a * alpha * u - (
                 self.b * ((beta_xyz * u_xyz) + beta * sum(u_xxyyzz))
             )
+
+            # print("init {:12s} {:20} u {:10.4} beta_xyz {} u_xyz {} u_xxyyzz {} f {}".format(
+            #     element_index-Coord(1, 1, 1), absolute_position, u, beta_xyz, u_xyz, u_xxyyzz, f
+            # ))
 
             level.right_hand_side[element_index] = f
             level.exact_solution[element_index] = u
@@ -207,13 +213,15 @@ class SimpleMultigridSolver(object):
             MGVCycle(all_grids, e_id=VECTOR_U(cell_values), R_id=VECTOR_F_MINUS_FV(residual),a,b,level);
         :return:
         """
-        d_tolerance, r_tolerance = 0.0, 1e-10
+        d_tolerance, r_tolerance = 0.0, 1.0e-10
         norm_of_right_hand_side = 1.0
         norm_of_d_right_hand_side = 1.0
 
         level = self.fine_level
 
         with Timer("mg-solve time"):
+            print("MGSolve.... ", end='')
+
             if d_tolerance > 0.0:
                 level.multiply_meshes(level.temp, 1.0, level.right_hand_side, level.d_inverse)
                 norm_of_d_right_hand_side = level.norm_mesh(level.temp)
@@ -224,7 +232,6 @@ class SimpleMultigridSolver(object):
             level.scale_mesh(level.residual, 1.0, level.right_hand_side)
 
             for cycle in range(self.number_of_v_cycles):
-                print("Running v-cycle {}".format(cycle))
                 # level.residual.print('residual before v_cycle')
                 self.v_cycle(level, level.cell_values, level.residual)
                 # level.cell_values.print('cell values after v_cycle')
@@ -237,7 +244,6 @@ class SimpleMultigridSolver(object):
                     level.shift_mesh(level.cell_values, -average_value_of_u, level.cell_values)
 
                 self.residual.run(level, level.temp, level.cell_values, level.right_hand_side,)
-                level.scale_mesh(level.residual, 1.0, level.temp)
                 if d_tolerance > 0.0:
                     level.multiply_meshes(level.temp, 1.0, level.temp, level.d_inverse)
                 norm_of_residual = level.norm_mesh(level.temp)

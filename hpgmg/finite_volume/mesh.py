@@ -70,6 +70,63 @@ class Mesh(np.ndarray):
         else:
             print("I don't know how to mesh with {} dimensions".format(self.space.ndim))
 
+    def dump(self, message=None):
+        """
+        print this mesh, if 3d axes go up the page
+        if 2d then standard over and down
+        :return:
+        """
+        if message:
+            print("==,MESHSTART,{},{},{},{}\n".format(message, self.space[0]-2, self.space[1]-2, self.space[2]-2))
+
+        if len(self.space) == 3:
+            # block_list = [
+            #     ((0, 0, 0), (8, 8, 16)),
+            #     ((0, 8, 0), (8, 16, 16)),
+            #     ((8, 0, 0), (16, 8, 16)),
+            #     ((8, 8, 0), (16, 16, 16)),
+            # ]
+            # for ind, ends in enumerate(block_list):
+            #     lo, hi = ends
+            #     print("==block {} {} {}".format(ind, lo, hi))
+            #     for ii in range(lo[0], hi[0]):
+            #         i = ii + 1
+            #         # print("i  {}".format(i))
+            #         for jj in range(lo[1], hi[1]):
+            #             j = jj + 1
+            #             print("==", end='')
+            #             for kk in range(lo[2], hi[2]):
+            #                 k = kk + 1
+            #                 print("{:f},".format(self[(i, j, k)]), end="")
+            #             print()
+            #         print("==")
+            # if message:
+            #     print("==MESHEND-{}-\n".format(message))
+            max_i, max_j, max_k = self.shape
+
+            print("==,block,0,1,1,1,{},{},{}".format(max_i-1, max_j-1, max_k-1))
+            for i in range(1, max_i-1):
+                # print("i  {}".format(i))
+                for j in range(1, max_j-1):
+                    print("==,{:02d},{:02d},".format(i-1, j-1), end='')
+                    for k in range(1, max_k-1):
+                        print("{:f},".format(self[(i, j, k)]), end="")
+                    print()
+            if message:
+                print("==,MESHEND,{},\n".format(message))
+
+        elif len(self.space) == 2:
+            max_i, max_j = self.shape
+
+            for i in range(max_i):
+                # print("i  {}".format(i))
+                for j in range(max_j):
+                    print("{:10.5f}".format(self[(i, j)]), end=" ")
+                print()
+            print()
+        else:
+            print("I don't know how to mesh with {} dimensions".format(self.space.ndim))
+
     def zero(self):
         for index in self.indices():
             self[index] = 0.0
