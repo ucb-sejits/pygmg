@@ -5,6 +5,7 @@ from __future__ import division, print_function
 import argparse
 import os
 import logging
+from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.operators.chebyshev_smoother import ChebyshevSmoother
 
 from hpgmg.finite_volume.operators.stencil_von_neumann_r1 import StencilVonNeumannR1
@@ -32,6 +33,9 @@ class SimpleMultigridSolver(object):
     """
     def __init__(self, configuration):
         self.dump_grids = configuration.dump_grids
+        if self.dump_grids:
+            Mesh.dump_mesh_enabled = True
+
         if configuration.log:
             logging.basicConfig(level=logging.DEBUG)
 
@@ -104,9 +108,9 @@ class SimpleMultigridSolver(object):
         self.all_levels = [self.fine_level]
 
         self.initialize(self.fine_level)
-        if self.dump_grids:
-            self.fine_level.exact_solution.dump("VECTOR_UTRUE")
-            self.fine_level.right_hand_side.dump("VECTOR_F")
+
+        self.fine_level.exact_solution.dump("VECTOR_UTRUE")
+        self.fine_level.right_hand_side.dump("VECTOR_F")
 
         if (self.a == 0.0 or self.fine_level.alpha_is_zero) and self.boundary_is_periodic:
             # Poisson w/ periodic BC's...
@@ -126,10 +130,11 @@ class SimpleMultigridSolver(object):
                 )
 
         self.problem_operator.rebuild_operator(self.fine_level, source_level=None)
-        if self.dump_grids:
-            self.fine_level.beta_face_values[0].dump("VECTOR_BETA_I")
+
+        if self.dimensions == 3:
+            self.fine_level.beta_face_values[0].dump("VECTOR_BETA_K")
             self.fine_level.beta_face_values[1].dump("VECTOR_BETA_J")
-            self.fine_level.beta_face_values[2].dump("VECTOR_BETA_K")
+            self.fine_level.beta_face_values[2].dump("VECTOR_BETA_I")
 
     def initialize(self, level):
         """
@@ -156,7 +161,10 @@ class SimpleMultigridSolver(object):
                     # the following face_betas are reversed in order to keep
                     # strict compatibility with c,
                     # TODO: figure out if there is a way to get iteration to do this naturally
-                    face_betas[self.dimensions-(face_index+1)], _ = beta_generator.evaluate_beta(
+                    # face_betas[self.dimensions-(face_index+1)], _ = beta_generator.evaluate_beta(
+                    #     level.coord_to_face_center_point(element_index, face_index)
+                    # )
+                    face_betas[face_index], _ = beta_generator.evaluate_beta(
                         level.coord_to_face_center_point(element_index, face_index)
                     )
                     # face_betas[face_index] = face_index * 1000.0 + element_index[2] * 100 + \
@@ -206,10 +214,12 @@ class SimpleMultigridSolver(object):
 
         with Timer("v-cycle level {}".format(level.level_number)):
             self.smoother.smooth(level, level.cell_values, level.right_hand_side)
-            if self.dump_grids:
-                level.cell_values.dump("VECTOR_U level {}".format(level.level_number))
-                exit(0)
+
+            level.cell_values.dump("VECTOR_U level {}".format(level.level_number))
             self.residual.run(level, level.temp, level.cell_values, level.right_hand_side)
+
+            level.temp.dump("VECTOR_TEMP_RESIDUAL level {}".format(level.level_number))
+            # exit(0)
 
             coarser_level = level.make_coarser_level()
             self.problem_operator.rebuild_operator(coarser_level, level)
@@ -256,8 +266,8 @@ class SimpleMultigridSolver(object):
 
             level.fill_mesh(level.cell_values, 0.0)
             level.scale_mesh(level.residual, 1.0, level.right_hand_side)
-            if self.dump_grids:
-                level.residual.dump('VECTOR_F_MINUS_AV')
+
+            level.residual.dump('VECTOR_F_MINUS_AV')
 
             for cycle in range(self.number_of_v_cycles):
                 # level.residual.print('residual before v_cycle')

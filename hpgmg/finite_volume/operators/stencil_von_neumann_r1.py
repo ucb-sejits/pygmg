@@ -155,8 +155,16 @@ class StencilVonNeumannR1(BaseOperator):
                     [target_level.valid[index + neighbor_offset] for neighbor_offset in self.neighborhood_offsets]
                 )
                 a_diagonal = self.a * target_level.alpha[index] - self.b * self.h2inv * sum(
-                    [target_level.valid[index + neighbor_offset]-adjust_value for neighbor_offset in self.neighborhood_offsets]
+                    [
+                        target_level.valid[index + neighbor_offset]-adjust_value
+                        for neighbor_offset in self.neighborhood_offsets
+                    ]
                 )
+                # print("##,{}:{:10.4f},{:10.4f},{:10.4f}".format(
+                #     ",".join(map("{:02d}".format, index)),
+                #     self.a * target_level.alpha[index], self.b*self.h2inv, a_diagonal
+                # ))
+
 
             # compute the d_inverse, l1_inverse and dominant eigen_value
             target_level.d_inverse[index] = 1.0/a_diagonal

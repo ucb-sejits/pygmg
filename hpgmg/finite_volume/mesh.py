@@ -70,12 +70,17 @@ class Mesh(np.ndarray):
         else:
             print("I don't know how to mesh with {} dimensions".format(self.space.ndim))
 
+    dump_mesh_enabled = False
+
     def dump(self, message=None):
         """
         print this mesh, if 3d axes go up the page
         if 2d then standard over and down
         :return:
         """
+        if not Mesh.dump_mesh_enabled:
+            return
+
         if message:
             print("==,MESHSTART,{},{}\n".format(message, ",".join(map(str, self.space-2))))
 

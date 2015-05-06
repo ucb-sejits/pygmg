@@ -33,8 +33,16 @@ class JacobiSmoother(Smoother):
         :param rhs_mesh:
         :return:
         """
+        rhs_mesh.dump("JACOBI_RHS_MESH")
         lambda_mesh = level.l1_inverse if self.use_l1_jacobi else level.d_inverse
+        if level.solver.dump_grids:
+            if lambda_mesh == level.l1_inverse:
+                print("USING L1_INVERSE")
+            else:
+                print("USING D_INV")
         working_target, working_source = mesh_to_smooth, level.temp
+        mesh_to_smooth.dump("JACOBI_MESH_TO_SMOOTH")
+        lambda_mesh.dump("LAMBDA_MESH")
 
         self.operator.set_scale(level.h)
         for i in range(self.iterations):
@@ -45,3 +53,9 @@ class JacobiSmoother(Smoother):
                 a_x = self.operator.apply_op(working_source, index, level)
                 b = rhs_mesh[index]
                 working_target[index] = working_source[index] + (self.weight * lambda_mesh[index] * (b - a_x))
+                # print("index {} Ax_n {} b {} lm {} w {} src {} trg {}".format(
+                #     ",".join(map(str,index)), a_x, b, lambda_mesh[index], self.weight,
+                #     working_source[index], working_target[index]
+                # ))
+
+            working_target.dump("JACOBI_SMOOTH_PASS_{}".format(i))
