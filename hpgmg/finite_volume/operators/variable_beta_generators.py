@@ -25,10 +25,15 @@ class VariableBeta(object):
 
         delta = vector - self.center
         distance = sum(d**2 for d in delta)**0.5
-        normalized_delta = delta * distance**-1.0
+        normalized_delta = delta / distance
 
         beta_at_face = c1 + c2 * tanh(c3 * (distance - 0.25))
         beta_vector = c2 * c3 * normalized_delta * (1 - (tanh(c3 * (distance - 0.25))**2))
+
+        # print("eb v {} dis {} del {} ndel {} bv {}".format(
+        #     ",".join(map(str, vector)), distance, ",".join(map(str, delta)), ",".join(map(str, normalized_delta)),
+        #     ",".join(map(str, beta_vector))
+        # ))
 
         return beta_at_face, beta_vector
 

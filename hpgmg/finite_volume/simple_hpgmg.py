@@ -31,7 +31,7 @@ class SimpleMultigridSolver(object):
     with settings from the command line
     """
     def __init__(self, configuration):
-        self.is_logging = configuration.log
+        self.dump_grids = configuration.dump_grids
         if configuration.log:
             logging.basicConfig(level=logging.DEBUG)
 
@@ -104,7 +104,7 @@ class SimpleMultigridSolver(object):
         self.all_levels = [self.fine_level]
 
         self.initialize(self.fine_level)
-        if self.is_logging:
+        if self.dump_grids:
             self.fine_level.exact_solution.dump("VECTOR_UTRUE")
             self.fine_level.right_hand_side.dump("VECTOR_F")
 
@@ -126,7 +126,10 @@ class SimpleMultigridSolver(object):
                 )
 
         self.problem_operator.rebuild_operator(self.fine_level, source_level=None)
-        # self.fine_level.print()
+        if self.dump_grids:
+            self.fine_level.beta_face_values[0].dump("VECTOR_BETA_I")
+            self.fine_level.beta_face_values[1].dump("VECTOR_BETA_J")
+            self.fine_level.beta_face_values[2].dump("VECTOR_BETA_K")
 
     def initialize(self, level):
         """
@@ -149,9 +152,17 @@ class SimpleMultigridSolver(object):
 
             if level.is_variable_coefficient:
                 for face_index in range(self.dimensions):
-                    face_betas[face_index], _ = beta_generator.evaluate_beta(
+                    # print("##,{} ".format(",".join(map(str, element_index))), end="")
+                    # the following face_betas are reversed in order to keep
+                    # strict compatibility with c,
+                    # TODO: figure out if there is a way to get iteration to do this naturally
+                    face_betas[self.dimensions-(face_index+1)], _ = beta_generator.evaluate_beta(
                         level.coord_to_face_center_point(element_index, face_index)
                     )
+                    # face_betas[face_index] = face_index * 1000.0 + element_index[2] * 100 + \
+                    #     element_index[1] * 10 + element_index[0]
+
+                # print("{}".format(",".join(map(str, element_index))), end="")
                 beta, beta_xyz = beta_generator.evaluate_beta(absolute_position)
 
             u, u_xyz, u_xxyyzz = problem.evaluate_u(absolute_position)
@@ -161,8 +172,11 @@ class SimpleMultigridSolver(object):
                 self.b * ((beta_xyz * u_xyz) + beta * sum(u_xxyyzz))
             )
 
-            # print("init {:12s} {:20} u {:10.4} beta_xyz {} u_xyz {} u_xxyyzz {} f {}".format(
-            #     element_index-Coord(1, 1, 1), absolute_position, u, beta_xyz, u_xyz, u_xxyyzz, f
+            # print("init {:12s} {:20} u {:e} beta_xyz ({}) u_xyz {} u_xxyyzz {} f {:8.6f}".format(
+            #     element_index, absolute_position, u,
+            #     ",".join("{:8.6f}".format(n) for n in beta_xyz),
+            #     ",".join("{:8.6f}".format(n) for n in u_xyz),
+            #     ",".join("{:8.6f}".format(n) for n in u_xxyyzz), f
             # ))
 
             level.right_hand_side[element_index] = f
@@ -170,7 +184,8 @@ class SimpleMultigridSolver(object):
 
             level.alpha[element_index] = alpha
             for face_index in range(self.dimensions):
-                level.beta_face_values[face_index][element_index] = face_betas[face_index]
+                if all(element_index[d] < level.space[d]-1 for d in range(self.dimensions)):
+                    level.beta_face_values[face_index][element_index] = face_betas[face_index]
 
         if level.alpha_is_zero is None:
             level.alpha_is_zero = level.dot_mesh(level.alpha, level.alpha) == 0.0
@@ -191,7 +206,7 @@ class SimpleMultigridSolver(object):
 
         with Timer("v-cycle level {}".format(level.level_number)):
             self.smoother.smooth(level, level.cell_values, level.right_hand_side)
-            if self.is_logging:
+            if self.dump_grids:
                 level.cell_values.dump("VECTOR_U level {}".format(level.level_number))
                 exit(0)
             self.residual.run(level, level.temp, level.cell_values, level.right_hand_side)
@@ -241,7 +256,7 @@ class SimpleMultigridSolver(object):
 
             level.fill_mesh(level.cell_values, 0.0)
             level.scale_mesh(level.residual, 1.0, level.right_hand_side)
-            if self.is_logging:
+            if self.dump_grids:
                 level.residual.dump('VECTOR_F_MINUS_AV')
 
             for cycle in range(self.number_of_v_cycles):
@@ -310,7 +325,9 @@ class SimpleMultigridSolver(object):
                             default=6, type=int)
         parser.add_argument('-mcd', '--minimum-coarse_dimension', help='smallest allowed coarsened dimension',
                             default=3, type=int)
-        parser.add_argument('-l', '--log', help='turn on logging', action="store_true", )
+        parser.add_argument('-dg', '--dump-grids', help='dump various grids for comparison with hpgmg.c',
+                            action="store_true", default=False)
+        parser.add_argument('-l', '--log', help='turn on logging', action="store_true", default=False)
         return parser.parse_args(args=args)
 
     @staticmethod
