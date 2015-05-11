@@ -15,6 +15,7 @@ class Comparator(object):
         self.allowed_percent_delta = allowed_percent_delta
 
     def read_file(self, name, kind):
+        rows = 0
         with open(name, 'rb') as csv_file:
             reader = csv.reader(csv_file, delimiter=',')
             for line, row in enumerate(reader):
@@ -22,6 +23,7 @@ class Comparator(object):
                     if not row or row[0] != "==":
                         pass
                     elif row[1] == "MESHSTART":
+                        rows = 0
                         grid_name = row[2]
                         shape = (int(row[3]), int(row[4]), int(row[5]))
                         print("mesh kind {} start {} shape {}".format(kind, grid_name, shape))
@@ -30,13 +32,14 @@ class Comparator(object):
                         self.kind_to_grids[kind][grid_name] = np.empty(shape)
                         in_mesh = True
                     elif row[1] == "MESHEND":
-                        print("mesh end")
+                        print("mesh end rows {}".format(rows))
                         in_mesh = False
                         # print(self.kind_to_grids[kind][grid_name])
                     elif row[1] == "block":
                         pass
                     elif row[0] == "==":
                         if in_mesh:
+                            rows += 1
                             # print("data {} {}".format(row[1], row[2]))
                             i = int(row[1])
                             j = int(row[2])
@@ -79,12 +82,19 @@ class Comparator(object):
     def compare_grids(self):
         for grid_name in self.grid_names:
             print("comparing grid {}".format(grid_name))
+            for kind in ['c', 'py']:
+                if not grid_name in self.kind_to_grids[kind]:
+                    print("Cannot find grid {} in {} grid".format(grid_name, kind))
+                    exit(0)
+
             c_grid = self.kind_to_grids['c'][grid_name]
             py_grid = self.kind_to_grids['py'][grid_name]
+
             try:
                 np_test.assert_array_almost_equal(c_grid, py_grid, allowed_percent_delta=6)
             except Exception:
                 self.show_difference(c_grid, py_grid)
+            print("compare done")
 
 if __name__ == '__main__':
     allowed_percent_delta = .0001 if len(sys.argv) < 4 else float(sys.argv[3])
@@ -94,5 +104,5 @@ if __name__ == '__main__':
     c.read_file(sys.argv[1], 'c')
     c.read_file(sys.argv[2], 'py')
 
-    print("keys {}".format(c.kind_to_grids.keys()))
+    print("keys {}".format(c.grid_names))
     c.compare_grids()

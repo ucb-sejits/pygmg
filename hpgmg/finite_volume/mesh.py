@@ -82,7 +82,7 @@ class Mesh(np.ndarray):
             return
 
         if message:
-            print("==,MESHSTART,{},{}\n".format(message, ",".join(map(str, self.space-2))))
+            print("==,MESHSTART,{},{}".format(message, ",".join(map(str, self.space-2))))
 
         if len(self.space) == 3:
             # block_list = [
@@ -118,7 +118,7 @@ class Mesh(np.ndarray):
                         print("{:f},".format(self[(i, j, k)]), end="")
                     print()
             if message:
-                print("==,MESHEND,{},\n".format(message))
+                print("==,MESHEND,{},".format(message))
 
         elif len(self.space) == 2:
             max_i, max_j = self.shape

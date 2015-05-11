@@ -35,13 +35,12 @@ class JacobiSmoother(Smoother):
         """
         rhs_mesh.dump("JACOBI_RHS_MESH")
         lambda_mesh = level.l1_inverse if self.use_l1_jacobi else level.d_inverse
-        if level.solver.dump_grids:
-            if lambda_mesh == level.l1_inverse:
-                print("USING L1_INVERSE")
-            else:
-                print("USING D_INV")
+        # if level.solver.dump_grids:
+            # if lambda_mesh == level.l1_inverse:
+            #     print("USING L1_INVERSE")
+            # else:
+            #     print("USING D_INV")
         working_target, working_source = mesh_to_smooth, level.temp
-        mesh_to_smooth.dump("JACOBI_MESH_TO_SMOOTH")
         lambda_mesh.dump("LAMBDA_MESH")
 
         self.operator.set_scale(level.h)
@@ -49,6 +48,8 @@ class JacobiSmoother(Smoother):
             working_target, working_source = working_source, working_target
             level.solver.boundary_updater.apply(level, working_source)
 
+            working_source.dump("JACOBI_MESH_TO_SMOOTH_SOURCE")
+            working_target.dump("JACOBI_MESH_TO_SMOOTH_TARGET")
             for index in level.interior_points():
                 a_x = self.operator.apply_op(working_source, index, level)
                 b = rhs_mesh[index]
@@ -58,4 +59,4 @@ class JacobiSmoother(Smoother):
                 #     working_source[index], working_target[index]
                 # ))
 
-            working_target.dump("JACOBI_SMOOTH_PASS_{}".format(i))
+            working_target.dump("JACOBI_SMOOTH_PASS_{}_SIZE_{}".format(i, format(level.space[0]-2)))

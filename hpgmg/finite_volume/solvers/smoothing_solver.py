@@ -3,7 +3,7 @@ from __future__ import print_function
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 
-class IterativeSolver(object):
+class SmoothingSolver(object):
     def __init__(self, solver, desired_reduction):
         self.solver = solver
         self.a = solver.a

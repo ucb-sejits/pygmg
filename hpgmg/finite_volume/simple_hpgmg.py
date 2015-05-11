@@ -9,7 +9,6 @@ from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.operators.chebyshev_smoother import ChebyshevSmoother
 
 from hpgmg.finite_volume.operators.stencil_von_neumann_r1 import StencilVonNeumannR1
-from hpgmg.finite_volume.iterative_solver import IterativeSolver
 from hpgmg.finite_volume.operators.interpolation import InterpolatorPC
 from hpgmg.finite_volume.operators.jacobi_smoother import JacobiSmoother
 from hpgmg.finite_volume.problems.problem_p4 import ProblemP4
@@ -19,6 +18,8 @@ from hpgmg.finite_volume.operators.residual import Residual
 from hpgmg.finite_volume.operators.restriction import Restriction
 from hpgmg.finite_volume.operators.variable_beta_generators import VariableBeta
 from hpgmg.finite_volume.operators.boundary_conditions_fv import BoundaryUpdaterV1
+from hpgmg.finite_volume.solvers.bicgstab import BiCGStab
+from hpgmg.finite_volume.solvers.smoothing_solver import SmoothingSolver
 from hpgmg.finite_volume.timer import Timer
 from hpgmg.finite_volume.space import Space, Vector
 from hpgmg.finite_volume.simple_level import SimpleLevel
@@ -83,8 +84,12 @@ class SimpleMultigridSolver(object):
                 degree=1,
                 iterations=configuration.smoother_iterations
             )
+
+        self.default_bottom_norm = 1e-3
+        if configuration.bottom_solver == 'bicgstab':
+            self.bottom_solver = BiCGStab(solver=self, desired_reduction=self.default_bottom_norm)
         else:
-            raise Exception()
+            self.bottom_solver = SmoothingSolver(solver=self, desired_reduction=self.default_bottom_norm)
 
         self.minimum_coarse_dimension = configuration.minimum_coarse_dimension
 
@@ -100,9 +105,6 @@ class SimpleMultigridSolver(object):
 
         if configuration.variable_coefficient:
             self.beta_generator = VariableBeta(self.dimensions)
-
-        self.default_bottom_norm = 1e-3
-        self.bottom_solver = IterativeSolver(solver=self, desired_reduction=self.default_bottom_norm)
 
         self.fine_level = SimpleLevel(solver=self, space=self.global_size, level_number=0)
         self.all_levels = [self.fine_level]
@@ -210,27 +212,34 @@ class SimpleMultigridSolver(object):
         if min(level.space) <= 3:
             with Timer('bottom_solve'):
                 self.bottom_solver.solve(level, target_mesh, residual_mesh)
+                target_mesh.dump("BOTTOM-SOLVED level {}".format(level.level_number))
             return
 
+        level.right_hand_side.dump("VCYCLE_RHS")
         with Timer("v-cycle level {}".format(level.level_number)):
-            self.smoother.smooth(level, level.cell_values, level.right_hand_side)
-
-            level.cell_values.dump("VECTOR_U level {}".format(level.level_number))
+            self.smoother.smooth(level, level.cell_values, level.residual)
+            # if level.level_number == 1:
+            #     exit(0)
+            level.cell_values.dump("PRE-SMOOTH VECTOR_U level {}".format(level.level_number))
             self.residual.run(level, level.temp, level.cell_values, level.right_hand_side)
 
             level.temp.dump("VECTOR_TEMP_RESIDUAL level {}".format(level.level_number))
-            # exit(0)
 
             coarser_level = level.make_coarser_level()
-            self.problem_operator.rebuild_operator(coarser_level, level)
+
             self.restrictor.restrict(coarser_level, coarser_level.residual, level.temp, Restriction.RESTRICT_CELL)
+            coarser_level.residual.dump("RESTRICTED_RID level {}".format(coarser_level.level_number))
             coarser_level.fill_mesh(coarser_level.cell_values, 0.0)
 
+        self.problem_operator.rebuild_operator(coarser_level, level)
+        coarser_level.residual.dump("RESTRICTED_RID level {}".format(coarser_level.level_number))
         self.v_cycle(coarser_level, coarser_level.cell_values, coarser_level.residual)
 
         with Timer("v-cycle level {}".format(level.level_number)):
             self.interpolator.interpolate(level, level.cell_values, coarser_level.cell_values)
-            self.smoother.smooth(level, level.cell_values, level.right_hand_side)
+            level.cell_values.dump("INTERPOLATED_U level {}".format(level.level_number))
+            self.smoother.smooth(level, level.cell_values, level.residual)
+            level.cell_values.dump("POST-SMOOTH VECTOR_U level {}".format(level.level_number))
 
         # level.print("Interpolated level {}".format(level.level_number))
 
@@ -272,6 +281,7 @@ class SimpleMultigridSolver(object):
             for cycle in range(self.number_of_v_cycles):
                 # level.residual.print('residual before v_cycle')
                 self.v_cycle(level, level.cell_values, level.residual)
+                # exit(0)
                 # level.cell_values.print('cell values after v_cycle')
 
                 if self.boundary_is_periodic and self.a == 0.0 or level.alpha_is_zero:
@@ -325,6 +335,10 @@ class SimpleMultigridSolver(object):
                             help="Type of smoother, j for jacobi, c for chebyshev",
                             choices=['j', 'c'],
                             default='j', )
+        parser.add_argument('-bs', '--bottom-solver',
+                            help="Bottom solver to use",
+                            choices=['smoother', 'bicgstab'],
+                            default='bicgstab', )
         parser.add_argument('-ulj', '--use-l1-jacobi', action="store_true",
                             help="use l1 instead of d inverse with jacobi smoother",
                             default=False, )
