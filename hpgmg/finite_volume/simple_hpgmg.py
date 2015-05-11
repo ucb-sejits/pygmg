@@ -194,8 +194,8 @@ class SimpleMultigridSolver(object):
 
             level.alpha[element_index] = alpha
             for face_index in range(self.dimensions):
-                if all(element_index[d] < level.space[d]-1 for d in range(self.dimensions)):
-                    level.beta_face_values[face_index][element_index] = face_betas[face_index]
+                # if all(element_index[d] < level.space[d]-1 for d in range(self.dimensions)):
+                level.beta_face_values[face_index][element_index] = face_betas[face_index]
 
         if level.alpha_is_zero is None:
             level.alpha_is_zero = level.dot_mesh(level.alpha, level.alpha) == 0.0

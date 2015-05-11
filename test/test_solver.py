@@ -4,7 +4,7 @@ import numpy as np
 from hpgmg.finite_volume.operators.chebyshev_smoother import ChebyshevSmoother
 
 from hpgmg.finite_volume.operators.stencil_von_neumann_r1 import StencilVonNeumannR1
-from hpgmg.finite_volume.iterative_solver import IterativeSolver
+from hpgmg.finite_volume.solvers.bicgstab import BiCGStab
 from hpgmg.finite_volume.operators.jacobi_smoother import JacobiSmoother
 from hpgmg.finite_volume.simple_hpgmg import SimpleMultigridSolver
 from hpgmg.finite_volume.simple_level import SimpleLevel
@@ -23,7 +23,7 @@ class TestSimpleMultigridSolver(unittest.TestCase):
         self.assertIsInstance(solver.problem_operator, StencilVonNeumannR1,
                               "default is simple 7pt stencil")
         self.assertIsInstance(solver.smoother, JacobiSmoother, "default smoother is Jacobi")
-        self.assertIsInstance(solver.bottom_solver, IterativeSolver, "default bottom_solver")
+        self.assertIsInstance(solver.bottom_solver, BiCGStab, "default bottom_solver")
         self.assertFalse(solver.boundary_is_periodic, "default boundary is not periodic")
         self.assertTrue(solver.boundary_is_dirichlet, "default boundary is dirichlet")
         self.assertFalse(solver.is_variable_coefficient, "default is fixed beta")
@@ -108,7 +108,7 @@ class TestSimpleMultigridSolver(unittest.TestCase):
 
         TestSimpleMultigridSolver.original_initialize_3d(solver, solver.fine_level)
 
-        for index in solver.fine_level.indices():
+        for index in solver.fine_level.interior_points():
             x = save_exact_solution[index]
             y = solver.fine_level.exact_solution[index]
             self.assertAlmostEqual(x, y, msg="exact_solution != at {} current {} original {}".format(str(index), x, y))
@@ -161,40 +161,40 @@ class TestSimpleMultigridSolver(unittest.TestCase):
         self.assertIsInstance(solver.smoother, JacobiSmoother)
         self.assertEqual(
             solver.problem_operator.apply_op,
-            solver.problem_operator.apply_op_constant_coefficient_unfused_boundary_conditions
+            solver.problem_operator.apply_op_constant_coefficient_boundary_conditions
         )
 
         solver = SimpleMultigridSolver.get_solver(["3", "-d", "2", "-sm", "c"])
         self.assertIsInstance(solver.smoother, ChebyshevSmoother)
         self.assertEqual(
             solver.problem_operator.apply_op,
-            solver.problem_operator.apply_op_constant_coefficient_unfused_boundary_conditions
+            solver.problem_operator.apply_op_constant_coefficient_boundary_conditions
         )
 
         solver = SimpleMultigridSolver.get_solver(["3", "-d", "2", "-sm", "c"])
         self.assertIsInstance(solver.smoother, ChebyshevSmoother)
         self.assertEqual(
             solver.problem_operator.apply_op,
-            solver.problem_operator.apply_op_constant_coefficient_unfused_boundary_conditions
+            solver.problem_operator.apply_op_constant_coefficient_boundary_conditions
         )
 
         solver = SimpleMultigridSolver.get_solver(["3", "-d", "2", "-sm", "c", "-vc"])
         self.assertIsInstance(solver.smoother, ChebyshevSmoother)
         self.assertEqual(
             solver.problem_operator.apply_op,
-            solver.problem_operator.apply_op_variable_coefficient_unfused_boundary_conditions_helmholtz
+            solver.problem_operator.apply_op_variable_coefficient_boundary_conditions_helmholtz
         )
 
         solver = SimpleMultigridSolver.get_solver(["3", "-d", "2", "-sm", "c", "-vc", "-eq", "h"])
         self.assertIsInstance(solver.smoother, ChebyshevSmoother)
         self.assertEqual(
             solver.problem_operator.apply_op,
-            solver.problem_operator.apply_op_variable_coefficient_unfused_boundary_conditions_helmholtz
+            solver.problem_operator.apply_op_variable_coefficient_boundary_conditions_helmholtz
         )
 
         solver = SimpleMultigridSolver.get_solver(["3", "-d", "2", "-sm", "c", "-vc", "-eq", "p"])
         self.assertIsInstance(solver.smoother, ChebyshevSmoother)
         self.assertEqual(
             solver.problem_operator.apply_op,
-            solver.problem_operator.apply_op_variable_coefficient_unfused_boundary_conditions_poisson
+            solver.problem_operator.apply_op_variable_coefficient_boundary_conditions_poisson
         )

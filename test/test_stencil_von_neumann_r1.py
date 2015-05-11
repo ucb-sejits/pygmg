@@ -17,7 +17,7 @@ class TestStencilVonNeumannR1(unittest.TestCase):
         self.assertIsInstance(solver.problem_operator, StencilVonNeumannR1)
         self.assertEqual(
             solver.problem_operator.apply_op,
-            solver.problem_operator.apply_op_constant_coefficient_unfused_boundary_conditions
+            solver.problem_operator.apply_op_constant_coefficient_boundary_conditions
         )
         self.assertEqual(solver.a, 1.0)
         self.assertEqual(solver.b, 1.0)

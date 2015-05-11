@@ -104,5 +104,5 @@ if __name__ == '__main__':
     c.read_file(sys.argv[1], 'c')
     c.read_file(sys.argv[2], 'py')
 
-    print("keys {}".format(c.grid_names))
+    # print("keys {}".format(c.grid_names))
     c.compare_grids()
