@@ -64,6 +64,7 @@ class BiCGStab(IterativeSolver):
                 level.scale_mesh(q_mesh, 1.0, p_mesh)
 
             #Ap[] = AM^{-1}(p)
+            top_solver.boundary_updater.apply(level, q_mesh)
             for index in level.interior_points():
                 ap_mesh[index] = top_solver.problem_operator.apply_op(q_mesh, index, level)
 
@@ -111,6 +112,7 @@ class BiCGStab(IterativeSolver):
             # r[]    = s[]    - omega*As[]  (recursively computed / updated residual)
             # norm of recursively computed residual (good enough??)
 
+            top_solver.boundary_updater.apply(level, t_mesh)
             for index in level.interior_points():
                 as_mesh[index] = top_solver.problem_operator.apply_op(t_mesh, index, level)
             as_dot_as = level.dot_mesh(as_mesh, as_mesh)

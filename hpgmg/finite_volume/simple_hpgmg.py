@@ -211,6 +211,7 @@ class SimpleMultigridSolver(object):
     def v_cycle(self, level, target_mesh, residual_mesh):
         if min(level.space) <= 3:
             with Timer('bottom_solve'):
+                residual_mesh.dump("BOTTOM-SOLVER-RESIDUAL level {}".format(level.level_number))
                 self.bottom_solver.solve(level, target_mesh, residual_mesh)
                 target_mesh.dump("BOTTOM-SOLVED level {}".format(level.level_number))
             return
@@ -282,7 +283,7 @@ class SimpleMultigridSolver(object):
                 # level.residual.print('residual before v_cycle')
                 self.v_cycle(level, level.cell_values, level.residual)
                 # exit(0)
-                # level.cell_values.print('cell values after v_cycle')
+                level.cell_values.dump('cell values after v_cycle')
 
                 if self.boundary_is_periodic and self.a == 0.0 or level.alpha_is_zero:
                     # Poisson with Periodic Boundary Conditions...
@@ -291,7 +292,9 @@ class SimpleMultigridSolver(object):
                     average_value_of_u = level.mean_mesh(level.cell_values)
                     level.shift_mesh(level.cell_values, -average_value_of_u, level.cell_values)
 
+                level.right_hand_side.dump("right hand side after v_cycle")
                 self.residual.run(level, level.temp, level.cell_values, level.right_hand_side,)
+                level.temp.dump("residual after v_cycle")
                 if d_tolerance > 0.0:
                     level.multiply_meshes(level.temp, 1.0, level.temp, level.d_inverse)
                 norm_of_residual = level.norm_mesh(level.temp)

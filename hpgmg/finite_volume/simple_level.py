@@ -105,38 +105,38 @@ class SimpleLevel(object):
             mesh[index] = value if self.valid[index] > 0.0 else 0.0
 
     def add_meshes(self, target_mesh, scale_a, mesh_a, scale_b, mesh_b):
-        for index in self.valid_indices():
+        for index in self.interior_points():
             target_mesh[index] = scale_a * mesh_a[index] + scale_b + mesh_b[index]
 
     def multiply_meshes(self, target_mesh, scale_factor, mesh_a, mesh_b):
-        for index in self.valid_indices():
+        for index in self.interior_points():
             target_mesh[index] = scale_factor * mesh_a[index] * mesh_b[index]
 
     def invert_mesh(self, target_mesh, scale_factor, mesh_to_invert):
-        for index in self.valid_indices():
+        for index in self.interior_points():
             target_mesh[index] = scale_factor / mesh_to_invert[index]
 
     def copy_mesh(self, target_mesh, source_mesh):
-        for index in self.valid_indices():
+        for index in self.interior_points():
             target_mesh[index] = source_mesh[index]
 
     def scale_mesh(self, target_mesh, scale_factor, source_mesh):
-        for index in self.valid_indices():
+        for index in self.interior_points():
             target_mesh[index] = scale_factor * source_mesh[index]
 
     def shift_mesh(self, target_mesh, shift_value, source_mesh):
-        for index in self.valid_indices():
+        for index in self.interior_points():
             target_mesh[index] = shift_value + source_mesh[index]
 
     def dot_mesh(self, mesh_a, mesh_b):
         accumulator = 0.0
-        for index in self.valid_indices():
+        for index in self.interior_points():
             accumulator += mesh_a[index] * mesh_b[index]
         return accumulator
 
     def norm_mesh(self, mesh):
         max_norm = 0.0
-        for index in self.valid_indices():
+        for index in self.interior_points():
             if abs(mesh[index]) > max_norm:
                 max_norm = abs(mesh[index])
         return max_norm
