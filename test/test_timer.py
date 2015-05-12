@@ -1,5 +1,6 @@
 from __future__ import print_function
-from hpgmg.finite_volume.timer import Timer
+from hpgmg.finite_volume.simple_hpgmg import SimpleMultigridSolver
+from hpgmg.finite_volume.timer import Timer, LevelTimer
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
@@ -7,21 +8,23 @@ import unittest
 
 
 class TestTimer(unittest.TestCase):
+    @staticmethod
+    def big_loop():
+        return [
+            x*x*x for x in range(1000000)
+        ]
+
     def test_basics(self):
-        with Timer('dog'):
-            a = 0
-            for i in range(3000000):
-                a += i
+        Timer.clear()
 
         with Timer('dog'):
-            a = 0
-            for i in range(3000000):
-                a += i
+            TestTimer.big_loop()
+
+        with Timer('dog'):
+            TestTimer.big_loop()
 
         with Timer('cat'):
-            a = 0
-            for i in range(100000):
-                a += i
+            TestTimer.big_loop()
 
         self.assertTrue('dog' in Timer.timer_dict)
         self.assertTrue('cat' in Timer.timer_dict)
@@ -32,4 +35,30 @@ class TestTimer(unittest.TestCase):
         self.assertEqual(cat_timer.events, 1)
         self.assertGreater(dog_timer.total_time, cat_timer.total_time)
         Timer.show_timers()
+
+    def test_level_timer(self):
+        Timer.clear()
+
+        solver = SimpleMultigridSolver.get_solver(["3"])
+        level = solver.fine_level
+        self.assertIsInstance(level.timer, LevelTimer)
+
+        with level.timer("fox"):
+            TestTimer.big_loop()
+
+        with level.timer("emu"):
+            TestTimer.big_loop()
+
+        self.assertEqual(len(Timer.timer_level_dict.keys()), 1)
+        self.assertEqual(len(Timer.timer_dict.keys()), 2)
+        self.assertEqual(len(Timer.timer_level_dict[0].keys()), 2)
+        self.assertIn("fox", Timer.timer_dict)
+        self.assertIn("emu", Timer.timer_dict)
+        self.assertIn("fox", Timer.timer_level_dict[0])
+        self.assertIn("emu", Timer.timer_level_dict[0])
+        self.assertNotIn("dog", Timer.timer_dict)
+
+        print(Timer.timer_level_dict)
+        Timer.show_timers()
+
 
