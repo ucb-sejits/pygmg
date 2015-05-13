@@ -2,6 +2,7 @@
 implement a simple single threaded, variable coefficient gmg solver
 """
 from __future__ import division, print_function
+import math
 from stencil_code.halo_enumerator import HaloEnumerator
 from hpgmg.finite_volume.timer import LevelTimer
 
@@ -70,6 +71,9 @@ class SimpleLevel(object):
         self.alpha_is_zero = None
 
         self.timer = LevelTimer(self)
+
+    def dimension_exponent(self):
+        return math.log((self.space[0] - self.ghost_zone[0]), 2)
 
     def make_coarser_level(self):
         coarser_level = SimpleLevel(self.solver, (self.space-self.ghost_zone)//2, self.level_number+1)

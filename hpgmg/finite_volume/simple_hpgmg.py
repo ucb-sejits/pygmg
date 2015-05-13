@@ -124,7 +124,7 @@ class SimpleMultigridSolver(object):
             ))
             self.fine_level.shift_mesh(self.fine_level.exact_solution, -average_value_of_exact_solution,
                                        self.fine_level.exact_solution)
-            self.fine_level.dump(self.fine_level.exact_solution, "VECTOR_UTRUE_ADJUSTED")
+            self.fine_level.exact_solution.dump("VECTOR_UTRUE_ADJUSTED")
 
         if self.boundary_is_periodic:
             average_value_of_rhs = self.fine_level.mean_mesh(self.fine_level.right_hand_side)
