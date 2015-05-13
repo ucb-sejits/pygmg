@@ -45,6 +45,9 @@ class EventTimer(object):
             self.timer_dict[name] = TimerRecord(name)
         return Timer(self.timer_dict[name])
 
+    def __getitem__(self, item):
+        return self.timer_dict[item]
+
     def clear(self):
         self.timer_dict = {}
 

@@ -20,7 +20,7 @@ from hpgmg.finite_volume.operators.variable_beta_generators import VariableBeta
 from hpgmg.finite_volume.operators.boundary_conditions_fv import BoundaryUpdaterV1
 from hpgmg.finite_volume.solvers.bicgstab import BiCGStab
 from hpgmg.finite_volume.solvers.smoothing_solver import SmoothingSolver
-from hpgmg.finite_volume.timer import Timer
+from hpgmg.finite_volume.timer import EventTimer
 from hpgmg.finite_volume.space import Space, Vector
 from hpgmg.finite_volume.simple_level import SimpleLevel
 
@@ -112,6 +112,8 @@ class SimpleMultigridSolver(object):
 
         if configuration.variable_coefficient:
             self.beta_generator = VariableBeta(self.dimensions)
+
+        self.timer = EventTimer(self)
 
         self.fine_level = SimpleLevel(solver=self, space=self.global_size, level_number=0)
         self.all_levels = [self.fine_level]
@@ -281,7 +283,7 @@ class SimpleMultigridSolver(object):
 
         level = self.fine_level
 
-        with Timer("mg-solve time"):
+        with self.timer("mg-solve time"):
             print("MGSolve.... \n", end='')
 
             if d_tolerance > 0.0:
@@ -330,24 +332,31 @@ class SimpleMultigridSolver(object):
                     break
 
     def show_timing_information(self):
-        def show_timers():
-            return
+        all_level_keys = set()
+        for level in self.all_levels:
+            for key in level.timer.names():
+                all_level_keys.add(key)
 
-            all_keys = set()
-            for level in Timer.timer_level_dict.keys():
-                for key in Timer.timer_level_dict[level].keys():
-                    all_keys += key
-
-            for key in sorted(all_keys):
-                print("{:20.20s}".format(key), end=" ")
-                for level in sorted(Timer.timer_level_dict.keys()):
-                    if key in Timer.timer_level_dict[level]:
-                        print("{:10.6f}".format(Timer.timer_level_dict[level][key]), end=" ")
-                    else:
-                        print("{:10s}".format("NA"), end=" ")
-
-            for name in sorted(Timer.timer_dict.keys()):
-                print(Timer.timer_dict[name])
+        print("{:26.26s}".format(""), end=" ")
+        for level in self.all_levels:
+            print("{:12d}".format(level.level_number), end=" ")
+        print()
+        print("{:26.26s}".format("box dimension"), end=" ")
+        for level in self.all_levels:
+            print("{:>12s}".format("{}^{}".format(level.dimension_exponent(), self.dimensions)), end=" ")
+        print()
+        print("{:26.26s}".format("-"*26), end=" ")
+        for level in self.all_levels:
+            print("{:>12s}".format("-"*12), end=" ")
+        print()
+        for key in sorted(all_level_keys):
+            print("{:26.26s}".format(key), end=" ")
+            for level in self.all_levels:
+                if key in level.timer.names():
+                    print("{:12.6f}".format(level.timer[key].total_time), end=" ")
+                else:
+                    print("{:12s}".format("NA"), end=" ")
+            print()
 
     @staticmethod
     def get_configuration(args=None):
@@ -406,7 +415,7 @@ class SimpleMultigridSolver(object):
         configuration = SimpleMultigridSolver.get_configuration()
         solver = SimpleMultigridSolver(configuration)
         solver.solve()
-        Timer.show_timers()
+        solver.show_timing_information()
 
 
 if __name__ == '__main__':

@@ -1,6 +1,6 @@
 from __future__ import print_function
 from hpgmg.finite_volume.simple_hpgmg import SimpleMultigridSolver
-from hpgmg.finite_volume.timer import Timer, EventTimer
+from hpgmg.finite_volume.timer import Timer, EventTimer, TimerRecord
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
@@ -51,6 +51,9 @@ class TestTimer(unittest.TestCase):
 
         with level.timer("goat"):
             TestTimer.big_loop()
+
+        self.assertIsInstance(level.timer["goat"], TimerRecord)
+        self.assertRaises(KeyError, level.timer.__getitem__, 'dog')
 
         print(level.timer.names())
         self.assertEqual(len(level.timer.names()), 3)

@@ -80,7 +80,7 @@ class SimpleLevel(object):
         self.timer = EventTimer(self)
 
     def dimension_exponent(self):
-        return math.log((self.space[0] - self.ghost_zone[0]), 2)
+        return int(math.log((self.space[0] - (self.ghost_zone[0]*2)), 2))
 
     def make_coarser_level(self):
         coarser_level = SimpleLevel(self.solver, (self.space-self.ghost_zone)//2, self.level_number+1)
