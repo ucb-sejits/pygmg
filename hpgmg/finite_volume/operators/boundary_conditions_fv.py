@@ -1,7 +1,6 @@
 from __future__ import print_function
 import itertools
 from stencil_code.halo_enumerator import HaloEnumerator
-from hpgmg.finite_volume.hpgmg_exception import HpgmgException
 from hpgmg.finite_volume.mesh import Mesh
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
@@ -30,13 +29,14 @@ class BoundaryUpdaterV1(object):
         self.solver = solver
 
         if self.solver.boundary_is_dirichlet:
-            self.apply = self.apply_dirichlet
+            self.apply = BoundaryUpdaterV1.apply_dirichlet
             self.name = "dirichlet"
         elif self.solver.boundary_is_periodic:
-            self.apply = self.apply_periodic
+            self.apply = BoundaryUpdaterV1.apply_periodic
             self.name = "periodic"
 
-    def apply_dirichlet(self, level, mesh):
+    @staticmethod
+    def apply_dirichlet(level, mesh):
         assert(isinstance(mesh, Mesh))
 
         halo_iterator = HaloEnumerator(level.ghost_zone, mesh.space)
@@ -56,12 +56,13 @@ class BoundaryUpdaterV1(object):
                     neighbor.append(x)
             return sign, tuple(neighbor)
 
-        for index in halo_iterator.fixed_surface_iterator():
+        with level.timer('apply_boundary'):
+            for index in halo_iterator.fixed_surface_iterator():
+                scale, neighbor_index = get_scale_and_neighbor(index)
+                mesh[index] = scale * mesh[neighbor_index]
 
-            scale, neighbor_index = get_scale_and_neighbor(index)
-            mesh[index] = scale * mesh[neighbor_index]
-
-    def apply_periodic(self, level, mesh):
+    @staticmethod
+    def apply_periodic(level, mesh):
         assert(isinstance(mesh, Mesh))
 
         halo_iterator = HaloEnumerator(level.ghost_zone, mesh.space)
@@ -78,10 +79,10 @@ class BoundaryUpdaterV1(object):
                     neighbor.append(x)
             return tuple(neighbor)
 
-        for index in halo_iterator.fixed_surface_iterator():
-
-            neighbor_index = get_scale_and_neighbor(index)
-            mesh[index] = mesh[neighbor_index]
+        with level.timer('apply_boundary'):
+            for index in halo_iterator.fixed_surface_iterator():
+                neighbor_index = get_scale_and_neighbor(index)
+                mesh[index] = mesh[neighbor_index]
 
     def ordered_border_type_enumerator(self):
         """

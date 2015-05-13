@@ -1,6 +1,7 @@
 from __future__ import print_function
 import math
 from hpgmg.finite_volume.mesh import Mesh
+from hpgmg.finite_volume.operators.apply_op import ApplyOp
 from hpgmg.finite_volume.solvers.iterative_solver import IterativeSolver
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
@@ -64,9 +65,7 @@ class BiCGStab(IterativeSolver):
                 level.scale_mesh(q_mesh, 1.0, p_mesh)
 
             #Ap[] = AM^{-1}(p)
-            top_solver.boundary_updater.apply(level, q_mesh)
-            for index in level.interior_points():
-                ap_mesh[index] = top_solver.problem_operator.apply_op(q_mesh, index, level)
+            ApplyOp(level, ap_mesh, q_mesh)
 
             # Ap_dot_r0 = dot(Ap,r0)
             # pivot breakdown ???
@@ -112,9 +111,8 @@ class BiCGStab(IterativeSolver):
             # r[]    = s[]    - omega*As[]  (recursively computed / updated residual)
             # norm of recursively computed residual (good enough??)
 
-            top_solver.boundary_updater.apply(level, t_mesh)
-            for index in level.interior_points():
-                as_mesh[index] = top_solver.problem_operator.apply_op(t_mesh, index, level)
+            ApplyOp(level, as_mesh, t_mesh)
+
             as_dot_as = level.dot_mesh(as_mesh, as_mesh)
             as_dot_s = level.dot_mesh(as_mesh, s_mesh)
             if as_dot_as == 0.0:

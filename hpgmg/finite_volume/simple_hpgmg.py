@@ -331,6 +331,13 @@ class SimpleMultigridSolver(object):
                 if norm_of_residual < d_tolerance:
                     break
 
+    def calculate_error(self, mesh1, mesh2):
+        level = self.fine_level
+        h3 = level.h ** self.dimensions
+        level.add_meshes(level.temp, 1.0, mesh1, -1.0, mesh2)
+        error_norm = level.norm_mesh(level.temp)
+        return error_norm
+
     def show_timing_information(self):
         all_level_keys = set()
         for level in self.all_levels:
@@ -343,7 +350,7 @@ class SimpleMultigridSolver(object):
         print()
         print("{:26.26s}".format("box dimension"), end=" ")
         for level in self.all_levels:
-            print("{:>12s}".format("{}^{}".format(level.dimension_exponent(), self.dimensions)), end=" ")
+            print("{:>12s}".format("{}^{}".format(level.dimension_size(), self.dimensions)), end=" ")
         print()
         print("{:26.26s}".format("-"*26), end=" ")
         for level in self.all_levels:
@@ -357,6 +364,10 @@ class SimpleMultigridSolver(object):
                 else:
                     print("{:12s}".format("NA"), end=" ")
             print()
+
+        print()
+        for key in self.timer.names():
+            print(self.timer[key])
 
     @staticmethod
     def get_configuration(args=None):
@@ -416,6 +427,10 @@ class SimpleMultigridSolver(object):
         solver = SimpleMultigridSolver(configuration)
         solver.solve()
         solver.show_timing_information()
+        fine_error = solver.calculate_error(solver.fine_level.cell_values, solver.fine_level.exact_solution)
+        print("\ncalculating error... h = {:22.15e}    ||error|| = {:22.15e}".format(
+            1.0/solver.fine_level.dimension_size(), fine_error
+        ))
 
 
 if __name__ == '__main__':

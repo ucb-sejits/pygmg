@@ -79,6 +79,9 @@ class SimpleLevel(object):
 
         self.timer = EventTimer(self)
 
+    def dimension_size(self):
+        return self.space[0] - (self.ghost_zone[0]*2)
+
     def dimension_exponent(self):
         return int(math.log((self.space[0] - (self.ghost_zone[0]*2)), 2))
 
