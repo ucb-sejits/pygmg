@@ -1,6 +1,7 @@
 from __future__ import print_function
 import itertools
 from stencil_code.halo_enumerator import HaloEnumerator
+from hpgmg.finite_volume.hpgmg_exception import HpgmgException
 from hpgmg.finite_volume.mesh import Mesh
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
@@ -30,8 +31,10 @@ class BoundaryUpdaterV1(object):
 
         if self.solver.boundary_is_dirichlet:
             self.apply = self.apply_dirichlet
+            self.name = "dirichlet"
         elif self.solver.boundary_is_periodic:
             self.apply = self.apply_periodic
+            self.name = "periodic"
 
     def apply_dirichlet(self, level, mesh):
         assert(isinstance(mesh, Mesh))

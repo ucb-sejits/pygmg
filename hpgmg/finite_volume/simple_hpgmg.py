@@ -43,13 +43,14 @@ class SimpleMultigridSolver(object):
         logging.debug("equation {}".format(configuration.equation))
 
         if configuration.equation == 'h':
-            # h is for helmholtz
             self.a = 1.0
             self.b = 1.0
+            print("Creating Helmholtz (a={}, b={}) test problem".format(self.a, self.b))
         else:
             # default p is for poisson
             self.a = 0.0
             self.b = 1.0
+            print("Creating Poisson(a={}, b={}) test problem".format(self.a, self.b))
 
         self.configuration = configuration
         self.dimensions = configuration.dimensions
@@ -78,18 +79,24 @@ class SimpleMultigridSolver(object):
                 use_l1_jacobi=configuration.use_l1_jacobi,
                 iterations=configuration.smoother_iterations
             )
+            print("Using Jacobi smoother ({})".format(
+                "l1_inverse" if configuration.use_l1_jacobi else "d_inverse"
+            ))
         elif configuration.smoother == 'c':
             self.smoother = ChebyshevSmoother(
                 self.problem_operator,
                 degree=1,
                 iterations=configuration.smoother_iterations
             )
+            print("Using Chebyshev smoother")
 
         self.default_bottom_norm = 1e-3
         if configuration.bottom_solver == 'bicgstab':
             self.bottom_solver = BiCGStab(solver=self, desired_reduction=self.default_bottom_norm)
+            print("Using BiCGStab bottom solver")
         else:
             self.bottom_solver = SmoothingSolver(solver=self, desired_reduction=self.default_bottom_norm)
+            print("Using smoothing bottom solver")
 
         self.minimum_coarse_dimension = configuration.minimum_coarse_dimension
 
@@ -143,6 +150,8 @@ class SimpleMultigridSolver(object):
             self.fine_level.beta_face_values[0].dump("VECTOR_BETA_K")
             self.fine_level.beta_face_values[1].dump("VECTOR_BETA_J")
             self.fine_level.beta_face_values[2].dump("VECTOR_BETA_I")
+
+        self.build_all_levels()
 
     def initialize(self, level):
         """
@@ -211,6 +220,7 @@ class SimpleMultigridSolver(object):
         level = self.fine_level
         while level.space[0] > self.minimum_coarse_dimension and level.space[0] % 2 == 0:
             coarser_level = level.make_coarser_level()
+            self.problem_operator.rebuild_operator(coarser_level, level)
             self.all_levels.append(coarser_level)
             level = coarser_level
 
@@ -232,13 +242,12 @@ class SimpleMultigridSolver(object):
 
             level.temp.dump("VECTOR_TEMP_RESIDUAL level {}".format(level.level_number))
 
-            coarser_level = level.make_coarser_level()
+            coarser_level = self.all_levels[level.level_number+1]
 
             self.restrictor.restrict(coarser_level, coarser_level.residual, level.temp, Restriction.RESTRICT_CELL)
             coarser_level.residual.dump("RESTRICTED_RID level {}".format(coarser_level.level_number))
             coarser_level.fill_mesh(coarser_level.cell_values, 0.0)
 
-            self.problem_operator.rebuild_operator(coarser_level, level)
             coarser_level.residual.dump("RESTRICTED_RID level {}".format(coarser_level.level_number))
 
         self.v_cycle(coarser_level, coarser_level.cell_values, coarser_level.residual)

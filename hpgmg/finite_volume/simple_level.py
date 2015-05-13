@@ -33,6 +33,13 @@ class SimpleLevel(object):
     """
     def __init__(self, solver, space, level_number=0):
         assert(isinstance(space, Space))
+
+        print("attempting to create a {:d}^{:d} level (with {} BC) as level {:d}...".format(
+            space[0], solver.dimensions,
+            solver.boundary_updater.name,
+            level_number
+        ))
+
         self.solver = solver
         self.space = space + (solver.ghost_zone * 2)
 
