@@ -4,7 +4,7 @@ implement a simple single threaded, variable coefficient gmg solver
 from __future__ import division, print_function
 import math
 from stencil_code.halo_enumerator import HaloEnumerator
-from hpgmg.finite_volume.timer import LevelTimer
+from hpgmg.finite_volume.timer import EventTimer
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
@@ -77,7 +77,7 @@ class SimpleLevel(object):
         self.cell_size = 1.0 / space[0]
         self.alpha_is_zero = None
 
-        self.timer = LevelTimer(self)
+        self.timer = EventTimer(self)
 
     def dimension_exponent(self):
         return math.log((self.space[0] - self.ghost_zone[0]), 2)

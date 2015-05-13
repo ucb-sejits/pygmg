@@ -329,6 +329,26 @@ class SimpleMultigridSolver(object):
                 if norm_of_residual < d_tolerance:
                     break
 
+    def show_timing_information(self):
+        def show_timers():
+            return
+
+            all_keys = set()
+            for level in Timer.timer_level_dict.keys():
+                for key in Timer.timer_level_dict[level].keys():
+                    all_keys += key
+
+            for key in sorted(all_keys):
+                print("{:20.20s}".format(key), end=" ")
+                for level in sorted(Timer.timer_level_dict.keys()):
+                    if key in Timer.timer_level_dict[level]:
+                        print("{:10.6f}".format(Timer.timer_level_dict[level][key]), end=" ")
+                    else:
+                        print("{:10s}".format("NA"), end=" ")
+
+            for name in sorted(Timer.timer_dict.keys()):
+                print(Timer.timer_dict[name])
+
     @staticmethod
     def get_configuration(args=None):
         parser = argparse.ArgumentParser()

@@ -17,22 +17,9 @@ class TimerRecord(object):
         )
 
 
-class Timer(object):  # pragma: no cover
-    timer_dict = {}
-    timer_level_dict = {}
-
-    def __init__(self, timer_names, level=None):
-        if not isinstance(timer_names, list):
-            timer_names = [timer_names]
-        for timer_name in timer_names:
-            if not timer_name in Timer.timer_dict:
-                timer_record = TimerRecord(timer_name)
-                Timer.timer_dict[timer_name] = timer_record
-                if level is not None:
-                    if not level.level_number in Timer.timer_level_dict:
-                        Timer.timer_level_dict[level.level_number] = {}
-                    Timer.timer_level_dict[level.level_number][timer_name] = timer_record
-            self.timer_name = timer_name
+class Timer(object):
+    def __init__(self, timer_record):
+        self.timer_record = timer_record
 
     def __enter__(self):
         self.start = time.clock()
@@ -40,39 +27,30 @@ class Timer(object):  # pragma: no cover
 
     def __exit__(self, *args):
         self.last_interval = time.clock() - self.start
-        Timer.timer_dict[self.timer_name].total_time += self.last_interval
-        Timer.timer_dict[self.timer_name].events += 1
-
-    @staticmethod
-    def show_timers():
-        return
-
-        all_keys = set()
-        for level in Timer.timer_level_dict.keys():
-            for key in Timer.timer_level_dict[level].keys():
-                all_keys += key
-
-        for key in sorted(all_keys):
-            print("{:20.20s}".format(key), end=" ")
-            for level in sorted(Timer.timer_level_dict.keys()):
-                if key in Timer.timer_level_dict[level]:
-                    print("{:10.6f}".format(Timer.timer_level_dict[level][key]), end=" ")
-                else:
-                    print("{:10s}".format("NA"), end=" ")
-
-        for name in sorted(Timer.timer_dict.keys()):
-            print(Timer.timer_dict[name])
-
+        self.timer_record.total_time += self.last_interval
+        self.timer_record.events += 1
 
     @staticmethod
     def clear():
         Timer.timer_dict = {}
-        Timer.timer_level_dict = {}
 
 
-class LevelTimer(object):
-    def __init__(self, level):
-        self.level = level
+class EventTimer(object):
+    def __init__(self, parent):
+        self.parent = parent
+        self.timer_dict = {}
 
     def __call__(self, name):
-        return Timer(name, self.level)
+        if not name in self.timer_dict:
+            self.timer_dict[name] = TimerRecord(name)
+        return Timer(self.timer_dict[name])
+
+    def clear(self):
+        self.timer_dict = {}
+
+    def names(self):
+        return self.timer_dict.keys()
+
+    def show_timers(self):
+        for key in self.timer_dict.keys():
+            print("{}".format(self.timer_dict[key]))
