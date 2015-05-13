@@ -118,18 +118,24 @@ class SimpleMultigridSolver(object):
             # Poisson w/ periodic BC's...
             # nominally, u shifted by any constant is still a valid solution.
             # However, by convention, we assume u sums to zero.
-            mean = self.fine_level.mean_mesh(self.fine_level.exact_solution)
-            self.fine_level.shift_mesh(self.fine_level.exact_solution, -mean, self.fine_level.exact_solution)
+            average_value_of_exact_solution = self.fine_level.mean_mesh(self.fine_level.exact_solution)
+            print("  average value of u_true = {:20.12e}... shifting u_true to ensure it sums to zero...".format(
+                average_value_of_exact_solution
+            ))
+            self.fine_level.shift_mesh(self.fine_level.exact_solution, -average_value_of_exact_solution,
+                                       self.fine_level.exact_solution)
+            self.fine_level.dump(self.fine_level.exact_solution, "VECTOR_UTRUE_ADJUSTED")
 
         if self.boundary_is_periodic:
             average_value_of_rhs = self.fine_level.mean_mesh(self.fine_level.right_hand_side)
             if average_value_of_rhs != 0.0:
-                logging.warn("average_value_of_rhs {} should be zero, adjusting it".format(average_value_of_rhs))
+                print("average_value_of_rhs {} should be zero, adjusting it".format(average_value_of_rhs))
                 self.fine_level.shift_mesh(
                     self.fine_level.right_hand_side,
                     average_value_of_rhs,
                     self.fine_level.right_hand_side
                 )
+                self.fine_level.right_hand_side.dump("VECTOR_F_ADJUSTED")
 
         self.problem_operator.rebuild_operator(self.fine_level, source_level=None)
 
@@ -210,14 +216,14 @@ class SimpleMultigridSolver(object):
 
     def v_cycle(self, level, target_mesh, residual_mesh):
         if min(level.space) <= 3:
-            with Timer('bottom_solve'):
+            with level.timer('total cycles'):
                 residual_mesh.dump("BOTTOM-SOLVER-RESIDUAL level {}".format(level.level_number))
                 self.bottom_solver.solve(level, target_mesh, residual_mesh)
                 target_mesh.dump("BOTTOM-SOLVED level {}".format(level.level_number))
             return
 
         level.right_hand_side.dump("VCYCLE_RHS")
-        with Timer("v-cycle level {}".format(level.level_number)):
+        with level.timer("total cycles"):
             self.smoother.smooth(level, level.cell_values, level.residual)
             # if level.level_number == 1:
             #     exit(0)
@@ -232,11 +238,12 @@ class SimpleMultigridSolver(object):
             coarser_level.residual.dump("RESTRICTED_RID level {}".format(coarser_level.level_number))
             coarser_level.fill_mesh(coarser_level.cell_values, 0.0)
 
-        self.problem_operator.rebuild_operator(coarser_level, level)
-        coarser_level.residual.dump("RESTRICTED_RID level {}".format(coarser_level.level_number))
+            self.problem_operator.rebuild_operator(coarser_level, level)
+            coarser_level.residual.dump("RESTRICTED_RID level {}".format(coarser_level.level_number))
+
         self.v_cycle(coarser_level, coarser_level.cell_values, coarser_level.residual)
 
-        with Timer("v-cycle level {}".format(level.level_number)):
+        with level.timer("total cycles"):
             self.interpolator.interpolate(level, level.cell_values, coarser_level.cell_values)
             level.cell_values.dump("INTERPOLATED_U level {}".format(level.level_number))
             self.smoother.smooth(level, level.cell_values, level.residual)
@@ -301,12 +308,12 @@ class SimpleMultigridSolver(object):
 
                 if cycle > 0:
                     print("\n           ", end="")
-                    if r_tolerance > 0:
-                        print("v-cycle={:2d}  norm={:1.15e}  rel={:1.15e}".format(
-                            cycle+1, norm_of_residual, norm_of_residual / norm_of_right_hand_side))
-                    else:
-                        print("v-cycle={:2d}  norm={:1.15e}  rel={:1.15e}".format(
-                            cycle+1, norm_of_residual, norm_of_residual / norm_of_d_right_hand_side))
+                if r_tolerance > 0:
+                    print("v-cycle={:2d}  norm={:1.15e}  rel={:1.15e}".format(
+                        cycle+1, norm_of_residual, norm_of_residual / norm_of_right_hand_side))
+                else:
+                    print("v-cycle={:2d}  norm={:1.15e}  rel={:1.15e}".format(
+                        cycle+1, norm_of_residual, norm_of_residual / norm_of_d_right_hand_side))
 
                 if norm_of_residual / norm_of_right_hand_side < r_tolerance:
                     break

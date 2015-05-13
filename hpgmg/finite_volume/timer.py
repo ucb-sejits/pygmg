@@ -21,15 +21,18 @@ class Timer(object):  # pragma: no cover
     timer_dict = {}
     timer_level_dict = {}
 
-    def __init__(self, timer_name, level=None):
-        if not timer_name in Timer.timer_dict:
-            timer_record = TimerRecord(timer_name)
-            Timer.timer_dict[timer_name] = timer_record
-            if level is not None:
-                if not level.level_number in Timer.timer_level_dict:
-                    Timer.timer_level_dict[level.level_number] = {}
-                Timer.timer_level_dict[level.level_number][timer_name] = timer_record
-        self.timer_name = timer_name
+    def __init__(self, timer_names, level=None):
+        if not isinstance(timer_names, list):
+            timer_names = [timer_names]
+        for timer_name in timer_names:
+            if not timer_name in Timer.timer_dict:
+                timer_record = TimerRecord(timer_name)
+                Timer.timer_dict[timer_name] = timer_record
+                if level is not None:
+                    if not level.level_number in Timer.timer_level_dict:
+                        Timer.timer_level_dict[level.level_number] = {}
+                    Timer.timer_level_dict[level.level_number][timer_name] = timer_record
+            self.timer_name = timer_name
 
     def __enter__(self):
         self.start = time.clock()
@@ -42,6 +45,21 @@ class Timer(object):  # pragma: no cover
 
     @staticmethod
     def show_timers():
+        return
+
+        all_keys = set()
+        for level in Timer.timer_level_dict.keys():
+            for key in Timer.timer_level_dict[level].keys():
+                all_keys += key
+
+        for key in sorted(all_keys):
+            print("{:20.20s}".format(key), end=" ")
+            for level in sorted(Timer.timer_level_dict.keys()):
+                if key in Timer.timer_level_dict[level]:
+                    print("{:10.6f}".format(Timer.timer_level_dict[level][key]), end=" ")
+                else:
+                    print("{:10s}".format("NA"), end=" ")
+
         for name in sorted(Timer.timer_dict.keys()):
             print(Timer.timer_dict[name])
 

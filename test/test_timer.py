@@ -37,28 +37,29 @@ class TestTimer(unittest.TestCase):
         Timer.show_timers()
 
     def test_level_timer(self):
-        Timer.clear()
-
         solver = SimpleMultigridSolver.get_solver(["3"])
         level = solver.fine_level
         self.assertIsInstance(level.timer, LevelTimer)
 
+        Timer.clear()
+
         with level.timer("fox"):
             TestTimer.big_loop()
 
-        with level.timer("emu"):
+        with level.timer(["emu", "goat"]):
             TestTimer.big_loop()
 
         self.assertEqual(len(Timer.timer_level_dict.keys()), 1)
-        self.assertEqual(len(Timer.timer_dict.keys()), 2)
-        self.assertEqual(len(Timer.timer_level_dict[0].keys()), 2)
+        print(Timer.timer_level_dict[0].keys())
+        self.assertEqual(len(Timer.timer_dict.keys()), 3)
+        self.assertEqual(len(Timer.timer_level_dict[0].keys()), 3)
         self.assertIn("fox", Timer.timer_dict)
         self.assertIn("emu", Timer.timer_dict)
         self.assertIn("fox", Timer.timer_level_dict[0])
         self.assertIn("emu", Timer.timer_level_dict[0])
+        self.assertIn("goat", Timer.timer_level_dict[0])
         self.assertNotIn("dog", Timer.timer_dict)
 
-        print(Timer.timer_level_dict)
         Timer.show_timers()
 
 
