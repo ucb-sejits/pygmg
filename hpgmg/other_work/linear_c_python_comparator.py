@@ -11,15 +11,24 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 class Comparator(object):
     def __init__(self, allowed_percent_delta):
-        self.grid_names = []
+        self.c_grids, self.c_grid_names, self.c_start_lines = [], [], []
+        self.py_grids, self.py_grid_names, self.py_start_lines = [], [], []
+
         self.kind_to_grids = defaultdict(dict)
         self.allowed_percent_delta = allowed_percent_delta
 
     def read_file(self, name, kind):
+        if kind == 'c':
+            grids, grid_names, start_lines = self.c_grids, self.c_grid_names, self.c_start_lines
+        else:
+            grids, grid_names, start_lines = self.py_grids, self.py_grid_names, self.py_start_lines
+
         rows = 0
         shape = None
         grid_name = ''
+        current_grid = None
         in_mesh = False
+
         with open(name, 'rb') as csv_file:
             reader = csv.reader(csv_file, delimiter=',')
             for line, row in enumerate(reader):
@@ -33,9 +42,10 @@ class Comparator(object):
                         grid_name = row[2]
                         shape = (int(row[3]), int(row[4]), int(row[5]))
                         print("mesh kind {} start {} shape {}".format(kind, grid_name, shape))
-                        if kind == 'c':
-                            self.grid_names.append(grid_name)
-                        self.kind_to_grids[kind][grid_name] = np.empty(shape)
+                        grid_names.append(grid_name)
+                        start_lines.append(line+1)
+                        current_grid = np.empty(shape)
+                        grids.append(current_grid)
                         in_mesh = True
                     elif row[1] == "MESHEND":
                         print("mesh end rows {}".format(rows))
@@ -50,7 +60,7 @@ class Comparator(object):
                             i = int(row[1])
                             j = int(row[2])
                             for k in range(shape[2]):
-                                self.kind_to_grids[kind][grid_name][(i, j, k)] = float(row[k+3])
+                                current_grid[(i, j, k)] = float(row[k+3])
                 except Exception as e:
                     print("err line {} '{}'".format(line, row))
                     raise e
@@ -88,15 +98,20 @@ class Comparator(object):
     def compare_grids(self):
         allowed_difference = abs(int(math.log(self.allowed_percent_delta, 10)))
         print("allowed difference {}".format(allowed_difference))
-        for grid_name in self.grid_names:
-            print("comparing grid {}".format(grid_name))
-            for kind in ['c', 'py']:
-                if not grid_name in self.kind_to_grids[kind]:
-                    print("Cannot find grid {} in {} grid".format(grid_name, kind))
-                    exit(0)
 
-            c_grid = self.kind_to_grids['c'][grid_name]
-            py_grid = self.kind_to_grids['py'][grid_name]
+        for index, c_grid in enumerate(self.c_grids):
+            c_grid_name = self.c_grid_names[index]
+            py_grid_name = self.py_grid_names[index]
+
+            if c_grid_name != py_grid_name:
+                print("Bad match at {} c grid {} vs py grid {}".format(index, c_grid_name, py_grid_name))
+                break
+
+            print("comparing {} starting line c {} py {}".format(
+                c_grid_name, self.c_start_lines[index], self.py_start_lines[index]
+            ))
+
+            py_grid = self.py_grids[index]
 
             try:
                 np_test.assert_array_almost_equal(c_grid, py_grid, decimal=allowed_difference)

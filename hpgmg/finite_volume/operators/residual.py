@@ -16,6 +16,3 @@ class Residual(object):
             for index in level.interior_points():
                 a_x = self.operator.apply_op(source_mesh, index, level)
                 target_mesh[index] = right_hand_side[index] - a_x
-
-        target_mesh.dump("residual done")
-        return

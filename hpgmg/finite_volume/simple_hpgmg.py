@@ -123,6 +123,11 @@ class SimpleMultigridSolver(object):
         self.fine_level.exact_solution.dump("VECTOR_UTRUE")
         self.fine_level.right_hand_side.dump("VECTOR_F")
 
+        if self.dimensions == 3:
+            self.fine_level.beta_face_values[2].dump("VECTOR_BETA_I")
+            self.fine_level.beta_face_values[1].dump("VECTOR_BETA_J")
+            self.fine_level.beta_face_values[0].dump("VECTOR_BETA_K")
+
         if (self.a == 0.0 or self.fine_level.alpha_is_zero) and self.boundary_is_periodic:
             # Poisson w/ periodic BC's...
             # nominally, u shifted by any constant is still a valid solution.
@@ -147,11 +152,6 @@ class SimpleMultigridSolver(object):
                 self.fine_level.right_hand_side.dump("VECTOR_F_ADJUSTED")
 
         self.problem_operator.rebuild_operator(self.fine_level, source_level=None)
-
-        if self.dimensions == 3:
-            self.fine_level.beta_face_values[0].dump("VECTOR_BETA_K")
-            self.fine_level.beta_face_values[1].dump("VECTOR_BETA_J")
-            self.fine_level.beta_face_values[2].dump("VECTOR_BETA_I")
 
         self.build_all_levels()
 
@@ -237,17 +237,14 @@ class SimpleMultigridSolver(object):
         level.right_hand_side.dump("VCYCLE_RHS")
         with level.timer("total cycles"):
             self.smoother.smooth(level, level.cell_values, level.residual)
-            # if level.level_number == 1:
-            #     exit(0)
             level.cell_values.dump("PRE-SMOOTH VECTOR_U level {}".format(level.level_number))
-            self.residual.run(level, level.temp, level.cell_values, level.right_hand_side)
+            self.residual.run(level, level.temp, level.cell_values, residual_mesh)
 
             level.temp.dump("VECTOR_TEMP_RESIDUAL level {}".format(level.level_number))
 
             coarser_level = self.all_levels[level.level_number+1]
 
             self.restrictor.restrict(coarser_level, coarser_level.residual, level.temp, Restriction.RESTRICT_CELL)
-            coarser_level.residual.dump("RESTRICTED_RID level {}".format(coarser_level.level_number))
             coarser_level.fill_mesh(coarser_level.cell_values, 0.0)
 
             coarser_level.residual.dump("RESTRICTED_RID level {}".format(coarser_level.level_number))
@@ -338,6 +335,12 @@ class SimpleMultigridSolver(object):
         error_norm = level.norm_mesh(level.temp)
         return error_norm
 
+    def show_error_information(self):
+        fine_error = self.calculate_error(self.fine_level.cell_values, self.fine_level.exact_solution)
+        print("\ncalculating error... h = {:22.15e}    ||error|| = {:22.15e}".format(
+            1.0/self.fine_level.dimension_size(), fine_error
+        ))
+
     def show_timing_information(self):
         all_level_keys = set()
         for level in self.all_levels:
@@ -427,11 +430,7 @@ class SimpleMultigridSolver(object):
         solver = SimpleMultigridSolver(configuration)
         solver.solve()
         solver.show_timing_information()
-        fine_error = solver.calculate_error(solver.fine_level.cell_values, solver.fine_level.exact_solution)
-        print("\ncalculating error... h = {:22.15e}    ||error|| = {:22.15e}".format(
-            1.0/solver.fine_level.dimension_size(), fine_error
-        ))
-
+        solver.show_error_information()
 
 if __name__ == '__main__':
     SimpleMultigridSolver.main()
