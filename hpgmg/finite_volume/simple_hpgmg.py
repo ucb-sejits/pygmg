@@ -314,13 +314,11 @@ class SimpleMultigridSolver(object):
                     level.multiply_meshes(level.temp, 1.0, level.temp, level.d_inverse)
                 norm_of_residual = level.norm_mesh(level.temp)
 
-                if cycle > 0:
-                    print("\n           ", end="")
                 if r_tolerance > 0:
-                    print("v-cycle={:2d}  norm={:1.15e}  rel={:1.15e}".format(
+                    print("      v-cycle={:2d}  norm={:1.15e}  rel={:1.15e}".format(
                         cycle+1, norm_of_residual, norm_of_residual / norm_of_right_hand_side))
                 else:
-                    print("v-cycle={:2d}  norm={:1.15e}  rel={:1.15e}".format(
+                    print("      v-cycle={:2d}  norm={:1.15e}  rel={:1.15e}".format(
                         cycle+1, norm_of_residual, norm_of_residual / norm_of_d_right_hand_side))
 
                 if norm_of_residual / norm_of_right_hand_side < r_tolerance:
