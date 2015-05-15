@@ -1,6 +1,7 @@
 from __future__ import print_function
 import sys
 import csv
+import math
 import numpy as np
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
@@ -11,6 +12,7 @@ class GridReader(object):
         self.grid_file_name = grid_file_name
         self.grid_file = open(grid_file_name, 'rb')
         self.reader = csv.reader(self.grid_file, delimiter=',')
+        self.line_number = 0
         self.last_start_line = 0
         self.rows = 0
         self.shape = None
@@ -29,8 +31,8 @@ class GridReader(object):
         while True:
             try:
                 row = self.reader.next()
-                # print("row is {}".format(row))
-                line = self.reader.line_num
+                self.line_number += 1
+                # print("row[{}] is {}".format(self.line_number, row))
                 if not row:
                     pass
                 elif row[0] != "==":
@@ -39,9 +41,10 @@ class GridReader(object):
                     rows = 0
                     self.current_grid_name = row[2]
                     shape = (int(row[3]), int(row[4]), int(row[5]))
-                    self.last_start_line = line
+                    self.last_start_line = self.line_number
                     if self.verbose:
-                        print("{} mesh start line {} shape {}".format(self.current_grid_name, line, shape))
+                        print("{} mesh start line {} shape {}".format(
+                            self.current_grid_name, self.line_number, shape))
                     self.current_grid = np.empty(shape)
                     self.in_mesh = True
                 elif row[1] == "MESHEND":
@@ -62,7 +65,7 @@ class GridReader(object):
             except StopIteration:
                 return None
             except Exception as e:
-                print("err line {} '{}'".format(line, row))
+                print("err self.line_number {} '{}'".format(self.line_number, row))
                 raise e
 
 
@@ -104,11 +107,16 @@ class Comparator(object):
 
     def show_difference(self, c_grid, py_grid):
         shown = 0
+        precision = int(math.log(1.0 / self.allowed_percent_delta, 10))
+        format_statement = "diff {{:15s}} c {{:.{width}e}} py {{:.{width}e}} %-err {{:15.6f}} allowed {{}}".format(
+            width=precision
+        )
+        # print("format statement {}".format(format_statement))
         for i in range(c_grid.shape[0]):
             for j in range(c_grid.shape[1]):
                 for k in range(c_grid.shape[2]):
                     if not self.values_close_enough(c_grid[(i, j, k)], py_grid[(i, j, k)]):
-                        print("diff {:15s} c {:15.6e} py {:15.6e} %-err {:15.6f} allowed {}".format(
+                        print(format_statement.format(
                             (i, j, k),
                             c_grid[(i, j, k)], py_grid[(i, j, k)],
                             self.percent_delta(c_grid[(i, j, k)], py_grid[(i, j, k)]),
