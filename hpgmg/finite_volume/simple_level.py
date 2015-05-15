@@ -101,13 +101,8 @@ class SimpleLevel(object):
 
     def valid_indices(self):
         for index in self.indices():
-            yield index
-
-    def initialize_valid(self):
-        for index in self.valid.indices():
-            self.valid[index] = 1.0
-            if self.solver.boundary_is_dirichlet and self.valid.space.is_boundary_point(index):
-                self.valid[index] = 0.0
+            if self.valid[index] != 0.0:
+                yield index
 
     def ghost_indices(self, mesh):
         halo_enumerator = HaloEnumerator(self.solver.ghost, mesh.space)
