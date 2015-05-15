@@ -61,12 +61,12 @@ class ChebyshevSmoother(Smoother):
                 working_source_prev = mesh_to_smooth
                 working_target = mesh_to_smooth
 
-            level.solver.boundary_updater.apply(level, working_source)
             c1 = chebyshev_c1[s % self.degree]
             c2 = chebyshev_c2[s % self.degree]
 
             lambda_mesh = level.d_inverse
 
+            level.solver.boundary_updater.apply(level, working_source)
             for index in level.interior_points():
                 a_x = self.operator.apply_op(working_source, index, level)
                 b = rhs_mesh[index]
