@@ -115,7 +115,7 @@ class Mesh(np.ndarray):
                 for j in range(1, max_j-1):
                     print("==,{:02d},{:02d},".format(i-1, j-1), end='')
                     for k in range(1, max_k-1):
-                        print("{:f},".format(self[(i, j, k)]), end="")
+                        print("{:.12e},".format(self[(i, j, k)]), end="")
                     print()
             if message:
                 print("==,MESHEND,{},".format(message))

@@ -26,5 +26,7 @@ class SmoothingSolver(object):
             self.solver.residual.run(level, level.temp, target_mesh, residual_mesh)
             level.multiply_meshes(level.temp, scale_factor=1.0, mesh_a=level.temp, mesh_b=level.d_inverse)
             norm_of_r = level.norm_mesh(level.temp)
+            # print("bottom solver pass {}, norm_of_r {}".format(smooth_count, norm_of_r0))
             if norm_of_r == 0.0 or norm_of_r < self.desired_reduction * norm_of_r0:
                 converged = True
+                # print("converged")

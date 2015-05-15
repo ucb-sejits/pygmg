@@ -80,6 +80,14 @@ class Comparator(object):
         # ))
         return Comparator.percent_delta(desired, actual) <= self.allowed_percent_delta
 
+    def is_different(self, c_grid, py_grid):
+        for i in range(c_grid.shape[0]):
+            for j in range(c_grid.shape[1]):
+                for k in range(c_grid.shape[2]):
+                    if not self.values_close_enough(c_grid[(i, j, k)], py_grid[(i, j, k)]):
+                        return True
+        return False
+
     def show_difference(self, c_grid, py_grid):
         shown = 0
         for i in range(c_grid.shape[0]):
@@ -104,7 +112,9 @@ class Comparator(object):
             py_grid_name = self.py_grid_names[index]
 
             if c_grid_name != py_grid_name:
-                print("Bad match at {} c grid {} vs py grid {}".format(index, c_grid_name, py_grid_name))
+                print("Bad match at {} c grid {}:{} vs py grid {}:{}".format(
+                    index, c_grid_name, self.c_start_lines[index],
+                    py_grid_name, self.py_start_lines[index]))
                 break
 
             print("comparing {} starting line c {} py {}".format(
@@ -113,9 +123,10 @@ class Comparator(object):
 
             py_grid = self.py_grids[index]
 
-            try:
-                np_test.assert_array_almost_equal(c_grid, py_grid, decimal=allowed_difference)
-            except Exception:
+            # try:
+            #     np_test.assert_array_almost_equal(c_grid, py_grid, decimal=allowed_difference)
+            # except Exception:
+            if self.is_different(c_grid, py_grid):
                 self.show_difference(c_grid, py_grid)
             print("compare done")
 
