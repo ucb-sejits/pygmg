@@ -19,10 +19,11 @@ class SmoothingSolver(object):
 
         norm_of_r0 = level.norm_mesh(level.temp)
 
-        smooth_count, max_smooths, converged = 0, 10, False
+        smooth_count, max_smooths, converged = 0, 200, False
         while smooth_count < max_smooths and not converged:
             smooth_count += 1
             self.solver.smoother.smooth(level, target_mesh, residual_mesh)
+            # target_mesh.dump("BOTTOM-SMOOTH-CELL-VALUES-{}".format(smooth_count))
             self.solver.residual.run(level, level.temp, target_mesh, residual_mesh)
             level.multiply_meshes(level.temp, scale_factor=1.0, mesh_a=level.temp, mesh_b=level.d_inverse)
             norm_of_r = level.norm_mesh(level.temp)

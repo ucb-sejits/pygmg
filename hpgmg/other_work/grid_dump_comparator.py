@@ -1,10 +1,7 @@
 from __future__ import print_function
 import sys
 import csv
-import math
-from collections import defaultdict
 import numpy as np
-import numpy.testing as np_test
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
@@ -27,13 +24,13 @@ class GridReader(object):
             yield line, row
 
     def next_grid(self):
+        rows = 0
+        shape = None
         while True:
-            row = self.reader.next()
-            # print("row is {}".format(row))
-            if row is None:
-                return None
-            line = self.reader.line_num
             try:
+                row = self.reader.next()
+                # print("row is {}".format(row))
+                line = self.reader.line_num
                 if not row:
                     pass
                 elif row[0] != "==":
@@ -62,6 +59,8 @@ class GridReader(object):
                         j = int(row[2])
                         for k in range(shape[2]):
                             self.current_grid[(i, j, k)] = float(row[k+3])
+            except StopIteration:
+                return None
             except Exception as e:
                 print("err line {} '{}'".format(line, row))
                 raise e
@@ -73,6 +72,7 @@ class Comparator(object):
         self.grid_ids = [x for x in range(len(self.file_names))]
         self.allowed_percent_delta = allowed_percent_delta
         self.grids_compared = 0
+        self.differing_grids = 0
 
         self.grid_readers = [
             GridReader(self.file_names[grid_id])
@@ -143,6 +143,7 @@ class Comparator(object):
                 break
 
             if self.is_different(grid_0, grid_1):
+                self.differing_grids += 1
                 self.show_difference(grid_0, grid_1)
             print("compare done")
 
@@ -153,4 +154,4 @@ if __name__ == '__main__':
 
     c.compare_grids()
 
-    print("compared {} grids".format(c.grids_compared))
+    print("compared {} grids, {} were different".format(c.grids_compared, c.differing_grids))
