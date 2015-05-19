@@ -155,6 +155,9 @@ class SimpleLevel(object):
                 max_norm = abs(mesh[index])
         return max_norm
 
+    def meshes_interiors_equal(self, mesh_a, mesh_b):
+        return all(mesh_a[index] == mesh_b[index] for index in self.interior_points())
+
     def project_cell_to_face(self, cell_mesh, face_id):
         lower_neighbor = Vector(
             -1 if d == face_id else 0 for d in range(len(self.space))

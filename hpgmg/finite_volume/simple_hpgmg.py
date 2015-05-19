@@ -61,7 +61,7 @@ class SimpleMultigridSolver(object):
         self.boundary_is_periodic = configuration.boundary_condition == 'p'
         self.boundary_is_dirichlet = configuration.boundary_condition != 'p'
         self.boundary_updater = BoundaryUpdaterV1(solver=self)
-
+        print("Boundary condition is {}".format(self.boundary_updater.name))
         self.is_helmholtz = configuration.equation == 'h'
         self.is_poisson = configuration.equation == 'p'
 
