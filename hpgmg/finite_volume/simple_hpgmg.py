@@ -155,6 +155,12 @@ class SimpleMultigridSolver(object):
 
         self.build_all_levels()
 
+        for index in range(1, len(self.all_levels)):
+            self.all_levels[index].beta_face_values[2].dump("VECTOR_BETA_I_LEVEL_{}".format(index))
+            self.all_levels[index].beta_face_values[1].dump("VECTOR_BETA_J_LEVEL_{}".format(index))
+            self.all_levels[index].beta_face_values[0].dump("VECTOR_BETA_K_LEVEL_{}".format(index))
+            self.all_levels[index].d_inverse.dump("VECTOR_DINV_LEVEL_{}".format(index))
+
     def initialize(self, level):
         """
         Initialize the right_hand_side(VECTOR_F), exact_solution(VECTOR_UTRUE)
@@ -330,12 +336,17 @@ class SimpleMultigridSolver(object):
         level = self.fine_level
         h3 = level.h ** self.dimensions
         level.add_meshes(level.temp, 1.0, mesh1, -1.0, mesh2)
+        level.temp.dump("ERROR DIFFERENCE")
         error_norm = level.norm_mesh(level.temp)
         return error_norm
 
     def show_error_information(self):
+        level = self.fine_level
+        level.exact_solution.dump("FINAL_EXACT_SOLUTION")
+        level.cell_values.dump("FINAL_COMPUTED_SOLUTION")
+
         fine_error = self.calculate_error(self.fine_level.cell_values, self.fine_level.exact_solution)
-        print("\ncalculating error... h = {:22.15e}    ||error|| = {:22.15e}".format(
+        print("\ncalculating error... h = {:22.15e}  ||error|| = {:22.15e}".format(
             1.0/self.fine_level.dimension_size(), fine_error
         ))
 

@@ -174,6 +174,17 @@ class Space(Coord):
         """Iterates over the points in the space"""
         return (Coord(coord) for coord in itertools.product(*[range(g, i-g) for i, g in zip(self, halo)]))
 
+    def beta_interior_points(self, halo, axis):
+        """Iterates over the points in the space"""
+        def range_params():
+            for dim in range(self.ndim):
+                if dim == axis:
+                    yield (halo[dim], self[dim])
+                else:
+                    yield (halo[dim], self[dim] - halo[dim])
+
+        return (Coord(coord) for coord in itertools.product(*[range(start, stop) for start, stop in range_params()]))
+
     def __contains__(self, item):
         """Determines if the coordinate is in this space"""
         if isinstance(item, collections.Iterable):

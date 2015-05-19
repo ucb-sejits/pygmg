@@ -1,7 +1,6 @@
 from __future__ import print_function
 from stencil_code.neighborhood import Neighborhood
 from hpgmg.finite_volume.simple_level import SimpleLevel
-from hpgmg.finite_volume.space import Coord
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
@@ -55,9 +54,18 @@ class Restriction(object):
 
     def restrict(self, level, target, source, restriction_type):
         assert(isinstance(level, SimpleLevel))
-        for target_point in level.interior_points():
-            source_point = (target_point * 2) - level.ghost_zone
-            target[target_point] = 0.0
-            for neighbor_offset in self.neighbor_offsets[restriction_type]:
-                target[target_point] += source[source_point + neighbor_offset]
-            target[target_point] *= (1.0 / len(self.neighbor_offsets[restriction_type]))
+
+        if restriction_type == Restriction.RESTRICT_CELL:
+            for target_point in level.interior_points():
+                source_point = (target_point * 2) - level.ghost_zone
+                target[target_point] = 0.0
+                for neighbor_offset in self.neighbor_offsets[restriction_type]:
+                    target[target_point] += source[source_point + neighbor_offset]
+                target[target_point] *= (1.0 / len(self.neighbor_offsets[restriction_type]))
+        else:
+            for target_point in level.beta_interpolation_points(restriction_type-1):
+                source_point = (target_point * 2) - level.ghost_zone
+                target[target_point] = 0.0
+                for neighbor_offset in self.neighbor_offsets[restriction_type]:
+                    target[target_point] += source[source_point + neighbor_offset]
+                target[target_point] *= (1.0 / len(self.neighbor_offsets[restriction_type]))

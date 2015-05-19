@@ -99,6 +99,10 @@ class SimpleLevel(object):
         for point in self.space.interior_points(self.ghost_zone):
             yield point
 
+    def beta_interpolation_points(self, axis):
+        for point in self.space.beta_interior_points(self.ghost_zone, axis):
+            yield point
+
     def valid_indices(self):
         for index in self.indices():
             if self.valid[index] != 0.0:
@@ -116,7 +120,7 @@ class SimpleLevel(object):
 
     def add_meshes(self, target_mesh, scale_a, mesh_a, scale_b, mesh_b):
         for index in self.interior_points():
-            target_mesh[index] = scale_a * mesh_a[index] + scale_b + mesh_b[index]
+            target_mesh[index] = scale_a * mesh_a[index] + scale_b * mesh_b[index]
 
     def multiply_meshes(self, target_mesh, scale_factor, mesh_a, mesh_b):
         for index in self.interior_points():
