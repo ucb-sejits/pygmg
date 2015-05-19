@@ -155,11 +155,12 @@ class SimpleMultigridSolver(object):
 
         self.build_all_levels()
 
-        for index in range(1, len(self.all_levels)):
-            self.all_levels[index].beta_face_values[2].dump("VECTOR_BETA_I_LEVEL_{}".format(index))
-            self.all_levels[index].beta_face_values[1].dump("VECTOR_BETA_J_LEVEL_{}".format(index))
-            self.all_levels[index].beta_face_values[0].dump("VECTOR_BETA_K_LEVEL_{}".format(index))
-            self.all_levels[index].d_inverse.dump("VECTOR_DINV_LEVEL_{}".format(index))
+        if self.dimensions == 3:
+            for index in range(1, len(self.all_levels)):
+                self.all_levels[index].beta_face_values[2].dump("VECTOR_BETA_I_LEVEL_{}".format(index))
+                self.all_levels[index].beta_face_values[1].dump("VECTOR_BETA_J_LEVEL_{}".format(index))
+                self.all_levels[index].beta_face_values[0].dump("VECTOR_BETA_K_LEVEL_{}".format(index))
+                self.all_levels[index].d_inverse.dump("VECTOR_DINV_LEVEL_{}".format(index))
 
     def initialize(self, level):
         """
