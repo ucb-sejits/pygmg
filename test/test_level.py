@@ -1,14 +1,6 @@
 from __future__ import print_function
 import unittest
-import numpy as np
-from hpgmg.finite_volume.operators.chebyshev_smoother import ChebyshevSmoother
-
-from hpgmg.finite_volume.operators.stencil_von_neumann_r1 import StencilVonNeumannR1
-from hpgmg.finite_volume.solvers.bicgstab import BiCGStab
-from hpgmg.finite_volume.operators.jacobi_smoother import JacobiSmoother
 from hpgmg.finite_volume.simple_hpgmg import SimpleMultigridSolver
-from hpgmg.finite_volume.simple_level import SimpleLevel
-from hpgmg.finite_volume.space import Coord, Vector
 
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
@@ -99,7 +91,7 @@ class TestSimpleLevel(unittest.TestCase):
         total = level.dot_mesh(mesh1, mesh2)
         self.assertTrue(total, 12.0)
 
-    def test_dot_mesh(self):
+    def test_norm_mesh(self):
         level = self.solver.fine_level
         mesh1, mesh2 = level.cell_values, level.exact_solution
 
