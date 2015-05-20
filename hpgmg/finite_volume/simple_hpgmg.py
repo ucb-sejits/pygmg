@@ -334,12 +334,22 @@ class SimpleMultigridSolver(object):
                     break
 
     def calculate_error(self, mesh1, mesh2):
+        """
+        returns max norm of the error function
+        Commented code below is alternative that returns normalized l2 error
+        :param mesh1:
+        :param mesh2:
+        :return:
+        """
         level = self.fine_level
-        h3 = level.h ** self.dimensions
         level.add_meshes(level.temp, 1.0, mesh1, -1.0, mesh2)
         level.temp.dump("ERROR DIFFERENCE")
         error_norm = level.norm_mesh(level.temp)
         return error_norm
+
+        # h3 = level.h ** self.dimensions
+        # l2 = math.sqrt(level.dot_meshes(level.temp, level.temp)*h3)
+        # return l2
 
     def show_error_information(self):
         level = self.fine_level
@@ -364,19 +374,21 @@ class SimpleMultigridSolver(object):
         print("{:26.26s}".format("box dimension"), end=" ")
         for level in self.all_levels:
             print("{:>12s}".format("{}^{}".format(level.dimension_size(), self.dimensions)), end=" ")
-        print()
+        print(" {:>12s}".format("total"))
         print("{:26.26s}".format("-"*26), end=" ")
-        for level in self.all_levels:
+        for _ in self.all_levels:
             print("{:>12s}".format("-"*12), end=" ")
-        print()
+        print(" {:>12s}".format("-"*12))
         for key in sorted(all_level_keys):
             print("{:26.26s}".format(key), end=" ")
+            row_total = 0.0
             for level in self.all_levels:
                 if key in level.timer.names():
                     print("{:12.6f}".format(level.timer[key].total_time), end=" ")
+                    row_total += level.timer[key].total_time
                 else:
                     print("{:12s}".format("NA"), end=" ")
-            print()
+            print(" {:12f}".format(row_total))
 
         print()
         for key in self.timer.names():
