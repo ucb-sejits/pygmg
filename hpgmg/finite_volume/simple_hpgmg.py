@@ -4,6 +4,7 @@ implement a simple single threaded, gmg solver
 from __future__ import division, print_function
 import argparse
 import os
+import sys
 import logging
 from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.operators.chebyshev_smoother import ChebyshevSmoother
@@ -289,9 +290,10 @@ class SimpleMultigridSolver(object):
 
         level = self.all_levels[start_level]
 
-        with self.timer("mg-solve time"):
-            print("MGSolve.... \n", end='')
+        print("MGSolve.... ")
+        sys.stdout.flush()
 
+        with self.timer("mg-solve time"):
             if d_tolerance > 0.0:
                 level.multiply_meshes(level.temp, 1.0, level.right_hand_side, level.d_inverse)
                 norm_of_d_right_hand_side = level.norm_mesh(level.temp)
@@ -329,6 +331,7 @@ class SimpleMultigridSolver(object):
                 else:
                     print("      v-cycle={:2d}  norm={:1.15e}  rel={:1.15e}".format(
                         cycle+1, norm_of_residual, norm_of_residual / norm_of_d_right_hand_side))
+                sys.stdout.flush()
 
                 if norm_of_residual / norm_of_right_hand_side < r_tolerance:
                     break
@@ -356,24 +359,13 @@ class SimpleMultigridSolver(object):
         level_1.add_meshes(level_1.temp, 1.0, level_1.cell_values, -1.0, level_1.temp)
         level_2.add_meshes(level_2.temp, 1.0, level_2.cell_values, -1.0, level_2.temp)
 
-        norm_of_u2h_minus_uh  = level_1.norm_mesh(level_1.temp)  # || u^2h - R u^h  ||max
+        norm_of_u2h_minus_uh = level_1.norm_mesh(level_1.temp)  # || u^2h - R u^h  ||max
         norm_of_u4h_minus_u2h = level_2.norm_mesh(level_2.temp)  # || u^4h = R u^2h ||max
         # estimate the error^h using ||u^2h - R u^h||
         print("  h = {:22.15e}  ||error|| = {:22.15e}".format(level_0.h, norm_of_u2h_minus_uh))
         # log( ||u^4h - R u^2h|| / ||u^2h - R u^h|| ) / log(2)
         # is an estimate of the order of the method (e.g. 4th order)
         print("  order = {:0.3f}".format(math.log(norm_of_u4h_minus_u2h / norm_of_u2h_minus_uh) / math.log(2.0)))
-
-        # restriction(all_grids->levels[levelh+1],VECTOR_TEMP,all_grids->levels[levelh  ],u_id,RESTRICT_CELL); // temp^2h = R u^h
-        # restriction(all_grids->levels[levelh+2],VECTOR_TEMP,all_grids->levels[levelh+1],u_id,RESTRICT_CELL); // temp^4h = R u^2h
-        # add_vectors(all_grids->levels[levelh+1],VECTOR_TEMP,1.0,u_id,-1.0,VECTOR_TEMP);                    temp^2h = u^2h - temp^2h = u^2h = R u^h
-        # add_vectors(all_grids->levels[levelh+2],VECTOR_TEMP,1.0,u_id,-1.0,VECTOR_TEMP);                    temp^2h = u^4h - temp^4h = u^4h = R u^2h
-        # double norm_of_u2h_minus_uh  = norm(all_grids->levels[levelh+1],VECTOR_TEMP); // || u^2h = R u^h  ||max
-        # double norm_of_u4h_minus_u2h = norm(all_grids->levels[levelh+2],VECTOR_TEMP); // || u^4h = R u^2h ||max
-        # // estimate the error^h using ||u^2h - R u^h||
-        # if(all_grids->my_rank==0){fprintf(stdout,"  h = %22.15e  ||error|| = %22.15e\n",all_grids->levels[levelh]->h,norm_of_u2h_minus_uh);fflush(stdout);}
-        # // log( ||u^4h - R u^2h|| / ||u^2h - R u^h|| ) / log(2) is an estimate of the order of the method (e.g. 4th order)
-        # if(all_grids->my_rank==0){fprintf(stdout,"  order = %0.3f\n",log(norm_of_u4h_minus_u2h / norm_of_u2h_minus_uh) / log(2) );fflush(stdout);}
 
     def run_richardson_test(self):
         if len(self.all_levels) < 3:
