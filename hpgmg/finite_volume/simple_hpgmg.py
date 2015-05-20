@@ -110,6 +110,8 @@ class SimpleMultigridSolver(object):
                 shift=0.0 if not self.boundary_is_periodic else 1.0/21.0
             )
 
+        self.compute_richardson_error = not configuration.disable_richardson_error
+
         if configuration.variable_coefficient:
             self.beta_generator = VariableBeta(self.dimensions)
 
@@ -266,7 +268,7 @@ class SimpleMultigridSolver(object):
 
         # level.print("Interpolated level {}".format(level.level_number))
 
-    def solve(self):
+    def solve(self, start_level=0):
         """
         void MGSolve(mg_type *all_grids, int u_id, int F_id, double a, double b, double dtol, double rtol){
             void MGVCycle(mg_type *all_grids, int e_id, int R_id, double a, double b, int level){
@@ -285,7 +287,7 @@ class SimpleMultigridSolver(object):
         norm_of_right_hand_side = 1.0
         norm_of_d_right_hand_side = 1.0
 
-        level = self.fine_level
+        level = self.all_levels[start_level]
 
         with self.timer("mg-solve time"):
             print("MGSolve.... \n", end='')
@@ -332,6 +334,63 @@ class SimpleMultigridSolver(object):
                     break
                 if norm_of_residual < d_tolerance:
                     break
+
+    def richardson_error(self, start_level=0):
+        import math
+        """
+        in FV...
+        +-------+   +---+---+   +-------+   +-------+
+        |       |   | a | b |   |       |   |a+b+c+d|
+        |  u^2h | - +---+---+ = |  u^2h | - |  ---  |
+        |       |   | c | d |   |       |   |   4   |
+        +-------+   +---+---+   +-------+   +-------+
+        """
+        print("performing Richardson error analysis...")
+        level_0 = self.all_levels[start_level]
+        level_1 = self.all_levels[start_level+1]
+        level_2 = self.all_levels[start_level+2]
+
+        self.restrictor.restrict(level_1, level_1.temp, level_0.cell_values, Restriction.RESTRICT_CELL)
+        self.restrictor.restrict(level_2, level_2.temp, level_1.cell_values, Restriction.RESTRICT_CELL)
+
+        level_1.add_meshes(level_1.temp, 1.0, level_1.cell_values, -1.0, level_1.temp)
+        level_2.add_meshes(level_2.temp, 1.0, level_2.cell_values, -1.0, level_2.temp)
+
+        norm_of_u2h_minus_uh  = level_1.norm_mesh(level_1.temp)  # || u^2h - R u^h  ||max
+        norm_of_u4h_minus_u2h = level_2.norm_mesh(level_2.temp)  # || u^4h = R u^2h ||max
+        # estimate the error^h using ||u^2h - R u^h||
+        print("  h = {:22.15e}  ||error|| = {:22.15e}".format(level_0.h, norm_of_u2h_minus_uh))
+        # log( ||u^4h - R u^2h|| / ||u^2h - R u^h|| ) / log(2)
+        # is an estimate of the order of the method (e.g. 4th order)
+        print("  order = {:0.3f}".format(math.log(norm_of_u4h_minus_u2h / norm_of_u2h_minus_uh) / math.log(2.0)))
+
+        # restriction(all_grids->levels[levelh+1],VECTOR_TEMP,all_grids->levels[levelh  ],u_id,RESTRICT_CELL); // temp^2h = R u^h
+        # restriction(all_grids->levels[levelh+2],VECTOR_TEMP,all_grids->levels[levelh+1],u_id,RESTRICT_CELL); // temp^4h = R u^2h
+        # add_vectors(all_grids->levels[levelh+1],VECTOR_TEMP,1.0,u_id,-1.0,VECTOR_TEMP);                    temp^2h = u^2h - temp^2h = u^2h = R u^h
+        # add_vectors(all_grids->levels[levelh+2],VECTOR_TEMP,1.0,u_id,-1.0,VECTOR_TEMP);                    temp^2h = u^4h - temp^4h = u^4h = R u^2h
+        # double norm_of_u2h_minus_uh  = norm(all_grids->levels[levelh+1],VECTOR_TEMP); // || u^2h = R u^h  ||max
+        # double norm_of_u4h_minus_u2h = norm(all_grids->levels[levelh+2],VECTOR_TEMP); // || u^4h = R u^2h ||max
+        # // estimate the error^h using ||u^2h - R u^h||
+        # if(all_grids->my_rank==0){fprintf(stdout,"  h = %22.15e  ||error|| = %22.15e\n",all_grids->levels[levelh]->h,norm_of_u2h_minus_uh);fflush(stdout);}
+        # // log( ||u^4h - R u^2h|| / ||u^2h - R u^h|| ) / log(2) is an estimate of the order of the method (e.g. 4th order)
+        # if(all_grids->my_rank==0){fprintf(stdout,"  order = %0.3f\n",log(norm_of_u4h_minus_u2h / norm_of_u2h_minus_uh) / log(2) );fflush(stdout);}
+
+    def run_richardson_test(self):
+        if len(self.all_levels) < 3:
+            print("WARNING: not enough levels to perform richardson test, skipping...")
+            return
+
+        for level_number in range(3):
+            level = self.all_levels[level_number]
+            if level_number > 0:
+                self.restrictor.restrict(
+                    level,
+                    level.right_hand_side, self.all_levels[level_number-1].right_hand_side,
+                    Restriction.RESTRICT_CELL)
+            level.fill_mesh(level.cell_values, 0.0)
+
+            self.solve(start_level=level_number)
+        self.richardson_error()
 
     def calculate_error(self, mesh1, mesh2):
         """
@@ -433,6 +492,9 @@ class SimpleMultigridSolver(object):
                             default=6, type=int)
         parser.add_argument('-mcd', '--minimum-coarse_dimension', help='smallest allowed coarsened dimension',
                             default=3, type=int)
+        parser.add_argument('-dre', '--disable-richardson-error',
+                            help="don't compute or show richardson error at end of run",
+                            action="store_true", default=False)
         parser.add_argument('-dg', '--dump-grids', help='dump various grids for comparison with hpgmg.c',
                             action="store_true", default=False)
         parser.add_argument('-l', '--log', help='turn on logging', action="store_true", default=False)
@@ -453,6 +515,8 @@ class SimpleMultigridSolver(object):
         solver.solve()
         solver.show_timing_information()
         solver.show_error_information()
+        if solver.compute_richardson_error:
+            solver.run_richardson_test()
 
 if __name__ == '__main__':
     SimpleMultigridSolver.main()
