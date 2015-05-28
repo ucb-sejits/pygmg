@@ -68,7 +68,7 @@ class Mesh(np.ndarray):
                 print()
             print()
         else:
-            print("I don't know how to mesh with {} dimensions".format(self.space.ndim))
+            print("I don't know how to print mesh with {} dimensions".format(self.space.ndim))
 
     dump_mesh_enabled = False
 

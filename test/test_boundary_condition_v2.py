@@ -1,4 +1,6 @@
 from __future__ import print_function
+import itertools
+from stencil_code.ordered_halo_enumerator import OrderedHaloEnumerator
 from hpgmg.finite_volume.operators.boundary_conditions_fv_2 import BoundaryUpdaterV2
 from hpgmg.finite_volume.simple_hpgmg import SimpleMultigridSolver
 
@@ -95,3 +97,29 @@ class TestBoundaryConditionV2(unittest.TestCase):
         self.assertEqual(mesh[(0, 1, 2)], -2)  # faces are -2
         self.assertEqual(mesh[(0, 2, 3)], -2)  # faces are -2
         self.assertEqual(mesh[(0, 4, 4)], -2)  # faces are -2
+
+    def test_boundary_updater_v2_dirichlet_4d(self):
+        simple_solver = SimpleMultigridSolver.get_solver(["2", "-d", "4"])
+        bu = BoundaryUpdaterV2(simple_solver)
+        self.assertTrue(bu.apply == bu.apply_dirichlet)
+
+        mesh = simple_solver.fine_level.cell_values
+
+        for i in simple_solver.fine_level.interior_points():
+            mesh[i] = 1
+
+        # mesh.print("before bu")
+
+        bu.apply(simple_solver.fine_level, mesh)
+
+        ohe = OrderedHaloEnumerator(simple_solver.ghost_zone, mesh.space)
+        for surface_key in ohe.ordered_border_type_enumerator():
+            edge_value = (-2.0) ** ohe.order_of_surface_key(surface_key)
+            for surface_point in ohe.surface_iterator(surface_key):
+                # print("key {} point {}".format(surface_key, surface_point))
+                self.assertEqual(
+                    mesh[surface_point], edge_value,
+                    "surface {} point {} value {} not equal to edge_value {}".format(
+                        surface_key, surface_point, mesh[surface_point], edge_value
+                    )
+                )
