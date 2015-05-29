@@ -14,14 +14,12 @@ setup(
         'hpgmg.finite_volume',
         'hpgmg.finite_volume.operators',
         'hpgmg.finite_volume.problems',
-        'stencil_code',
         'test',
     ],
 
     install_requires=[
         'numpy',
         'sympy',
-        'stencil_code',
         'ctree',
     ]
 
