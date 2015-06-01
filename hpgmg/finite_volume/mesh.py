@@ -46,7 +46,21 @@ class Mesh(np.ndarray):
         if message:
             print("Mesh print {} shape {}".format(message, self.shape))
 
-        if len(self.space) == 3:
+        if len(self.space) == 4:
+            max_h, max_i, max_j, max_k = self.shape
+
+            for h in range(max_h):
+                print("hyperplane {}".format(h))
+                for i in range(max_i-1, -1, -1):
+                    # print("i  {}".format(i))
+                    for j in range(max_j-1, -1, -1):
+                        print(" "*j*2, end="")
+                        for k in range(max_k):
+                                print("{:10.6f}".format(self[(h, i, j, k)]), end=" ")
+                        print()
+                    print()
+                print()
+        elif len(self.space) == 3:
             max_i, max_j, max_k = self.shape
 
             for i in range(max_i-1, -1, -1):

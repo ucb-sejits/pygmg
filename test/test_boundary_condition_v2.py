@@ -27,13 +27,13 @@ class TestBoundaryConditionV2(unittest.TestCase):
         mesh = simple_solver.fine_level.cell_values
 
         for i in simple_solver.fine_level.interior_points():
-            mesh[i] = 1
+            mesh[i] = 1.0
 
         # mesh.print("before bu")
 
         bu.apply(simple_solver.fine_level, mesh)
 
-        mesh.print("after bu")
+        # mesh.print("after bu")
 
         self.assertEqual(mesh[(0, 0)], 4.0)  # corner is -4
         self.assertEqual(mesh[(0, 5)], 4.0)  # corner is -4
@@ -74,7 +74,7 @@ class TestBoundaryConditionV2(unittest.TestCase):
 
         bu.apply(simple_solver.fine_level, mesh)
 
-        mesh.print("after bu")
+        # mesh.print("after bu")
 
         self.assertEqual(mesh[(5, 5, 5)], -8)  # top corner is -8
         self.assertEqual(mesh[(5, 0, 0)], -8)  # top corner is -8
@@ -99,18 +99,18 @@ class TestBoundaryConditionV2(unittest.TestCase):
         self.assertEqual(mesh[(0, 4, 4)], -2)  # faces are -2
 
     def test_boundary_updater_v2_dirichlet_4d(self):
-        simple_solver = SimpleMultigridSolver.get_solver(["2", "-d", "4"])
+        simple_solver = SimpleMultigridSolver.get_solver(["1", "-d", "4"])
         bu = BoundaryUpdaterV2(simple_solver)
         self.assertTrue(bu.apply == bu.apply_dirichlet)
 
         mesh = simple_solver.fine_level.cell_values
 
         for i in simple_solver.fine_level.interior_points():
-            mesh[i] = 1
-
-        # mesh.print("before bu")
+            mesh[i] = i[0] * .1 + i[1] * .01 + i[2] * .001 + i[3] * .0001
 
         bu.apply(simple_solver.fine_level, mesh)
+
+        mesh.print("boundary updated v2 4d")
 
         ohe = OrderedHaloEnumerator(simple_solver.ghost_zone, mesh.space)
         for surface_key in ohe.ordered_border_type_enumerator():
