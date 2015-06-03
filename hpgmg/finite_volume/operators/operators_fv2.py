@@ -7,7 +7,7 @@ from hpgmg.finite_volume.space import Coord
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 
-class StencilVonNeumannR1(BaseOperator):
+class OperatorsFV2(BaseOperator):
     """
     implements a stencil using a radius 1 von neumann neighborhood
     i.e. 7 point in 3d
@@ -32,64 +32,50 @@ class StencilVonNeumannR1(BaseOperator):
         self.num_neighbors = len(self.neighborhood_offsets)
 
         if solver.is_variable_coefficient:
-            if solver.is_helmholtz:
-                self.apply_op = self.apply_op_variable_coefficient_boundary_conditions_helmholtz
-            else:
-                self.apply_op = self.apply_op_variable_coefficient_boundary_conditions_poisson
+            self.apply_op = self.apply_op_variable_coefficient
         else:
-            self.apply_op = self.apply_op_constant_coefficient_boundary_conditions
+            self.apply_op = self.apply_op_constant_coefficient
 
     def set_scale(self, level_h):
         self.h2inv = 1.0 / (level_h ** 2)
 
-    def apply_op_variable_coefficient_boundary_conditions_helmholtz(self, mesh, index, level):
-        return self.a * level.alpha[index] * mesh[index] - self.b * self.h2inv * (
-            sum(
-                level.beta_face_values[dim][index] * (mesh[index - self.unit_vectors[dim]] - mesh[index])
-                for dim in range(self.dimensions)
-            ) +
-            sum(
-                level.beta_face_values[dim][index + self.unit_vectors[dim]] * (
-                    (
-                        mesh[index + self.unit_vectors[dim]] - mesh[index]
-                    )
-                )
-                for dim in range(self.dimensions)
+    def apply_op_variable_coefficient(self, mesh, index, level):
+        """
+        returns the stencil computation at index,
+        stencil uses beta values for neighbors below index for a given dimension
+        then uses the beta values of the index+1 for neighbors above index in the given dimension
+        :param mesh:
+        :param index:
+        :param level:
+        :return:
+        """
+        face_contributions = 0
+        for dim in mesh.dim_range():
+            # add contributions through lower face
+            face_contributions += level.beta_face_values[dim][index] * (
+                mesh[index - self.unit_vectors[dim]] - mesh[index]
             )
-        )
-
-    def apply_op_variable_coefficient_boundary_conditions_poisson(self, mesh, index, level):
-        return -self.b * self.h2inv * (
-            sum(
-                level.beta_face_values[dim][index] * (
-                    (
-                        mesh[index - self.unit_vectors[dim]] - mesh[index]
-                    )
-                )
-                for dim in range(self.dimensions)
-            ) +
-            sum(
-                level.beta_face_values[dim][index + self.unit_vectors[dim]] * (
-                    (
-                        mesh[index + self.unit_vectors[dim]] - mesh[index]
-                    )
-                )
-                for dim in range(self.dimensions)
+            # add contributions through upper face
+            face_contributions += level.beta_face_values[dim][index + self.unit_vectors[dim]] * (
+                mesh[index + self.unit_vectors[dim]] - mesh[index]
             )
-        )
 
-    def apply_op_constant_coefficient_boundary_conditions(self, mesh, index, _=None):
+        return self.a * level.alpha[index] * mesh[index] - self.b * self.h2inv * face_contributions
+
+    def apply_op_constant_coefficient(self, mesh, index, _=None):
+        """
+        compute sum of neighbors - number of neighbors * value at index
+        :param mesh:
+        :param index:
+        :param _: unused
+        :return:
+        """
+        neighbor_sum = 0
+        for neighbor_offset in self.neighborhood_offsets:
+            neighbor_sum += mesh[index - neighbor_offset]
         return self.a * mesh[index] - self.b * self.h2inv * (
-            sum([mesh[index + neighbor_offset] for neighbor_offset in self.neighborhood_offsets]) -
-            mesh[index] * self.num_neighbors
+            neighbor_sum - mesh[index] * self.num_neighbors
         )
-
-    def apply_op_constant_coefficient_boundary_conditions_verbose(self, mesh, index, _=None):
-        neighbor_sum = sum([mesh[index + neighbor_offset] for neighbor_offset in self.neighborhood_offsets])
-        m_i = mesh[index]
-        second_term = neighbor_sum - m_i * self.num_neighbors
-        print("apply_op h2inv {} neighbor_sum {} second_term {}".format(self.h2inv, neighbor_sum, second_term))
-        return self.a * m_i - self.b * self.h2inv * second_term
 
     def rebuild_operator(self, target_level, source_level=None):
         self.set_scale(target_level.h)
@@ -168,6 +154,7 @@ class StencilVonNeumannR1(BaseOperator):
                     #     ",".join(map("{:02d}".format, index)),
                     #     self.a * target_level.alpha[index], self.b*self.h2inv, a_diagonal
                     # ))
+
 
                 # compute the d_inverse, l1_inverse and dominant eigen_value
                 target_level.d_inverse[index] = 1.0/a_diagonal

@@ -20,6 +20,10 @@ class Mesh(np.ndarray):
     def indices(self):
         return self.space.points
 
+    def dim_range(self):
+        for dim in range(len(self.shape)):
+            yield dim
+
     def assign_to_all(self, value):
         for index in self.indices():
             self[index] = value
