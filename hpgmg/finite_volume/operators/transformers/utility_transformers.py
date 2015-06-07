@@ -1,6 +1,7 @@
 import ast
 import sys
-from ctree.c.nodes import FunctionCall, SymbolRef, ArrayRef, Constant, Add, Sub
+from ctree.c.nodes import FunctionCall, SymbolRef, ArrayRef, Constant, Add, Sub, Number
+from ctree.types import get_ctype
 from hpgmg.finite_volume.operators.nodes import ArrayIndex
 
 __author__ = 'nzhang-dev'
@@ -67,7 +68,7 @@ class IndexDirectTransformer(ast.NodeTransformer):
 
 class AttributeRenamer(ast.NodeTransformer):
     def __init__(self, substitutes):
-        self.substitutes = {tuple(key.split(".")): value for key, value in substitutes.items()}
+        self.substitutes = substitutes
 
     def visit_Attribute(self, node):
         name = get_name(node)
@@ -95,7 +96,32 @@ class AttributeGetter(ast.NodeTransformer):
 
     def visit_Attribute(self, node):
         try:
-            return self.get_value(node)
+            val = self.get_value(node)
+            return Number(val, get_ctype(val))
         except AttributeError:
             return node
 
+class ArrayRefIndexTransformer(ast.NodeTransformer):
+    def __init__(self, indices, encode_func_name, ndim):
+        self.indices = indices
+        self.encode_func_name = encode_func_name
+        self.ndim = ndim
+
+    def visit_Index(self, node):
+        if isinstance(node.value, ast.Name) and node.value.id in self.indices:
+            node.value = ast.Call(
+                func=ast.Name(self.encode_func_name, ast.Load()),
+                args=[
+                    ast.Subscript(
+                        value=ast.Name(id=node.value.id, ctx=ast.Load()),
+                        slice=ast.Index(
+                            ast.Num(n=dim)
+                        ),
+                        ctx=ast.Load()
+                    ) for dim in range(self.ndim)
+                ],
+                keywords=[],
+                starargs=None,
+                kwargs=None,
+            )
+        return node

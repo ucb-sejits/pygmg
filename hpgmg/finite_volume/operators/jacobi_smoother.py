@@ -45,6 +45,7 @@ class JacobiSmoother(Smoother):
         lambda_mesh.dump("LAMBDA_MESH")
 
         self.operator.set_scale(level.h)
+        #print(self.iterations)
         for i in range(self.iterations):
             working_target, working_source = working_source, working_target
             level.solver.boundary_updater.apply(level, working_source)
@@ -53,6 +54,8 @@ class JacobiSmoother(Smoother):
             working_target.dump("JACOBI_MESH_TO_SMOOTH_TARGET")
             with level.timer("smooth"):
                 self.smooth_points(level, working_source, working_target, rhs_mesh, lambda_mesh)
+            #print(working_target)
+
 
                     # print("index {} Ax_n {} b {} lm {} w {} src {} trg {}".format(
                     #     ",".join(map(str,index)), a_x, b, lambda_mesh[index], self.weight,
@@ -61,7 +64,7 @@ class JacobiSmoother(Smoother):
 
             working_target.dump("JACOBI_SMOOTH_PASS_{}_SIZE_{}".format(i, format(level.space[0]-2)))
 
-    @jit_smooth
+    #@jit_smooth
     def smooth_points(self, level, working_source, working_target, rhs_mesh, lambda_mesh):
         for index in level.interior_points():
             a_x = self.operator.apply_op(working_source, index, level)

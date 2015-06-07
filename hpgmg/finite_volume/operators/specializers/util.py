@@ -1,10 +1,10 @@
 from __future__ import print_function, division
 import ast
 
-from ctree import get_ast
+from ctree import get_ast, ctree
 from ctree.cpp.nodes import CppDefine
 from ctree.frontend import dump
-from ctree.c.nodes import SymbolRef, MultiNode
+from ctree.c.nodes import SymbolRef, MultiNode, BinaryOp
 from ctree.transformations import PyBasicConversions
 from hpgmg.finite_volume.operators.transformers.generator_transformers import GeneratorTransformer, CompReductionVisitor, \
     AttributeFiller
@@ -43,3 +43,28 @@ class LayerPrinter(ast.NodeVisitor):
     def visit(self, node):
         print(dump(node))
         return node
+
+def validateCNode(node):
+    for node in ast.walk(node):
+        if not isinstance(node, ctree.c.nodes.CNode):
+            print('FAILED:')
+            print(dump(node))
+            return False
+    return True
+
+def include_mover(node):
+    includes = set()
+    defines = set()
+    class includeFinder(ast.NodeTransformer):
+        def visit_CppInclude(self, node):
+            includes.add(node)
+        def visit_CppDefine(self, node):
+            defines.add(node)
+
+    includeFinder().visit(node)
+    node.body = [
+        include for include in includes
+    ]+[
+        define for define in defines
+    ]+node.body
+    return node

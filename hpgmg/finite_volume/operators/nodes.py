@@ -21,3 +21,10 @@ class ArrayIndex(PygmgSemanticNode):
     def __init__(self, name):
         self.name = name
 
+class Parentheses(PygmgNode):
+    _fields = ['value']
+    def __init__(self, value):
+        self.value = value
+
+    def __str__(self):
+        return "({})".format(str(self.value))
