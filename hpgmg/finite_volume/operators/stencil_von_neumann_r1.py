@@ -43,7 +43,6 @@ class StencilVonNeumannR1(BaseOperator):
     def set_scale(self, level_h):
         self.h2inv = 1.0 / (level_h ** 2)
 
-    @jit_apply_op
     def apply_op_variable_coefficient_boundary_conditions_helmholtz(self, mesh, index, level):
         return self.a * level.alpha[index] * mesh[index] - self.b * self.h2inv * (
             sum(
@@ -60,7 +59,6 @@ class StencilVonNeumannR1(BaseOperator):
             )
         )
 
-    @jit_apply_op
     def apply_op_variable_coefficient_boundary_conditions_poisson(self, mesh, index, level):
         return -self.b * self.h2inv * (
             sum(
@@ -81,7 +79,6 @@ class StencilVonNeumannR1(BaseOperator):
             )
         )
 
-    @jit_apply_op
     def apply_op_constant_coefficient_boundary_conditions(self, mesh, index, level):
         return self.a * mesh[index] - self.b * self.h2inv * (
             sum([mesh[index + neighbor_offset] for neighbor_offset in self.neighborhood_offsets]) -

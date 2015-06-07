@@ -5,7 +5,8 @@ import sys
 from ctree.transformations import PyBasicConversions
 from hpgmg.finite_volume.operators.transformers.generator_transformers import GeneratorTransformer, CompReductionVisitor, \
     AttributeFiller
-from hpgmg.finite_volume.operators.transformers.utility_transformers import SelfStripper, IndexTransformer
+from hpgmg.finite_volume.operators.transformers.utility_transformers import IndexTransformer, \
+    ParamStripper
 
 __author__ = 'nzhang-dev'
 import functools
@@ -33,7 +34,7 @@ class Apply_Op_Specializer(LazySpecializedFunction):
     def transform(self, tree, program_config):
         args_subconfig, tuning_config = program_config
         layers = [
-            SelfStripper(),
+            ParamStripper(('self',)),
             GeneratorTransformer(args_subconfig),
             CompReductionVisitor(),
             AttributeFiller(args_subconfig),

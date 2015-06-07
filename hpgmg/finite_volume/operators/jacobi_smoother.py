@@ -2,6 +2,7 @@ from __future__ import print_function
 
 from hpgmg.finite_volume.operators.base_operator import BaseOperator
 from hpgmg.finite_volume.operators.smoother import Smoother
+from hpgmg.finite_volume.operators.specializers.smooth_specializer import jit_smooth
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
@@ -51,14 +52,18 @@ class JacobiSmoother(Smoother):
             working_source.dump("JACOBI_MESH_TO_SMOOTH_SOURCE")
             working_target.dump("JACOBI_MESH_TO_SMOOTH_TARGET")
             with level.timer("smooth"):
-                for index in level.interior_points():
-                    with level.timer("apply_op"):
-                        a_x = self.operator.apply_op(working_source, index, level)
-                    b = rhs_mesh[index]
-                    working_target[index] = working_source[index] + (self.weight * lambda_mesh[index] * (b - a_x))
+                self.smooth_points(level, working_source, working_target, rhs_mesh, lambda_mesh)
+
                     # print("index {} Ax_n {} b {} lm {} w {} src {} trg {}".format(
                     #     ",".join(map(str,index)), a_x, b, lambda_mesh[index], self.weight,
                     #     working_source[index], working_target[index]
                     # ))
 
             working_target.dump("JACOBI_SMOOTH_PASS_{}_SIZE_{}".format(i, format(level.space[0]-2)))
+
+    @jit_smooth
+    def smooth_points(self, level, working_source, working_target, rhs_mesh, lambda_mesh):
+        for index in level.interior_points():
+            a_x = self.operator.apply_op(working_source, index, level)
+            b = rhs_mesh[index]
+            working_target[index] = working_source[index] + (self.weight * lambda_mesh[index] * (b - a_x))

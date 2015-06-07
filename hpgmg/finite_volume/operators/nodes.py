@@ -21,6 +21,3 @@ class ArrayIndex(PygmgSemanticNode):
     def __init__(self, name):
         self.name = name
 
-    def __add__(self, other):
-        assert isinstance(other, (ast.Tuple, ast.List))
-
