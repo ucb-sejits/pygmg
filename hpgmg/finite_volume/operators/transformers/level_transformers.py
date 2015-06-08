@@ -1,6 +1,7 @@
 import ast
 import ctypes
-from ctree.c.nodes import ArrayDef, SymbolRef, Constant, Array, MultiNode, For, Assign, ArrayRef, Lt, PostInc
+from ctree.c.nodes import ArrayDef, SymbolRef, Constant, Array, MultiNode, For, Assign, ArrayRef, Lt, PostInc, \
+    FunctionCall, String
 from hpgmg.finite_volume.operators.transformers.utility_transformers import get_name
 from functools import reduce
 
@@ -54,9 +55,11 @@ class RowMajorInteriorPoints(ast.NodeTransformer):
                 first_for = for_loops[0]
                 reduce_func = lambda x, y: (x.body.append(y), y)[1]
                 last_for = reduce(reduce_func, for_loops)
+                elts = [ArrayRef(SymbolRef(iteration_variable_name), Constant(i)) for i in range(dimensions)]
+                encoded = FunctionCall(SymbolRef("encode"), elts)
                 last_for.body = [
                     self.visit(n) for n in node.body
-                ]
+                ]# + [FunctionCall(SymbolRef('printf'), [String(r"%zu, %zu, %zu\t%zu\n")] + elts + [encoded])]
                 return MultiNode([
                     index_declaration,
                     first_for

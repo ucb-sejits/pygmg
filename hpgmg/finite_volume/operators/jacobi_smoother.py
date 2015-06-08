@@ -1,4 +1,5 @@
 from __future__ import print_function
+from collections import namedtuple
 
 from hpgmg.finite_volume.operators.base_operator import BaseOperator
 from hpgmg.finite_volume.operators.smoother import Smoother
@@ -64,7 +65,7 @@ class JacobiSmoother(Smoother):
 
             working_target.dump("JACOBI_SMOOTH_PASS_{}_SIZE_{}".format(i, format(level.space[0]-2)))
 
-    #@jit_smooth
+    @jit_smooth
     def smooth_points(self, level, working_source, working_target, rhs_mesh, lambda_mesh):
         for index in level.interior_points():
             a_x = self.operator.apply_op(working_source, index, level)

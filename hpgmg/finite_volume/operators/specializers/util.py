@@ -1,11 +1,14 @@
 from __future__ import print_function, division
 import ast
+import atexit
 
 from ctree import get_ast, ctree
 from ctree.cpp.nodes import CppDefine
 from ctree.frontend import dump
 from ctree.c.nodes import SymbolRef, MultiNode, BinaryOp
 from ctree.transformations import PyBasicConversions
+import time
+import sys
 from hpgmg.finite_volume.operators.transformers.generator_transformers import GeneratorTransformer, CompReductionVisitor, \
     AttributeFiller
 from hpgmg.finite_volume.operators.transformers.utility_transformers import ParamStripper, IndexTransformer, \
@@ -14,17 +17,20 @@ from hpgmg.finite_volume.operators.transformers.utility_transformers import Para
 __author__ = 'nzhang-dev'
 
 
-def to_macro_function(f):
+def to_macro_function(f, namespace=None):
+    namespace = {} if namespace is None else namespace.copy()
     tree = get_ast(f).body[0]
     tree = ParamStripper(('self',)).visit(tree)
     name = SymbolRef(tree.name)
     params = [SymbolRef(n.id) for n in tree.args.args]
     self = f.im_self
+    namespace.update({'self': self})
+
     layers = [
         ParamStripper(('self',)),
-        GeneratorTransformer({'self': self}),
+        GeneratorTransformer(namespace),
         CompReductionVisitor(),
-        AttributeFiller({'self': self}),
+        AttributeFiller(namespace),
         IndexTransformer(('index',)),
         IndexOpTransformer(),
         IndexDirectTransformer(self.solver.dimensions),
@@ -68,3 +74,17 @@ def include_mover(node):
         define for define in defines
     ]+node.body
     return node
+
+
+def time_this(func):
+    timings = []
+    def wrapper(*args, **kwargs):
+        a = time.time()
+        res = func(*args, **kwargs)
+        timings.append(time.time() - a)
+        return res
+    wrapper.total_time = 0
+    @atexit.register
+    def dump_time():
+        print(func.__name__, sum(timings))
+    return wrapper

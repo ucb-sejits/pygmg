@@ -30,6 +30,12 @@ class Timer(object):
         self.timer_record.total_time += self.last_interval
         self.timer_record.events += 1
 
+    def __call__(self, func):
+        def wrapper(*args, **kwargs):
+            with self:
+                return func(*args, **kwargs)
+        return wrapper
+
     @staticmethod
     def clear():
         Timer.timer_dict = {}

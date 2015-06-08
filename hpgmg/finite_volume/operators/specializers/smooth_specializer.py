@@ -10,13 +10,14 @@ import math
 import rebox
 from rebox.specializers.order import Ordering
 from hpgmg.finite_volume.operators.specializers.util import to_macro_function, apply_all_layers, LayerPrinter, \
-    validateCNode, include_mover
+    validateCNode, include_mover, time_this
 from ctree.frontend import dump, get_ast
 from hpgmg.finite_volume.operators.transformers.level_transformers import RowMajorInteriorPoints
 from hpgmg.finite_volume.operators.transformers.utility_transformers import ParamStripper, AttributeRenamer, \
     AttributeGetter, ArrayRefIndexTransformer
 from rebox.specializers.rm.encode import MultiplyEncode
 from ast import Name
+import time
 
 __author__ = 'nzhang-dev'
 
@@ -45,15 +46,29 @@ class SmoothFunction(ConcreteSpecializedFunction):
         self._c_function(*flattened)
 
 class SmoothSpecializer(LazySpecializedFunction):
+
+    class SmoothSubconfig(dict):
+        def __hash__(self):
+            operator = self['self'].operator
+            hashed = (
+                operator.a, operator.b, operator.h2inv,
+                operator.dimensions, operator.is_variable_coefficient,
+                operator.ghost_zone, tuple(operator.neighborhood_offsets)
+            )
+            #print(hashed)
+            return hash(hashed)
+
+
     def args_to_subconfig(self, args):
         params = (
             'self', 'level', 'source',
             'target', 'rhs_mesh', 'lambda_mesh'
         )
-        return {
+        return self.SmoothSubconfig({
             param: arg for param, arg in zip(params, args)
-        }
+        })
 
+    #@time_this
     def transform(self, tree, program_config):
         func = tree.body[0]
         subconfig, tuner = program_config
@@ -80,17 +95,20 @@ class SmoothSpecializer(LazySpecializedFunction):
             param for param in macro_func.params if param.name != 'level'
         ]
         ordering = Ordering([MultiplyEncode()])
-        bits_per_dim = min([math.log(i, 2) for i in subconfig['level'].space])
+        #print(subconfig['level'].space, subconfig['level'].space - 2*subconfig['level'].ghost_zone)
+        bits_per_dim = min([math.log(i, 2) for i in subconfig['level'].space]) + 1
+        #print(bits_per_dim)
+        #print(subconfig['rhs_mesh'].dtype)
         encode_func = ordering.generate(ndim, bits_per_dim, ctypes.c_uint64)
         func.defn = [
-            SymbolRef('a_x', sym_type=ctypes.c_float()),
-            SymbolRef('b', sym_type=ctypes.c_float())
+            SymbolRef('a_x', sym_type=ctypes.c_double()),
+            SymbolRef('b', sym_type=ctypes.c_double())
         ] + func.defn
         for call in func.find_all(FunctionCall):
             if call.func.name == 'apply_op':
-                call.args.pop()
+                call.args.pop()  #remove level
         for param in func.params:
-            param.type = ctypes.POINTER(ctypes.c_float)()
+            param.type = ctypes.POINTER(ctypes.c_double)()
         # print(func)
         # print(macro_func)
         # print(encode_func)
@@ -105,7 +123,7 @@ class SmoothSpecializer(LazySpecializedFunction):
 
     def finalize(self, transform_result, program_config):
         fn = SmoothFunction()
-        param_types = [np.ctypeslib.ndpointer(thing.dtype, 1, np.multiply.reduce(thing.shape)) for thing in
+        param_types = [np.ctypeslib.ndpointer(thing.dtype, 1, thing.size) for thing in
         [
             program_config[0][key] for key in ('source', 'target', 'rhs_mesh', 'lambda_mesh')
         ]]
