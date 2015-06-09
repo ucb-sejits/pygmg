@@ -24,6 +24,7 @@ class ChebyshevSmoother(Smoother):
         self.iterations = iterations
         self.degree = degree
 
+
     def smooth(self, level, mesh_to_smooth, rhs_mesh):
         """
 
