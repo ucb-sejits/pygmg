@@ -1,9 +1,12 @@
 import ast
 import ctypes
-from ctree.c.nodes import ArrayDef, SymbolRef, Constant, Array, MultiNode, For, Assign, ArrayRef, Lt, PostInc, \
-    FunctionCall, String
-from hpgmg.finite_volume.operators.transformers.utility_transformers import get_name
 from functools import reduce
+
+from ctree.c.nodes import SymbolRef, Constant, MultiNode, For, Assign, ArrayRef, Lt, PostInc, \
+    FunctionCall
+
+from hpgmg.finite_volume.operators.transformers.utility_transformers import get_name
+
 
 __author__ = 'nzhang-dev'
 
@@ -20,10 +23,10 @@ class RowMajorInteriorPoints(ast.NodeTransformer):
                 # building index thingy
                 level = self.namespace[split[0]]
                 dimensions = level.solver.dimensions
-                index_declaration = ArrayDef(SymbolRef(iteration_variable_name, sym_type=ctypes.c_uint64()),
-                                             size=dimensions, body=Array(body=[Constant(0) for i in range(dimensions)]))
+                # index_declaration = ArrayDef(SymbolRef(iteration_variable_name, sym_type=ctypes.c_uint64()),
+                #                              size=dimensions, body=Array(body=[Constant(0) for i in range(dimensions)]))
                 stencil = self.namespace['self']
-                ghost = stencil.operator.ghost_zone
+                ghost = self.namespace['ghost']
                 #print(ghost)
                 sizes = level.space
                 minimums, maximums = ghost, sizes - ghost
@@ -31,24 +34,15 @@ class RowMajorInteriorPoints(ast.NodeTransformer):
                 for_loops = [
                     For(
                         init=Assign(
-                            ArrayRef(
-                                SymbolRef(iteration_variable_name),
-                                Constant(dim)
-                            ),
+                            SymbolRef(iteration_variable_name+"_{}".format(dim), sym_type=ctypes.c_uint64()),
                             Constant(ghost[dim])
                         ),
                         test=Lt(
-                            ArrayRef(
-                                SymbolRef(iteration_variable_name),
-                                Constant(dim)
-                            ),
+                            SymbolRef(iteration_variable_name+"_{}".format(dim)),
                             Constant(maximums[dim])
                         ),
                         incr=PostInc(
-                           ArrayRef(
-                                SymbolRef(iteration_variable_name),
-                                Constant(dim)
-                            )
+                           SymbolRef(iteration_variable_name+"_{}".format(dim))
                         )
                     ) for dim in range(dimensions)
                 ]
@@ -61,7 +55,7 @@ class RowMajorInteriorPoints(ast.NodeTransformer):
                     self.visit(n) for n in node.body
                 ]# + [FunctionCall(SymbolRef('printf'), [String(r"%zu, %zu, %zu\t%zu\n")] + elts + [encoded])]
                 return MultiNode([
-                    index_declaration,
+                    #index_declaration,
                     first_for
                 ])
         return node

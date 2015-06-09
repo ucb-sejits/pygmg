@@ -21,6 +21,7 @@ setup(
         'numpy',
         'sympy',
         'ctree',
+        'stencil_code'
     ]
 
 )

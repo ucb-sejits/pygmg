@@ -1,5 +1,3 @@
-from collections import Iterable
-
 __author__ = 'nzhang-dev'
 
 import ast

@@ -1,6 +1,9 @@
 import copy
 import functools
+
 from hpgmg.finite_volume.operators.nodes import PyComprehension
+from hpgmg.finite_volume.operators.transformers.utility_transformers import get_name
+
 
 __author__ = 'nzhang-dev'
 
@@ -19,8 +22,10 @@ class GeneratorTransformer(ast.NodeTransformer):
         comprehension = node.generators[0]
         target = comprehension.target
         iterable = comprehension.iter
+        expr = ast.Expression(iterable)
+        #print(dump(expr))
         items = eval(
-            compile(ast.Expression(iterable), "<string>", "eval"),
+            compile(expr, "<string>", "eval"),
             self.globals, self.locals
             )
         output = PyComprehension()
@@ -48,16 +53,18 @@ class AttributeFiller(ast.NodeTransformer):
         self.namespace = namespace
 
     def visit_Attribute(self, node):
-        obj = self.namespace[node.value.id]
-        return self.visit(to_node(getattr(obj, node.attr)))
+        if node.value.id in self.namespace:
+            obj = self.namespace[node.value.id]
+            return self.visit(to_node(getattr(obj, node.attr)))
+        return node
 
-class CompReductionVisitor(ast.NodeTransformer):
+class CompReductionTransformer(ast.NodeTransformer):
     mapping = {
         "sum": lambda x, y: ast.BinOp(left=x, right=y, op=ast.Add()),
     }
 
     def visit_Call(self, node):
-        if node.func.id in self.mapping:
+        if get_name(node.func) in self.mapping:
             return functools.reduce(self.mapping[node.func.id], [self.visit(i) for i in node.args[0].elts])
         node.args = [self.visit(arg) for arg in node.args]
         return node

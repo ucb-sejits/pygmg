@@ -1,17 +1,18 @@
 from collections import namedtuple
-import ctree
+
 from ctree.frontend import dump, get_ast
-import sys
-from ctree.transformations import PyBasicConversions
-from hpgmg.finite_volume.operators.transformers.generator_transformers import GeneratorTransformer, CompReductionVisitor, \
+
+from hpgmg.finite_volume.operators.transformers.generator_transformers import GeneratorTransformer, CompReductionTransformer, \
     AttributeFiller
 from hpgmg.finite_volume.operators.transformers.utility_transformers import IndexTransformer, \
     ParamStripper
 
+
 __author__ = 'nzhang-dev'
 import functools
 
-from ctree.jit import LazySpecializedFunction, ConcreteSpecializedFunction
+from ctree.jit import LazySpecializedFunction
+
 
 def jit_apply_op(func):
     specialized = Apply_Op_Specializer(py_ast=get_ast(func))
@@ -36,7 +37,7 @@ class Apply_Op_Specializer(LazySpecializedFunction):
         layers = [
             ParamStripper(('self',)),
             GeneratorTransformer(args_subconfig),
-            CompReductionVisitor(),
+            CompReductionTransformer(),
             AttributeFiller(args_subconfig),
             IndexTransformer(('index',)),
             #PyBasicConversions()

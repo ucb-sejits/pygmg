@@ -1,24 +1,42 @@
 from __future__ import print_function, division
 import ast
 import atexit
+import functools
+import time
 
 from ctree import get_ast, ctree
 from ctree.cpp.nodes import CppDefine
 from ctree.frontend import dump
-from ctree.c.nodes import SymbolRef, MultiNode, BinaryOp
+from ctree.c.nodes import SymbolRef, MultiNode
 from ctree.transformations import PyBasicConversions
-import time
-import sys
-from hpgmg.finite_volume.operators.transformers.generator_transformers import GeneratorTransformer, CompReductionVisitor, \
+
+from hpgmg import finite_volume
+from hpgmg.finite_volume.operators.transformers.generator_transformers import GeneratorTransformer, CompReductionTransformer, \
     AttributeFiller
 from hpgmg.finite_volume.operators.transformers.utility_transformers import ParamStripper, IndexTransformer, \
-    IndexOpTransformer, IndexDirectTransformer
+    IndexOpTransformer, IndexDirectTransformer, AttributeRenamer, LookupSimplificationTransformer
+
 
 __author__ = 'nzhang-dev'
 
+def specialized_func_dispatcher(specializers):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            if finite_volume.CONFIG.backend not in specializers:
+                specializer = lambda x: func
+            else:
+                specializer = specializers[finite_volume.CONFIG.backend]
+            callable_thing = specializer(get_ast(func))
+            return callable_thing(*args, **kwargs)
+        return wrapper
+    return decorator
 
-def to_macro_function(f, namespace=None):
+
+
+def to_macro_function(f, namespace=None, rename=None):
     namespace = {} if namespace is None else namespace.copy()
+    rename = {} if rename is None else rename.copy()
     tree = get_ast(f).body[0]
     tree = ParamStripper(('self',)).visit(tree)
     name = SymbolRef(tree.name)
@@ -28,10 +46,12 @@ def to_macro_function(f, namespace=None):
 
     layers = [
         ParamStripper(('self',)),
+        AttributeRenamer(rename),
         GeneratorTransformer(namespace),
-        CompReductionVisitor(),
+        CompReductionTransformer(),
         AttributeFiller(namespace),
         IndexTransformer(('index',)),
+        LookupSimplificationTransformer(),
         IndexOpTransformer(),
         IndexDirectTransformer(self.solver.dimensions),
         PyBasicConversions()
@@ -88,3 +108,10 @@ def time_this(func):
     def dump_time():
         print(func.__name__, sum(timings))
     return wrapper
+
+
+def profile(func):
+    print("profiling with line_profiler")
+    if 'profile' in __builtins__:
+        return __builtins__['profile'](func)
+    return func

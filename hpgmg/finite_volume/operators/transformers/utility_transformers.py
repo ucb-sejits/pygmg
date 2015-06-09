@@ -1,11 +1,16 @@
 import ast
 import sys
-from ctree.c.nodes import FunctionCall, SymbolRef, ArrayRef, Constant, Add, Sub, Number
-from ctree.types import get_ctype
+
+from ctree.c.nodes import FunctionCall, SymbolRef, Add, Sub, Constant, MultiNode
+
 from hpgmg.finite_volume.operators.nodes import ArrayIndex
+
 
 __author__ = 'nzhang-dev'
 
+def to_node(obj):
+    from hpgmg.finite_volume.operators.transformers.generator_transformers import to_node as func
+    return func(obj)
 
 def get_name(attribute_node):
     if isinstance(attribute_node, ast.Name):
@@ -38,14 +43,15 @@ class IndexOpTransformer(ast.NodeTransformer):
     def visit_BinOp(self, node):
         if isinstance(node.left, ArrayIndex):
             if isinstance(node.op, (ast.Add, ast.Sub)):
+                #print(dump(node))
                 if isinstance(node.op, ast.Add):
                     op = Add
                 else:
                     op = Sub
                 ndim = len(node.right.elts)
                 args = [
-                    op(ArrayRef(SymbolRef(node.left.name), Constant(i)),
-                             node.right.elts[i]) for i in range(ndim)
+                    op(SymbolRef(node.left.name+"_{}".format(i)),
+                        node.right.elts[i]) for i in range(ndim)
                 ]
                 return FunctionCall(
                     func=SymbolRef('encode'),
@@ -62,7 +68,7 @@ class IndexDirectTransformer(ast.NodeTransformer):
 
     def visit_ArrayIndex(self, node):
         return FunctionCall('encode', args=[
-            ArrayRef(SymbolRef(node.name), Constant(i)) for i in range(self.ndim)
+            SymbolRef(node.name+"_{}".format(i)) for i in range(self.ndim)
         ])
 
 
@@ -91,14 +97,14 @@ class AttributeGetter(ast.NodeTransformer):
                     obj = getattr(obj, attributes.pop(0))
             except AttributeError:
                 raise error
-            return obj
+            return to_node(obj)
         raise error
 
     def visit_Attribute(self, node):
         try:
             val = self.get_value(node)
-            return Number(val, get_ctype(val))
-        except AttributeError:
+            return val
+        except (AttributeError, ValueError):
             return node
 
 class ArrayRefIndexTransformer(ast.NodeTransformer):
@@ -112,16 +118,37 @@ class ArrayRefIndexTransformer(ast.NodeTransformer):
             node.value = ast.Call(
                 func=ast.Name(self.encode_func_name, ast.Load()),
                 args=[
-                    ast.Subscript(
-                        value=ast.Name(id=node.value.id, ctx=ast.Load()),
-                        slice=ast.Index(
-                            ast.Num(n=dim)
-                        ),
-                        ctx=ast.Load()
-                    ) for dim in range(self.ndim)
+                    ast.Name(id=node.value.id+"_{}".format(dim), ctx=ast.Load())
+                    for dim in range(self.ndim)
                 ],
                 keywords=[],
                 starargs=None,
                 kwargs=None,
             )
+        return node
+
+class LookupSimplificationTransformer(ast.NodeTransformer):
+    def visit_Subscript(self, node):
+        #print("visited")
+        #print(dump(node))
+        if isinstance(node.value, (ast.List, ast.Tuple)):
+            #print(dump(node))
+            if isinstance(node.slice, ast.Index) and isinstance(node.slice.value, ast.Num):
+                index = node.slice.value.n
+                return self.visit(node.value.elts[index])
+        node.value = self.visit(node.value)
+        node.slice = self.visit(node.slice)
+        return node
+
+
+class BranchSimplifier(ast.NodeTransformer):
+    """C Transformer"""
+    def visit_If(self, node):
+        if isinstance(node.cond, Constant):
+            if node.cond.value:
+                return self.visit(MultiNode(body=node.then))
+            return self.visit(MultiNode(body=node.elze))
+        node.then = [self.visit(i) for i in node.then]
+        if node.elze:
+            node.elze = [self.visit(i) for i in node.elze]
         return node

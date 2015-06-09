@@ -1,6 +1,9 @@
 from __future__ import print_function
+
 from stencil_code.neighborhood import Neighborhood
+
 from hpgmg.finite_volume.simple_level import SimpleLevel
+
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 

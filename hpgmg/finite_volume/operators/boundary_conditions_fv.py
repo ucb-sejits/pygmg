@@ -1,7 +1,10 @@
 from __future__ import print_function
 import itertools
+
 from stencil_code.halo_enumerator import HaloEnumerator
+
 from hpgmg.finite_volume.mesh import Mesh
+
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 

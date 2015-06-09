@@ -6,6 +6,7 @@ import argparse
 import os
 import sys
 import logging
+from hpgmg import finite_volume
 from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.operators.chebyshev_smoother import ChebyshevSmoother
 
@@ -490,7 +491,9 @@ class SimpleMultigridSolver(object):
         parser.add_argument('-dg', '--dump-grids', help='dump various grids for comparison with hpgmg.c',
                             action="store_true", default=False)
         parser.add_argument('-l', '--log', help='turn on logging', action="store_true", default=False)
-        return parser.parse_args(args=args)
+        parser.add_argument('-b', '--backend', help='turn on JIT', choices=('python', 'c', 'omp', 'ocl'), default='python')
+        finite_volume.CONFIG = parser.parse_args(args=args)
+        return finite_volume.CONFIG
 
     @staticmethod
     def get_solver(args=None):
@@ -498,7 +501,8 @@ class SimpleMultigridSolver(object):
         this is meant for use in testing
         :return:
         """
-        return SimpleMultigridSolver(SimpleMultigridSolver.get_configuration(args=args))
+        config = SimpleMultigridSolver.get_configuration(args=args)
+        return SimpleMultigridSolver(config)
 
     @staticmethod
     def main():
@@ -509,6 +513,7 @@ class SimpleMultigridSolver(object):
         solver.show_error_information()
         if solver.compute_richardson_error:
             solver.run_richardson_test()
+        print('Backend: {}'.format(solver.configuration.backend))
 
 if __name__ == '__main__':
     SimpleMultigridSolver.main()
