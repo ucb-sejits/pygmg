@@ -179,7 +179,7 @@ class OmpSmoothSpecializer(CSmoothSpecializer):
         for_loop = stuff[0].find(For)
         subconfig = program_config[0]
         ndim = subconfig['self'].operator.solver.dimensions
-        for_loop.pragma = 'omp parallel for collapse({}) private(a_x, b)'.format(ndim)
+        for_loop.pragma = 'omp parallel for private(a_x, b)'.format(ndim)
         # last_loop = list(stuff[0].find_all(For))[-1]
         # last_loop.body.append(
         #     FunctionCall(
