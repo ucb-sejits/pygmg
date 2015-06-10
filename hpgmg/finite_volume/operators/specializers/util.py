@@ -4,7 +4,7 @@ import atexit
 import functools
 import time
 
-from ctree import get_ast, ctree
+from ctree import get_ast
 from ctree.cpp.nodes import CppDefine
 from ctree.frontend import dump
 from ctree.c.nodes import SymbolRef, MultiNode
