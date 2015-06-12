@@ -26,3 +26,10 @@ class Parentheses(PygmgNode):
 
     def __str__(self):
         return "({})".format(str(self.value))
+
+class RangeNode(PygmgSemanticNode):
+    _fields = ['target', 'body']
+    def __init__(self, target, iterator, body):
+        self.iterator = iterator
+        self.target = target
+        self.body = body

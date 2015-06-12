@@ -92,21 +92,21 @@ class SimpleLevel(object):
         return self.cell_size
 
     def indices(self):
-        for point in self.space.points:
-            yield point
+        # for point in self.space.points:
+        #     yield point
+        return self.space.points
 
     def interior_points(self):
-        for point in self.space.interior_points(self.ghost_zone):
-            yield point
+        return self.space.interior_points(self.ghost_zone)
 
     def beta_interpolation_points(self, axis):
-        for point in self.space.beta_interior_points(self.ghost_zone, axis):
-            yield point
+        return self.space.beta_interior_points(self.ghost_zone, axis)
 
     def valid_indices(self):
-        for index in self.indices():
-            if self.valid[index] != 0.0:
-                yield index
+        # for index in self.indices():
+        #     if self.valid[index] != 0.0:
+        #         yield index
+        return (index for index in self.indices() if self.valid[index] != 0.0)
 
     def ghost_indices(self, mesh):
         halo_enumerator = HaloEnumerator(self.solver.ghost, mesh.space)

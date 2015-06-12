@@ -4,6 +4,8 @@ import collections
 import numbers
 import itertools
 import numpy as np
+from hpgmg.iterator import RangeIterator
+
 try:
     # Python 2
     from itertools import izip_longest
@@ -168,11 +170,14 @@ class Space(Coord):
     @property
     def points(self):
         """Iterates over the points in the space"""
-        return (Coord(coord) for coord in itertools.product(*[range(i) for i in self]))
+        #return (Coord(coord) for coord in itertools.product(*[range(i) for i in self]))
+        return RangeIterator(*[(0, i) for i in self], map_func=Coord)
 
     def interior_points(self, halo):
         """Iterates over the points in the space"""
-        return (Coord(coord) for coord in itertools.product(*[range(g, i-g) for i, g in zip(self, halo)]))
+        lows = halo
+        highs = self - halo
+        return RangeIterator(*[(low, high) for low, high in zip(lows, highs)], map_func=Coord)
 
     def beta_interior_points(self, halo, axis):
         """Iterates over the points in the space"""
@@ -182,8 +187,8 @@ class Space(Coord):
                     yield (halo[dim], self[dim])
                 else:
                     yield (halo[dim], self[dim] - halo[dim])
-
-        return (Coord(coord) for coord in itertools.product(*[range(start, stop) for start, stop in range_params()]))
+        return RangeIterator(*range_params(), map_func=Coord)
+        #return (Coord(coord) for coord in itertools.product(*[range(start, stop) for start, stop in range_params()]))
 
     def __contains__(self, item):
         """Determines if the coordinate is in this space"""

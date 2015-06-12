@@ -59,3 +59,4 @@ class RowMajorInteriorPoints(ast.NodeTransformer):
                     first_for
                 ])
         return node
+

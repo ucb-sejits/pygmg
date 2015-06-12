@@ -4,7 +4,7 @@ import ctypes
 import math
 from ast import Name
 
-from ctree.c.nodes import SymbolRef, CFile, FunctionCall, ArrayDef, Array, For, String
+from ctree.c.nodes import SymbolRef, CFile, FunctionCall, ArrayDef, Array, For, String, Assign, Constant, Lt, PostInc
 from ctree.cpp.nodes import CppInclude
 import numpy as np
 from ctree.jit import LazySpecializedFunction, ConcreteSpecializedFunction
@@ -13,8 +13,11 @@ from ctree.transformations import PyBasicConversions
 from rebox.specializers.order import Ordering
 from rebox.specializers.rm.encode import MultiplyEncode
 
-from hpgmg.finite_volume.operators.specializers.util import to_macro_function, apply_all_layers, include_mover
+from hpgmg.finite_volume.operators.specializers.util import to_macro_function, apply_all_layers, include_mover, \
+    LayerPrinter
 from hpgmg.finite_volume.operators.transformers.level_transformers import RowMajorInteriorPoints
+from hpgmg.finite_volume.operators.transformers.semantic_transformer import SemanticFinder
+from hpgmg.finite_volume.operators.transformers.transformer_util import nest_loops
 from hpgmg.finite_volume.operators.transformers.utility_transformers import ParamStripper, AttributeRenamer, \
     AttributeGetter, ArrayRefIndexTransformer
 
@@ -43,6 +46,20 @@ class SmoothCFunction(ConcreteSpecializedFunction):
         self._c_function(*flattened)
 
 class CSmoothSpecializer(LazySpecializedFunction):
+
+    class RangeTransformer(ast.NodeTransformer):
+        def visit_RangeNode(self, node):
+            ndim = len(node.iterator.ranges)
+            index_names = ['index_{}'.format(i) for i in range(ndim)]
+            for_loops = [For(
+                init=Assign(SymbolRef(index), Constant(low)),
+                test=Lt(SymbolRef(index), Constant(high)),
+                incr=PostInc(SymbolRef(index))
+            ) for index, (low, high) in zip(index_names, node.iterator.ranges)]
+            top, bottom = nest_loops(for_loops)
+            bottom.body = node.body
+            self.generic_visit(bottom)
+            return top
 
     class SmoothSubconfig(dict):
         def __hash__(self):
@@ -80,7 +97,9 @@ class CSmoothSpecializer(LazySpecializedFunction):
             AttributeRenamer({
                 'self.operator.apply_op': Name('apply_op', ast.Load())
             }),
-            RowMajorInteriorPoints(subconfig),
+            SemanticFinder(subconfig),
+            self.RangeTransformer(),
+            #RowMajorInteriorPoints(subconfig),
             AttributeGetter({'self': subconfig['self']}),
             ArrayRefIndexTransformer(
                 indices=['index'],
@@ -172,19 +191,35 @@ class CSmoothSpecializer(LazySpecializedFunction):
 
 class OmpSmoothSpecializer(CSmoothSpecializer):
 
+    class RangeTransformer(ast.NodeTransformer):
+        def visit_RangeNode(self, node):
+            ndim = len(node.iterator.ranges)
+            index_names = ['index_{}'.format(i) for i in range(ndim)]
+            for_loops = [For(
+                init=Assign(SymbolRef(index), Constant(low)),
+                test=Lt(SymbolRef(index), Constant(high)),
+                incr=PostInc(SymbolRef(index))
+            ) for index, (low, high) in zip(index_names, node.iterator.ranges)]
+            top, bottom = nest_loops(for_loops)
+            top.pragma = 'omp parallel for'
+            bottom.body = node.body
+            self.generic_visit(bottom)
+            return top
+
     def transform(self, tree, program_config):
         stuff = super(OmpSmoothSpecializer, self).transform(tree, program_config)
         stuff[0].config_target = 'omp'
         stuff[0].body.insert(0, CppInclude("omp.h"))
-        for_loop = stuff[0].find(For)
-        subconfig = program_config[0]
-        ndim = subconfig['self'].operator.solver.dimensions
-        for_loop.pragma = 'omp parallel for private(a_x, b)'.format(ndim)
-        # last_loop = list(stuff[0].find_all(For))[-1]
-        # last_loop.body.append(
-        #     FunctionCall(
-        #         SymbolRef("printf"),
-        #         args=[String(r"Threads: %d\n"), FunctionCall(SymbolRef("omp_get_num_threads"))]
-        #     )
-        # )
+    #     for_loop = stuff[0].find(For)
+    #     subconfig = program_config[0]
+    #     ndim = subconfig['self'].operator.solver.dimensions
+    #     for_loop.pragma = 'omp parallel for private(a_x, b)'.format(ndim)
+    #     # last_loop = list(stuff[0].find_all(For))[-1]
+    #     # last_loop.body.append(
+    #     #     FunctionCall(
+    #     #         SymbolRef("printf"),
+    #     #         args=[String(r"Threads: %d\n"), FunctionCall(SymbolRef("omp_get_num_threads"))]
+    #     #     )
+    #     # )
         return stuff
+

@@ -23,5 +23,4 @@ setup(
         'ctree',
         'stencil_code'
     ]
-
 )
