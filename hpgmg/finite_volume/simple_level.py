@@ -205,3 +205,6 @@ class SimpleLevel(object):
         :return:
         """
         self.cell_values.print(message=title)
+
+#    def halo(self):
+

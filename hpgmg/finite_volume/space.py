@@ -3,8 +3,11 @@ from __future__ import print_function, division
 import collections
 import numbers
 import itertools
+
 import numpy as np
-from hpgmg.iterator import RangeIterator
+
+from hpgmg.finite_volume.iterator import RangeIterator
+
 
 try:
     # Python 2

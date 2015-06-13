@@ -3,7 +3,7 @@ from __future__ import print_function
 from hpgmg.finite_volume.operators.base_operator import BaseOperator
 from hpgmg.finite_volume.operators.smoother import Smoother
 from hpgmg.finite_volume.operators.specializers.smooth_specializer import CSmoothSpecializer, OmpSmoothSpecializer
-from hpgmg.finite_volume.operators.specializers.util import specialized_func_dispatcher
+from hpgmg.finite_volume.operators.specializers.util import specialized_func_dispatcher, profile
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
@@ -27,6 +27,7 @@ class JacobiSmoother(Smoother):
         self.weight = 1.0 if use_l1_jacobi else 2.0/3.0
         self.iterations = iterations
 
+    @profile
     def smooth(self, level, mesh_to_smooth, rhs_mesh):
         """
 

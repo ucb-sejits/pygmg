@@ -64,6 +64,7 @@ class BoundaryUpdaterV1(object):
                 scale, neighbor_index = get_scale_and_neighbor(index)
                 mesh[index] = scale * mesh[neighbor_index]
 
+
     @staticmethod
     def apply_periodic(level, mesh):
         assert(isinstance(mesh, Mesh))
