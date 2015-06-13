@@ -161,6 +161,7 @@ class CSmoothSpecializer(LazySpecializedFunction):
             func, macro_func, encode_func
         ])
         cfile = include_mover(cfile)
+        #print("codegen")
         return [cfile]
 
     def finalize(self, transform_result, program_config):

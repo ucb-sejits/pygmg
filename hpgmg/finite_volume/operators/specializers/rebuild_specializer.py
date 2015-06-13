@@ -37,10 +37,28 @@ class RebuildCFunction(ConcreteSpecializedFunction):
         return self._c_function(*flattened)
 
 class CRebuildSpecializer(LazySpecializedFunction):
+
+    class RebuildSpecializerSubconfig(dict):
+        def __hash__(self):
+            things_to_hash = []
+            target_level_things = ('l1_inverse', 'd_inverse', 'valid', 'alpha')
+            for key in target_level_things:
+                things_to_hash.append(
+                    getattr(self['target_level'], key).shape
+                )
+            self_things = ('h2inv', 'a', 'b')
+            for key in self_things:
+                things_to_hash.append(
+                    getattr(self['self'], key)
+                )
+            things_to_hash.extend(self['self'].neighborhood_offsets)
+
+            return hash(tuple(things_to_hash))
+
     def args_to_subconfig(self, args):
-        return {
+        return self.RebuildSpecializerSubconfig({
             'self': args[0], 'target_level': args[1]
-        }
+        })
 
     def transform(self, tree, program_config):
         func = tree.body[0]
