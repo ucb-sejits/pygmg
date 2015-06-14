@@ -53,7 +53,7 @@ def to_macro_function(f, namespace=None, rename=None):
         AttributeFiller(namespace),
         IndexTransformer(('index',)),
         LookupSimplificationTransformer(),
-        IndexOpTransformer(),
+        IndexOpTransformer(self.solver.dimensions),
         IndexDirectTransformer(self.solver.dimensions),
         PyBasicConversions()
     ]

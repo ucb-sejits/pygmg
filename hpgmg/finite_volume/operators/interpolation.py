@@ -1,6 +1,7 @@
 from __future__ import print_function
 from abc import ABCMeta, abstractmethod
-from hpgmg.finite_volume.operators.specializers.util import time_this
+from hpgmg.finite_volume.operators.specializers.interpolate_specializer import CInterpolateSpecializer
+from hpgmg.finite_volume.operators.specializers.util import time_this, specialized_func_dispatcher
 
 from hpgmg.finite_volume.space import Space, Coord
 
@@ -26,9 +27,12 @@ class InterpolatorPC(Interpolator):
         self.pre_scale = pre_scale
 
     @time_this
-    def interpolate(self, finer_level, target_mesh, source_mesh):
-        for target_index in finer_level.interior_points():
-            source_index = ((target_index - finer_level.ghost_zone) // 2) + finer_level.ghost_zone
+    @specialized_func_dispatcher({
+        'c': CInterpolateSpecializer
+    })
+    def interpolate(self, target_level, target_mesh, source_mesh):
+        for target_index in target_level.interior_points():
+            source_index = ((target_index - target_level.ghost_zone) // 2) + target_level.ghost_zone
             target_mesh[target_index] *= self.pre_scale
             target_mesh[target_index] += source_mesh[source_index]
 

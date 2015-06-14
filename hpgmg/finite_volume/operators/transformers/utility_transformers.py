@@ -1,7 +1,7 @@
 import ast
 import sys
 
-from ctree.c.nodes import FunctionCall, SymbolRef, Add, Sub, Constant, MultiNode
+from ctree.c.nodes import FunctionCall, SymbolRef, Add, Sub, Constant, MultiNode, Div, Mul
 
 from hpgmg.finite_volume.operators.nodes import ArrayIndex
 
@@ -40,34 +40,60 @@ class IndexTransformer(ast.NodeTransformer):
 
 
 class IndexOpTransformer(ast.NodeTransformer):
+
+    def __init__(self, ndim, encode_func_name='encode'):
+        self.ndim = ndim
+        self.encode_func_name = encode_func_name
+
     def visit_BinOp(self, node):
-        if isinstance(node.left, ArrayIndex):
-            if isinstance(node.op, (ast.Add, ast.Sub)):
-                #print(dump(node))
-                if isinstance(node.op, ast.Add):
-                    op = Add
-                else:
-                    op = Sub
-                ndim = len(node.right.elts)
-                args = [
-                    op(SymbolRef(node.left.name+"_{}".format(i)),
-                        node.right.elts[i]) for i in range(ndim)
-                ]
-                return FunctionCall(
-                    func=SymbolRef('encode'),
-                    args=args
-                )
         node.left = self.visit(node.left)
         node.right = self.visit(node.right)
+        op = node.op
+        if isinstance(node.left, ArrayIndex):
+            if isinstance(node.right, (ast.List, ast.Tuple)):
+                #print(dump(node))
+                args = [
+                    ast.BinOp(left=ast.Name(id=node.left.name+"_{}".format(i), ctx=ast.Load()),
+                              right=node.right.elts[i],
+                              op=op) for i in range(self.ndim)
+                ]
+                return ast.Call(
+                    func=ast.Name(id=self.encode_func_name, ctx=ast.Load()),
+                    args=args,
+                    keywords=[],
+                    starargs=None
+                )
+            elif isinstance(node.right, ast.Num):
+                node.right = ast.Tuple(elts=[node.right]*self.ndim, ctx=ast.Load())
+                return self.visit(node)
+        if isinstance(node.left, ast.Call) and node.left.func.id == self.encode_func_name:
+            #print("ENCODE")
+            if isinstance(node.right, (ast.Tuple, ast.List)):
+                args = [
+                    ast.BinOp(left=arg,
+                              op=op,
+                              right=elt)
+                    for arg, elt in zip(node.left.args, node.right.elts)
+                ]
+                return ast.Call(
+                    func=ast.Name(id=self.encode_func_name, ctx=ast.Load()),
+                    args=args,
+                    keywords=[],
+                    starargs=None
+                )
+            elif isinstance(node.right, ast.Num):
+                node.right = ast.Tuple(elts=[node.right]*self.ndim, ctx=ast.Load())
+                return self.visit(node)
         return node
 
 
 class IndexDirectTransformer(ast.NodeTransformer):
-    def __init__(self, ndim):
+    def __init__(self, ndim, encode_func_name='encode'):
         self.ndim = ndim
+        self.encode_func_name = encode_func_name
 
     def visit_ArrayIndex(self, node):
-        return FunctionCall('encode', args=[
+        return FunctionCall(self.encode_func_name, args=[
             SymbolRef(node.name+"_{}".format(i)) for i in range(self.ndim)
         ])
 
