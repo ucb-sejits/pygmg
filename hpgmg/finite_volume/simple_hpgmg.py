@@ -370,6 +370,7 @@ class SimpleMultigridSolver(object):
         # is an estimate of the order of the method (e.g. 4th order)
         print("  order = {:0.3f}".format(math.log(norm_of_u4h_minus_u2h / norm_of_u2h_minus_uh) / math.log(2.0)))
 
+    @time_this
     def run_richardson_test(self):
         if len(self.all_levels) < 3:
             print("WARNING: not enough levels to perform richardson test, skipping...")
@@ -508,6 +509,7 @@ class SimpleMultigridSolver(object):
         return SimpleMultigridSolver(config)
 
     @staticmethod
+    @profile
     def main():
         configuration = SimpleMultigridSolver.get_configuration()
         solver = SimpleMultigridSolver(configuration)
