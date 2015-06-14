@@ -27,7 +27,7 @@ class JacobiSmoother(Smoother):
         self.weight = 1.0 if use_l1_jacobi else 2.0/3.0
         self.iterations = iterations
 
-    @time_this
+    #@time_this
     def smooth(self, level, mesh_to_smooth, rhs_mesh):
         """
 
@@ -66,6 +66,7 @@ class JacobiSmoother(Smoother):
 
             working_target.dump("JACOBI_SMOOTH_PASS_{}_SIZE_{}".format(i, format(level.space[0]-2)))
 
+    @time_this
     @specialized_func_dispatcher({
         'c': CSmoothSpecializer,
         'omp': OmpSmoothSpecializer
