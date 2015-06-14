@@ -4,6 +4,7 @@ import itertools
 from stencil_code.halo_enumerator import HaloEnumerator
 
 from hpgmg.finite_volume.mesh import Mesh
+from hpgmg.finite_volume.operators.specializers.util import time_this
 
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
@@ -38,7 +39,9 @@ class BoundaryUpdaterV1(object):
             self.apply = BoundaryUpdaterV1.apply_periodic
             self.name = "periodic"
 
+    #@time_this
     @staticmethod
+    @time_this
     def apply_dirichlet(level, mesh):
         assert(isinstance(mesh, Mesh))
 
@@ -64,8 +67,9 @@ class BoundaryUpdaterV1(object):
                 scale, neighbor_index = get_scale_and_neighbor(index)
                 mesh[index] = scale * mesh[neighbor_index]
 
-
+    #@time_this
     @staticmethod
+    @time_this
     def apply_periodic(level, mesh):
         assert(isinstance(mesh, Mesh))
 

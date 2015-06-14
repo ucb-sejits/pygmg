@@ -107,7 +107,8 @@ def time_this(func):
     wrapper.total_time = 0
     @atexit.register
     def dump_time():
-        print(func.__name__, sum(timings))
+        if finite_volume.CONFIG.verbose:
+            print('Function:', func.__name__, 'Total time:', sum(timings), 'calls:', len(timings))
     return wrapper
 
 
