@@ -9,7 +9,7 @@ import logging
 from hpgmg import finite_volume
 from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.operators.chebyshev_smoother import ChebyshevSmoother
-from hpgmg.finite_volume.operators.specializers.util import profile
+from hpgmg.finite_volume.operators.specializers.util import profile, time_this
 
 from hpgmg.finite_volume.operators.stencil_von_neumann_r1 import StencilVonNeumannR1
 from hpgmg.finite_volume.operators.interpolation import InterpolatorPC
@@ -271,6 +271,7 @@ class SimpleMultigridSolver(object):
 
         # level.print("Interpolated level {}".format(level.level_number))
 
+    @time_this
     def solve(self, start_level=0):
         """
         void MGSolve(mg_type *all_grids, int u_id, int F_id, double a, double b, double dtol, double rtol){
