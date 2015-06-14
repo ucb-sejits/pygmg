@@ -98,6 +98,7 @@ def include_mover(node):
 
 
 def time_this(func):
+    time_this.names.append(func.__name__)
     timings = []
     def wrapper(*args, **kwargs):
         a = time.time()
@@ -107,9 +108,11 @@ def time_this(func):
     wrapper.total_time = 0
     @atexit.register
     def dump_time():
-        if finite_volume.CONFIG.verbose:
-            print('Function:', func.__name__, 'Total time:', sum(timings), 'calls:', len(timings))
+        if finite_volume.CONFIG.verbose and timings:
+            maxlen = max(len(i) for i in time_this.names)
+            print('Function:', func.__name__.ljust(maxlen), 'Total time:', sum(timings), 'calls:', len(timings), sep="\t")
     return wrapper
+time_this.names = []
 
 
 def profile(func):

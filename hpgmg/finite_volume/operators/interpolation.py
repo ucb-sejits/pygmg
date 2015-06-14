@@ -25,6 +25,7 @@ class InterpolatorPC(Interpolator):
         self.dimensions = solver.dimensions
         self.pre_scale = pre_scale
 
+    @time_this
     def interpolate(self, finer_level, target_mesh, source_mesh):
         for target_index in finer_level.interior_points():
             source_index = ((target_index - finer_level.ghost_zone) // 2) + finer_level.ghost_zone
@@ -90,6 +91,7 @@ class InterpolatorPQ(Interpolator):
     def compute_neighbor_index(vector):
             return (vector.i % 2) * 4 + (vector.j % 2) * 2 + (vector.k % 2)
 
+    @time_this
     def interpolate(self, target_level, target_mesh, source_level, source_mesh, ):
         for target_index in target_mesh.space.points:
             source_index = target_index // 2

@@ -494,7 +494,7 @@ class SimpleMultigridSolver(object):
                             action="store_true", default=False)
         parser.add_argument('-l', '--log', help='turn on logging', action="store_true", default=False)
         parser.add_argument('-b', '--backend', help='turn on JIT', choices=('python', 'c', 'omp', 'ocl'), default='python')
-        parser.add_argument('-v', '--verbose', help='print verbose', default=False)
+        parser.add_argument('-v', '--verbose', help='print verbose', action="store_true", default=False)
         finite_volume.CONFIG = parser.parse_args(args=args)
         return finite_volume.CONFIG
 
