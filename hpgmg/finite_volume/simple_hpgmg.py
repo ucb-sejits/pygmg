@@ -35,6 +35,7 @@ class SimpleMultigridSolver(object):
     a simple multi-grid solver. gets a argparse configuration
     with settings from the command line
     """
+    @profile
     def __init__(self, configuration):
         self.dump_grids = configuration.dump_grids
         if self.dump_grids:
@@ -241,18 +242,18 @@ class SimpleMultigridSolver(object):
     def v_cycle(self, level, target_mesh, residual_mesh):
         if min(level.space) <= 3:
             with level.timer('total cycles'):
-                residual_mesh.dump("BOTTOM-SOLVER-RESIDUAL level {}".format(level.level_number))
+                #residual_mesh.dump("BOTTOM-SOLVER-RESIDUAL level {}".format(level.level_number))
                 self.bottom_solver.solve(level, target_mesh, residual_mesh)
-                target_mesh.dump("BOTTOM-SOLVED level {}".format(level.level_number))
+                #target_mesh.dump("BOTTOM-SOLVED level {}".format(level.level_number))
             return
 
-        level.right_hand_side.dump("VCYCLE_RHS")
+        #level.right_hand_side.dump("VCYCLE_RHS")
         with level.timer("total cycles"):
             self.smoother.smooth(level, level.cell_values, level.residual)
-            level.cell_values.dump("PRE-SMOOTH VECTOR_U level {}".format(level.level_number))
+            #level.cell_values.dump("PRE-SMOOTH VECTOR_U level {}".format(level.level_number))
             self.residual.run(level, level.temp, level.cell_values, residual_mesh)
 
-            level.temp.dump("VECTOR_TEMP_RESIDUAL level {}".format(level.level_number))
+            #level.temp.dump("VECTOR_TEMP_RESIDUAL level {}".format(level.level_number))
 
             coarser_level = self.all_levels[level.level_number+1]
 

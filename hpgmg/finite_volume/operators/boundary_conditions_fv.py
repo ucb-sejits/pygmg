@@ -4,7 +4,10 @@ import itertools
 from stencil_code.halo_enumerator import HaloEnumerator
 
 from hpgmg.finite_volume.mesh import Mesh
+from hpgmg.finite_volume.operators.boundary_kernels.dirichlet import DirichletBoundary
+from hpgmg.finite_volume.operators.boundary_kernels.periodic import PeriodicBoundary
 from hpgmg.finite_volume.operators.specializers.util import time_this
+from hpgmg.finite_volume.space import Vector
 
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
@@ -33,15 +36,22 @@ class BoundaryUpdaterV1(object):
         self.solver = solver
 
         if self.solver.boundary_is_dirichlet:
-            self.apply = BoundaryUpdaterV1.apply_dirichlet
             self.name = "dirichlet"
+            self.boundary = DirichletBoundary()
         elif self.solver.boundary_is_periodic:
-            self.apply = BoundaryUpdaterV1.apply_periodic
             self.name = "periodic"
+            self.boundary = PeriodicBoundary()
+
+        self.kernels = [self.boundary.make_kernel(boundary) for boundary in self.boundary_cases()]
+
+    @time_this
+    def apply(self, level, mesh):
+        for kernel in self.kernels:
+            kernel(level, mesh)
+
 
     #@time_this
     @staticmethod
-    @time_this
     def apply_dirichlet(level, mesh):
         assert(isinstance(mesh, Mesh))
 
@@ -69,7 +79,6 @@ class BoundaryUpdaterV1(object):
 
     #@time_this
     @staticmethod
-    @time_this
     def apply_periodic(level, mesh):
         assert(isinstance(mesh, Mesh))
 
@@ -104,3 +113,6 @@ class BoundaryUpdaterV1(object):
             list(itertools.product('ie', repeat=self.solver.dimensions))[1:],
             key=num_edges
         )
+
+    def boundary_cases(self):
+        return (Vector(i) for i in  itertools.product((-1, 0, 1), repeat=self.solver.dimensions) if any(i))

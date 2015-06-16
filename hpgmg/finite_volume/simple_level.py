@@ -3,12 +3,14 @@ implement a simple single threaded, variable coefficient gmg solver
 """
 from __future__ import division, print_function
 import math
+import itertools
 from stencil_code.halo_enumerator import HaloEnumerator
+from hpgmg.finite_volume.iterator import RangeIterator
 from hpgmg.finite_volume.timer import EventTimer
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
-from hpgmg.finite_volume.space import Vector, Space
+from hpgmg.finite_volume.space import Vector, Space, Coord
 from hpgmg.finite_volume.mesh import Mesh
 
 
@@ -41,6 +43,7 @@ class SimpleLevel(object):
         ))
 
         self.solver = solver
+        self.interior_space = space
         self.space = space + (solver.ghost_zone * 2)
 
         self.configuration = solver.configuration
@@ -116,7 +119,7 @@ class SimpleLevel(object):
 
     def fill_mesh(self, mesh, value):
         for index in self.indices():
-            mesh[index] = value if self.valid[index] > 0.0 else 0.0
+            mesh[index] = value  # if self.valid[index] > 0.0 else 0.0
 
     def add_meshes(self, target_mesh, scale_a, mesh_a, scale_b, mesh_b):
         for index in self.interior_points():
@@ -206,5 +209,16 @@ class SimpleLevel(object):
         """
         self.cell_values.print(message=title)
 
-#    def halo(self):
-
+    def boundary_iterator(self, boundary):
+        bounds = []
+        for side, dim, ghost in zip(boundary, self.space, self.ghost_zone):
+            if side == -1:
+                #lower
+                bounds.append((0, ghost))
+            elif side == 1:
+                #upper
+                bounds.append((dim - ghost, dim))
+            else:
+                #interior
+                bounds.append((ghost, dim-ghost))
+        return RangeIterator(*bounds, map_func=Coord)
