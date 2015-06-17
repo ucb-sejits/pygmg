@@ -1,4 +1,5 @@
 from __future__ import print_function
+from hpgmg.finite_volume.problems.algebraic_problem import SymmetricAlgebraicProblem
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
@@ -94,3 +95,11 @@ class SineProblemND(Problem):
             u_second_derivative(*vector) for u_second_derivative in self.u_second_derivatives
         )
         return u, Vector(du_dv), Vector(d2u_dv2)
+
+
+class SineProblemND(SymmetricAlgebraicProblem):
+    def __init__(self, dimensions=3, power=13, constants=(2.0*np.pi, 6.0*np.pi)):
+        expr = sum(sympy.sympify("sin({const}*{var})**{power}".format(const=c, var='x', power=power)) for c in constants)
+        def pairwise_product_sum(a, b):
+            return sum(a_arg * b_arg for a_arg, b_arg in zip(a.args, b.args))
+        super(SineProblemND, self).__init__(expr, dimensions, pairwise_product_sum)

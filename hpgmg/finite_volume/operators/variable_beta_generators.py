@@ -25,17 +25,30 @@ class VariableBeta(object):
 
         delta = vector - self.center
         distance = sum(d**2 for d in delta)**0.5
-        normalized_delta = delta / distance
+
 
         beta_at_face = c1 + c2 * tanh(c3 * (distance - 0.25))
-        beta_vector = c2 * c3 * normalized_delta * (1 - (tanh(c3 * (distance - 0.25))**2))
+
 
         # print("eb v {} dis {} del {} ndel {} bv {}".format(
         #     ",".join(map(str, vector)), distance, ",".join(map(str, delta)), ",".join(map(str, normalized_delta)),
         #     ",".join(map(str, beta_vector))
         # ))
 
-        return beta_at_face, beta_vector
+        return beta_at_face
+
+
+    def evaluate_beta_vector(self, vector):
+        b_min = 1.0
+        b_max = 10.0
+        c2 = (b_max-b_min)/2  # coefficients to affect this transition
+        c3 = 10.0  # how sharply (B)eta transitions
+
+        delta = vector - self.center
+        distance = sum(d**2 for d in delta)**0.5
+        normalized_delta = delta / distance
+        beta_vector = c2 * c3 * normalized_delta * (1 - (tanh(c3 * (distance - 0.25))**2))
+        return beta_vector
 
     def evaluate_beta_3d(self, vector):
         """

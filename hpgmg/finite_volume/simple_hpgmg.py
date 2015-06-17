@@ -3,9 +3,11 @@ implement a simple single threaded, gmg solver
 """
 from __future__ import division, print_function
 import argparse
+import functools
 import os
 import sys
 import logging
+import time
 from hpgmg import finite_volume
 from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.operators.chebyshev_smoother import ChebyshevSmoother
@@ -26,6 +28,8 @@ from hpgmg.finite_volume.solvers.smoothing_solver import SmoothingSolver
 from hpgmg.finite_volume.timer import EventTimer
 from hpgmg.finite_volume.space import Space, Vector
 from hpgmg.finite_volume.simple_level import SimpleLevel
+
+import numpy as np
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
@@ -168,6 +172,7 @@ class SimpleMultigridSolver(object):
                 self.all_levels[index].beta_face_values[0].dump("VECTOR_BETA_K_LEVEL_{}".format(index))
                 self.all_levels[index].d_inverse.dump("VECTOR_DINV_LEVEL_{}".format(index))
 
+    @time_this
     def initialize(self, level):
         """
         Initialize the right_hand_side(VECTOR_F), exact_solution(VECTOR_UTRUE)
@@ -181,51 +186,157 @@ class SimpleMultigridSolver(object):
         face_betas = [1.0 for _ in range(self.dimensions)]
 
         problem = self.problem
+
         if level.is_variable_coefficient:
             beta_generator = self.beta_generator
 
-        for element_index in level.indices():
-            absolute_position = level.coord_to_cell_center_point(element_index)
+        a = time.time()
+        #fill Alpha
+        #level.alpha
+        level.alpha.fill(alpha)
 
-            if level.is_variable_coefficient:
-                for face_index in range(self.dimensions):
-                    # print("##,{} ".format(",".join(map(str, element_index))), end="")
-                    # the following face_betas are reversed in order to keep
-                    # strict compatibility with c,
-                    # TODO: figure out if there is a way to get iteration to do this naturally
-                    # face_betas[self.dimensions-(face_index+1)], _ = beta_generator.evaluate_beta(
-                    #     level.coord_to_face_center_point(element_index, face_index)
-                    # )
-                    face_betas[face_index], _ = beta_generator.evaluate_beta(
-                        level.coord_to_face_center_point(element_index, face_index)
-                    )
-                    # face_betas[face_index] = face_index * 1000.0 + element_index[2] * 100 + \
-                    #     element_index[1] * 10 + element_index[0]
+        #fill U
+        #level.exact_solution[:]
+        def to_absolute_func(f):
+            return lambda *coord: f(*level.coord_to_cell_center_point(coord))
+        func = problem.get_func(problem.expression)
+        level.exact_solution[:] = np.fromfunction(
+            to_absolute_func(func),
+            level.space,
+            dtype=level.exact_solution.dtype
+        )
+        #print(exact_solution[10, 10, 10])
 
-                # print("{}".format(",".join(map(str, element_index))), end="")
-                beta, beta_xyz = beta_generator.evaluate_beta(absolute_position)
+        #fill F
+        #Part 1: a*A*U
+        #level.right_hand_side
+        level.right_hand_side[:] = self.a * alpha * level.exact_solution
+        #Part 2: b * (B * U + B * (Uxx + Uyy + Uzz)
+        #u_xyz
+        first_derivative_functions = [
+            to_absolute_func(problem.get_func(problem.get_derivative(dim, 1))) for dim in range(self.dimensions)
+        ]
+        first_derivatives = [
+            np.fromfunction(
+                func,
+                level.space,
+                dtype=level.exact_solution.dtype
+            ) for func in first_derivative_functions
+        ]
 
-            u, u_xyz, u_xxyyzz = problem.evaluate_u(absolute_position)
+        #sum(u_xxyyzz)
 
-            # double F = a*A*U - b*( (Bx*Ux + By*Uy + Bz*Uz)  +  B*(Uxx + Uyy + Uzz) );
-            f = self.a * alpha * u - (
-                self.b * ((beta_xyz * u_xyz) + beta * sum(u_xxyyzz))
+        second_derivative_sum_func = to_absolute_func(problem.get_func(
+            sum(problem.get_derivative(dim, 2) for dim in range(self.dimensions))
+        ))
+
+        second_derivatives = np.fromfunction(
+            second_derivative_sum_func,
+            level.space,
+            dtype=level.exact_solution.dtype
+        )
+
+        #beta stuff
+        if level.is_variable_coefficient:
+            beta_values = np.fromfunction(
+                np.frompyfunc(
+                    lambda *vector: beta_generator.evaluate_beta(vector), self.dimensions, 1
+                ),
+                level.space,
+                dtype=level.exact_solution.dtype
             )
 
-            # print("init {:12s} {:20} u {:e} beta_xyz ({}) u_xyz {} u_xxyyzz {} f {:8.6f}".format(
-            #     element_index, absolute_position, u,
-            #     ",".join("{:8.6f}".format(n) for n in beta_xyz),
-            #     ",".join("{:8.6f}".format(n) for n in u_xyz),
-            #     ",".join("{:8.6f}".format(n) for n in u_xxyyzz), f
-            # ))
+            beta_vectors = np.fromfunction(
+                np.frompyfunc(
+                    lambda *vector: beta_generator.evaluate_beta_vector(vector), self.dimensions, self.dimensions
+                ),
+                level.space,
+                dtype=level.exact_solution.dtype
+            )
+        else:
+            beta_values = np.full(level.space, beta)
+            beta_vectors = [
+                np.full(level.space, 0)
+                for i in range(self.dimensions)
+            ]
 
-            level.right_hand_side[element_index] = f
-            level.exact_solution[element_index] = u
+        level.right_hand_side -= self.b * sum(A*B for A, B in zip(beta_vectors, first_derivatives)) + \
+            beta_values * second_derivatives
 
-            level.alpha[element_index] = alpha
+        if self.is_variable_coefficient:
             for face_index in range(self.dimensions):
-                # if all(element_index[d] < level.space[d]-1 for d in range(self.dimensions)):
-                level.beta_face_values[face_index][element_index] = face_betas[face_index]
+                level.beta_face_values[face_index][:] = np.fromfunction(
+                    np.frompyfunc(
+                        lambda *vector: beta_generator.evaluate_beta(
+                            level.coord_to_face_center_point(vector, face_index)
+                        ),
+                        self.dimensions,
+                        1
+                    ),
+                    level.space,
+                    dtype=level.exact_solution.dtype
+                )
+
+
+        b = time.time()
+
+        # evaluate_u = problem.get_func(problem.expression)
+        # firsts = [problem.get_func(problem.get_derivative(dim, 1)) for dim in range(self.dimensions)]
+        # def evaluate_first(position):
+        #     return Vector(first(*position) for first in firsts)
+        # seconds = [problem.get_func(problem.get_derivative(dim, 2)) for dim in range(self.dimensions)]
+        # def evaluate_second(position):
+        #     return sum(second(*position) for second in seconds)
+        #
+        # for element_index in level.indices():
+        #     absolute_position = level.coord_to_cell_center_point(element_index)
+        #
+        #     if level.is_variable_coefficient:
+        #         for face_index in range(self.dimensions):
+        #             # print("##,{} ".format(",".join(map(str, element_index))), end="")
+        #             # the following face_betas are reversed in order to keep
+        #             # strict compatibility with c,
+        #             # TODO: figure out if there is a way to get iteration to do this naturally
+        #             # face_betas[self.dimensions-(face_index+1)], _ = beta_generator.evaluate_beta(
+        #             #     level.coord_to_face_center_point(element_index, face_index)
+        #             # )
+        #             face_betas[face_index] = beta_generator.evaluate_beta(
+        #                 level.coord_to_face_center_point(element_index, face_index)
+        #             )
+        #             # face_betas[face_index] = face_index * 1000.0 + element_index[2] * 100 + \
+        #             #     element_index[1] * 10 + element_index[0]
+        #
+        #         # print("{}".format(",".join(map(str, element_index))), end="")
+        #         beta, beta_xyz = beta_generator.evaluate_beta(absolute_position)
+        #
+        #     u = evaluate_u(*absolute_position)
+        #     u_xyz = evaluate_first(absolute_position)
+        #     u_xxyyzz = evaluate_second(absolute_position)
+        #
+        #     # double F = a*A*U - b*( (Bx*Ux + By*Uy + Bz*Uz)  +  B*(Uxx + Uyy + Uzz) );
+        #     #print(*[type(i) for i in [self.a, alpha, u, self.b, beta_xyz, u_xyz, beta, u_xxyyzz]])
+        #     f = self.a * alpha * u - (
+        #         self.b * ((beta_xyz * u_xyz) + beta * u_xxyyzz)
+        #     )
+        #
+        #     # print("init {:12s} {:20} u {:e} beta_xyz ({}) u_xyz {} u_xxyyzz {} f {:8.6f}".format(
+        #     #     element_index, absolute_position, u,
+        #     #     ",".join("{:8.6f}".format(n) for n in beta_xyz),
+        #     #     ",".join("{:8.6f}".format(n) for n in u_xyz),
+        #     #     ",".join("{:8.6f}".format(n) for n in u_xxyyzz), f
+        #     # ))
+        #
+        #     level.right_hand_side[element_index] = f
+        #     level.exact_solution[element_index] = u
+        #
+        #     level.alpha[element_index] = alpha
+        #     for face_index in range(self.dimensions):
+        #         # if all(element_index[d] < level.space[d]-1 for d in range(self.dimensions)):
+        #         level.beta_face_values[face_index][element_index] = face_betas[face_index]
+        # c = time.time()
+        #
+        # print(b-a, c-b)
+
 
         if level.alpha_is_zero is None:
             level.alpha_is_zero = level.dot_mesh(level.alpha, level.alpha) == 0.0
