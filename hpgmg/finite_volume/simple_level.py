@@ -8,7 +8,7 @@ from hpgmg.finite_volume.timer import EventTimer
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
-from hpgmg.finite_volume.space import Vector, Space
+from hpgmg.finite_volume.space import Vector, Space, Coord
 from hpgmg.finite_volume.mesh import Mesh
 
 
@@ -76,6 +76,13 @@ class SimpleLevel(object):
         self.alpha_is_zero = None
 
         self.timer = EventTimer(self)
+
+    def dimensions(self):
+        return self.solver.dimensions
+
+    def dimension_range(self):
+        for dim in range(self.solver.dimensions):
+            yield dim
 
     def dimension_size(self):
         return self.space[0] - (self.ghost_zone[0]*2)
@@ -154,6 +161,26 @@ class SimpleLevel(object):
             if abs(mesh[index]) > max_norm:
                 max_norm = abs(mesh[index])
         return max_norm
+
+    def sum_mesh(self, mesh):
+        accumulator = 0.0
+        for index in self.interior_points():
+            accumulator += mesh[index]
+        return accumulator
+
+    def color_mesh(self, mesh, colors_in_each_dim, color_offset):
+        with self.timer("blas1"):
+            for index in self.interior_points():
+                color_vector = Vector(
+                    1.0 if (index[dim] + color_offset[dim] + self.ghost_zone[dim]) % colors_in_each_dim == 0 else 0.0
+                    for dim in self.dimension_range()
+                )
+
+                color_value = 1.0
+                for dim in self.dimension_range():
+                    color_value *= color_vector[dim]
+
+                mesh[index] = color_value
 
     def meshes_interiors_equal(self, mesh_a, mesh_b):
         return all(mesh_a[index] == mesh_b[index] for index in self.interior_points())

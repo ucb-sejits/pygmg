@@ -71,3 +71,43 @@ class BoundaryUpdaterV2(object):
             for index in halo_iterator.fixed_surface_iterator():
                 neighbor_index = get_scale_and_neighbor(index)
                 mesh[index] = mesh[neighbor_index]
+
+
+import sympy
+import numpy as np
+
+
+class QuadraticBoundaryApproximation(object):
+    @staticmethod
+    def compute_coefficients():
+        a, b, c, x = sympy.symbols('a, b, c, x')
+        print("symbol(a) {} symbol(b) {}".format(a, b))
+        l = []
+        u = [0, 1]  # these are the givens
+        # problem: how can we define "n" symbols with sympy
+
+        # append n simultaneous equations coefficients u[i] into list
+        for i in range(0,2):
+            f = sympy.Poly(a*(x**2) + b*x, x)
+            print("eq_{} {}".format(i+1, f))
+            l.append(sympy.integrate(f, (x, i, i+1)).coeffs())
+
+        A = np.array(l)  # load coefficients into matrix
+        coefficients = np.linalg.solve(A, u)  # determine values of unknown coefficients in polynomial(a,b,c etc)
+        u_on_boundary = sympy.integrate(f, (x, -1, 0)).coeffs()
+        boundary_val = float(np.dot(u_on_boundary, coefficients))
+        predicted = -5.0/2*u[0] + 1.0/2*u[1]
+
+        print(A)
+        print(coefficients)
+        print("boundary value: {} {}".format(boundary_val, type(boundary_val)))
+        print("predicted value {} {}".format(predicted, type(predicted)))
+        print("{}".format(boundary_val-predicted))
+        print(boundary_val == predicted)  # just a check we get the same thing as sam
+
+
+
+
+if __name__ == '__main__':
+    QuadraticBoundaryApproximation.compute_coefficients()
+
