@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 from stencil_code.neighborhood import Neighborhood
+from hpgmg.finite_volume.operators.specializers.util import profile, time_this
 
 from hpgmg.finite_volume.simple_level import SimpleLevel
 
@@ -55,6 +56,8 @@ class Restriction(object):
                 )
             )
 
+    @time_this
+    @profile
     def restrict(self, level, target, source, restriction_type):
         assert(isinstance(level, SimpleLevel))
 

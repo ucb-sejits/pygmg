@@ -173,6 +173,7 @@ class SimpleMultigridSolver(object):
                 self.all_levels[index].d_inverse.dump("VECTOR_DINV_LEVEL_{}".format(index))
 
     @time_this
+    @profile
     def initialize(self, level):
         """
         Initialize the right_hand_side(VECTOR_F), exact_solution(VECTOR_UTRUE)

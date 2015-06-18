@@ -1,6 +1,7 @@
 import ast
 import ctypes
-from ctree.c.nodes import MultiNode, Assign, SymbolRef, Constant, For, Lt, PostInc, FunctionDecl, CFile, Pragma
+from ctree.c.nodes import MultiNode, Assign, SymbolRef, Constant, For, Lt, PostInc, FunctionDecl, CFile, Pragma, \
+    FunctionCall, String
 from ctree.cpp.nodes import CppInclude
 from ctree.jit import LazySpecializedFunction, ConcreteSpecializedFunction
 from ctree.frontend import dump, get_ast
@@ -143,6 +144,10 @@ class OmpBoundarySpecializer(CBoundarySpecializer):
         kernels = decl.defn
         breakdown = chunkify(kernels, kernel_breakdown)
         new_defn = [Pragma(pragma="omp parallel", body=[], braces=True)]
+        # new_defn[0].body.append(
+        #     FunctionCall(SymbolRef('printf'), args=[String(r"%d\n"),
+        #                                             FunctionCall(SymbolRef("omp_get_num_threads"))])
+        # )
         for parallelizable in breakdown:
             pragma = Pragma(pragma="omp taskgroup", braces=True, body=[])
             for loop in parallelizable:
@@ -155,7 +160,7 @@ class OmpBoundarySpecializer(CBoundarySpecializer):
                 )
             new_defn[0].body.append(pragma)
         decl.defn = new_defn
-        cfile.backend = 'omp'
+        cfile.config_target = 'omp'
         cfile.body.append(
             CppInclude("omp.h")
         )
