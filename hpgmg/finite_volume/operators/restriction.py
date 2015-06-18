@@ -1,7 +1,8 @@
 from __future__ import print_function
 
 from stencil_code.neighborhood import Neighborhood
-from hpgmg.finite_volume.operators.specializers.util import profile, time_this
+from hpgmg.finite_volume.operators.specializers.restrict_specializer import CRestrictSpecializer
+from hpgmg.finite_volume.operators.specializers.util import profile, time_this, specialized_func_dispatcher
 
 from hpgmg.finite_volume.simple_level import SimpleLevel
 
@@ -56,10 +57,11 @@ class Restriction(object):
                 )
             )
 
-    @time_this
-    @profile
+    @specialized_func_dispatcher({
+        'c': CRestrictSpecializer
+    })
     def restrict(self, level, target, source, restriction_type):
-        assert(isinstance(level, SimpleLevel))
+        #assert(isinstance(level, SimpleLevel))
 
         if restriction_type == Restriction.RESTRICT_CELL:
             for target_point in level.interior_points():

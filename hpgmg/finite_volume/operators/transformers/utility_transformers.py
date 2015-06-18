@@ -169,8 +169,10 @@ class LookupSimplificationTransformer(ast.NodeTransformer):
     def visit_Subscript(self, node):
         #print("visited")
         #print(dump(node))
+        #print(node)
         if isinstance(node.value, (ast.List, ast.Tuple)):
             #print(dump(node))
+            #print("FOUND")
             if isinstance(node.slice, ast.Index) and isinstance(node.slice.value, ast.Num):
                 index = node.slice.value.n
                 return self.visit(node.value.elts[index])
