@@ -1,6 +1,7 @@
 import ast
 import ctypes
-from ctree.c.nodes import MultiNode, Assign, SymbolRef, Constant, For, Lt, PostInc, FunctionDecl, CFile
+from ctree.c.nodes import MultiNode, Assign, SymbolRef, Constant, For, Lt, PostInc, FunctionDecl, CFile, Pragma
+from ctree.cpp.nodes import CppInclude
 from ctree.jit import LazySpecializedFunction, ConcreteSpecializedFunction
 from ctree.frontend import dump, get_ast
 from ctree.nodes import Project
@@ -90,7 +91,7 @@ class CBoundarySpecializer(LazySpecializedFunction):
             PyBasicConversions(),
         ]
         c_func = apply_all_layers(layers, c_func)
-        c_func.defn = [kernel_bodies]
+        c_func.defn = kernel_bodies.body
         c_func.params[0].type = ctypes.POINTER(ctypes.c_double)()
         ordering = Ordering([MultiplyEncode()])
         bits_per_dim = min([math.log(i, 2) for i in subconfig['level'].space]) + 1
@@ -111,3 +112,52 @@ class CBoundarySpecializer(LazySpecializedFunction):
             Project(transform_result),
             ctypes.CFUNCTYPE(None, np.ctypeslib.ndpointer(mesh.dtype, 1, mesh.size))
         )
+
+class OmpBoundarySpecializer(CBoundarySpecializer):
+    def transform(self, tree, program_config):
+        cfile = super(OmpBoundarySpecializer, self).transform(tree, program_config)[0]
+
+        #because of the way we ordered the kernels, we can do simple task grouping
+        #every kernel depends only on a subset of the kernels whose norm(boundary) is less than itself.
+        def num_kernels(norm, ndim):
+            """
+            calculates the number of kernels with 1-norm norm given ndim dimensions
+            :param norm: 1-norm
+            :param ndim: number of dimensions
+            :return: number of kernels with 1-norm norm
+            """
+
+            return 2**norm * np.math.factorial(ndim) / (np.math.factorial(norm) * np.math.factorial(ndim - norm))
+
+        def chunkify(lst, breakdown):
+            i = iter(lst)
+            return [
+                [next(i) for _ in range(size)]
+                for size in breakdown
+            ]
+
+        subconfig, tuner_config = program_config
+        ndim = subconfig['mesh'].ndim
+        kernel_breakdown = [num_kernels(norm, ndim) for norm in range(1, ndim+1)]
+        decl = cfile.find(FunctionDecl)
+        kernels = decl.defn
+        breakdown = chunkify(kernels, kernel_breakdown)
+        new_defn = [Pragma(pragma="omp parallel", body=[], braces=True)]
+        for parallelizable in breakdown:
+            pragma = Pragma(pragma="omp taskgroup", braces=True, body=[])
+            for loop in parallelizable:
+                pragma.body.append(
+                    Pragma(
+                        pragma="omp task",
+                        body=[loop],
+                        braces=True
+                    )
+                )
+            new_defn[0].body.append(pragma)
+        decl.defn = new_defn
+        cfile.backend = 'omp'
+        cfile.body.append(
+            CppInclude("omp.h")
+        )
+        cfile = include_mover(cfile)
+        return [cfile]

@@ -1,12 +1,14 @@
 from __future__ import print_function
+import functools
 import itertools
+import numpy as np
 
 from stencil_code.halo_enumerator import HaloEnumerator
 
 from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.operators.boundary_kernels.dirichlet import DirichletBoundary
 from hpgmg.finite_volume.operators.boundary_kernels.periodic import PeriodicBoundary
-from hpgmg.finite_volume.operators.specializers.boundary_specializer import CBoundarySpecializer
+from hpgmg.finite_volume.operators.specializers.boundary_specializer import CBoundarySpecializer, OmpBoundarySpecializer
 from hpgmg.finite_volume.operators.specializers.util import time_this, specialized_func_dispatcher
 from hpgmg.finite_volume.space import Vector
 
@@ -47,7 +49,8 @@ class BoundaryUpdaterV1(object):
 
     @time_this
     @specialized_func_dispatcher({
-        'c': CBoundarySpecializer
+        'c': CBoundarySpecializer,
+        'omp': OmpBoundarySpecializer
     })
     def apply(self, level, mesh):
         for kernel in self.kernels:
@@ -119,4 +122,6 @@ class BoundaryUpdaterV1(object):
         )
 
     def boundary_cases(self):
-        return (Vector(i) for i in  itertools.product((0, -1, 1), repeat=self.solver.dimensions) if any(i))
+        cases = [Vector(i) for i in  itertools.product((0, -1, 1), repeat=self.solver.dimensions) if any(i)]
+        cases.sort(key=functools.partial(np.linalg.norm))
+        return cases

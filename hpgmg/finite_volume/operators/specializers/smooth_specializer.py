@@ -202,7 +202,7 @@ class OmpSmoothSpecializer(CSmoothSpecializer):
                 incr=PostInc(SymbolRef(index))
             ) for index, (low, high) in zip(index_names, node.iterator.ranges)]
             top, bottom = nest_loops(for_loops)
-            top.pragma = 'omp parallel for'
+            top.pragma = 'omp parallel for collapse(2)'
             bottom.body = node.body
             self.generic_visit(bottom)
             return top
