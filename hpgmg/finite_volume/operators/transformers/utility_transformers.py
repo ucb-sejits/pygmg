@@ -84,6 +84,15 @@ class IndexOpTransformer(ast.NodeTransformer):
             elif isinstance(node.right, ast.Num):
                 node.right = ast.Tuple(elts=[node.right]*self.ndim, ctx=ast.Load())
                 return self.visit(node)
+        if isinstance(node.left, (ast.Tuple, ast.List)) and isinstance(node.right, (ast.Tuple, ast.List)):
+            return self.generic_visit(
+                ast.Tuple(
+                    elts=[
+                        ast.BinOp(left=a, right=b, op=op) for a, b in zip(node.left.elts, node.right.elts)
+                    ],
+                    ctx=ast.Load()
+                )
+            )
         return node
 
 
@@ -101,6 +110,9 @@ class IndexDirectTransformer(ast.NodeTransformer):
 class AttributeRenamer(ast.NodeTransformer):
     def __init__(self, substitutes):
         self.substitutes = substitutes
+
+    def visit_Name(self, node):
+        return self.visit_Attribute(node)
 
     def visit_Attribute(self, node):
         name = get_name(node)
