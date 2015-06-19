@@ -1,3 +1,5 @@
+import copy
+
 __author__ = 'nzhang-dev'
 
 import ast
@@ -19,6 +21,9 @@ class ArrayIndex(PygmgSemanticNode):
     def __init__(self, name):
         self.name = name
 
+    def __deepcopy__(self, memo):
+        return ArrayIndex(self.name)
+
 class Parentheses(PygmgNode):
     _fields = ['value']
     def __init__(self, value):
@@ -33,3 +38,6 @@ class RangeNode(PygmgSemanticNode):
         self.iterator = iterator
         self.target = target
         self.body = body
+
+    def __deepcopy__(self, memo):
+        return RangeNode(self.target, self.iterator, copy.deepcopy(self.body))

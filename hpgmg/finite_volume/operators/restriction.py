@@ -56,14 +56,16 @@ class Restriction(object):
                     moore_neighborhood
                 )
             )
+        self.neighbor_offsets = tuple(tuple(i) for i in self.neighbor_offsets)
 
+    @time_this
     @specialized_func_dispatcher({
         'c': CRestrictSpecializer
     })
     def restrict(self, level, target, source, restriction_type):
         #assert(isinstance(level, SimpleLevel))
 
-        if restriction_type == Restriction.RESTRICT_CELL:
+        if restriction_type == self.RESTRICT_CELL:
             for target_point in level.interior_points():
                 source_point = (target_point * 2) - level.ghost_zone
                 target[target_point] = 0.0

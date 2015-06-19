@@ -30,7 +30,9 @@ class SymmetricAlgebraicProblem(AlgebraicProblem):
         #print(self.expression.diff(self.symbols[dim-1], derivative))
         return self.expression.diff(self.symbols[dim-1], derivative)
 
-    def get_func(self, func):
-        lambda_func = sympy.lambdify(self.symbols, func, "numpy")
-        numpy_func = np.frompyfunc(lambda_func, self.dimensions, 1)
+    @staticmethod
+    def get_func(func, symbols=None):
+        symbols = symbols or sorted(list(func.free_symbols), key=str)
+        lambda_func = sympy.lambdify(symbols, func, "numpy")
+        numpy_func = np.frompyfunc(lambda_func, len(symbols), 1)
         return numpy_func
