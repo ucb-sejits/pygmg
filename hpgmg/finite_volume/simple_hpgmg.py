@@ -8,6 +8,7 @@ import os
 import sys
 import logging
 import time
+import sympy
 from hpgmg import finite_volume
 from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.operators.chebyshev_smoother import ChebyshevSmoother
@@ -172,6 +173,13 @@ class SimpleMultigridSolver(object):
                 self.all_levels[index].beta_face_values[0].dump("VECTOR_BETA_K_LEVEL_{}".format(index))
                 self.all_levels[index].d_inverse.dump("VECTOR_DINV_LEVEL_{}".format(index))
 
+    def initialize_mesh(self, level, mesh, exp, coord_transform):
+        func = self.problem.get_func(exp, self.problem.symbols)
+        for coord in level.indices():
+            mesh[coord] = func(*coord_transform(coord))
+
+
+
     @time_this
     @profile
     def initialize(self, level):
@@ -200,42 +208,46 @@ class SimpleMultigridSolver(object):
         #level.exact_solution[:]
         def to_absolute_func(f):
             return lambda *coord: f(*level.coord_to_cell_center_point(coord))
-        func = problem.get_func(problem.expression)
-        level.exact_solution[:] = np.fromfunction(
-            to_absolute_func(func),
-            level.space,
-            dtype=level.exact_solution.dtype
-        )
+        # func = problem.get_func(problem.expression)
+        # level.exact_solution[:] = np.fromfunction(
+        #     to_absolute_func(func),
+        #     level.space,
+        #     dtype=level.exact_solution.dtype
+        # )
+        #other_mesh = np.zeros_like(level.exact_solution)
+        self.initialize_mesh(level, level.exact_solution, problem.expression, level.coord_to_cell_center_point)
         #print(exact_solution[10, 10, 10])
 
-        #fill F
+        #fill F = aAU - b * (B * U + B * Uxx + Uyy + Uzz)
         #Part 1: a*A*U
         #level.right_hand_side
-        level.right_hand_side[:] = self.a * alpha * level.exact_solution
-        #Part 2: b * (B * U + B * (Uxx + Uyy + Uzz)
-        #u_xyz
-        first_derivative_functions = [
-            to_absolute_func(problem.get_func(problem.get_derivative(dim, 1))) for dim in range(self.dimensions)
-        ]
-        first_derivatives = [
-            np.fromfunction(
-                func,
-                level.space,
-                dtype=level.exact_solution.dtype
-            ) for func in first_derivative_functions
-        ]
+        # level.right_hand_side[:] = self.a * alpha * level.exact_solution
+        # #Part 2: b * (B * U + B * (Uxx + Uyy + Uzz)
+        # #u_xyz
+        # first_derivative_functions = [
+        #     to_absolute_func(problem.get_func(problem.get_derivative(dim, 1))) for dim in range(self.dimensions)
+        # ]
+        # first_derivatives = [
+        #     np.fromfunction(
+        #         func,
+        #         level.space,
+        #         dtype=level.exact_solution.dtype
+        #     ) for func in first_derivative_functions
+        # ]
 
         #sum(u_xxyyzz)
 
-        second_derivative_sum_func = to_absolute_func(problem.get_func(
-            sum(problem.get_derivative(dim, 2) for dim in range(self.dimensions))
-        ))
+        # second_derivative_sum_func = to_absolute_func(problem.get_func(
+        #     sum(problem.get_derivative(dim, 2) for dim in range(self.dimensions))
+        # ))
+        #
+        # second_derivatives = np.fromfunction(
+        #     second_derivative_sum_func,
+        #     level.space,
+        #     dtype=level.exact_solution.dtype
+        # )
 
-        second_derivatives = np.fromfunction(
-            second_derivative_sum_func,
-            level.space,
-            dtype=level.exact_solution.dtype
-        )
+
 
         #beta stuff
         if level.is_variable_coefficient:
@@ -246,6 +258,7 @@ class SimpleMultigridSolver(object):
                 level.space,
                 dtype=level.exact_solution.dtype
             )
+            beta_expression = beta_generator.get_beta_expression()
 
             beta_vectors = np.fromfunction(
                 np.frompyfunc(
@@ -255,14 +268,15 @@ class SimpleMultigridSolver(object):
                 dtype=level.exact_solution.dtype
             )
         else:
+            beta_expression = beta
             beta_values = np.full(level.space, beta)
             beta_vectors = [
                 np.full(level.space, 0)
                 for i in range(self.dimensions)
             ]
-
-        level.right_hand_side -= self.b * sum(A*B for A, B in zip(beta_vectors, first_derivatives)) + \
-            beta_values * second_derivatives
+        #
+        # level.right_hand_side -= self.b * (sum(A*B for A, B in zip(beta_vectors, first_derivatives)) +
+        #                                    beta_values * second_derivatives)
 
         if self.is_variable_coefficient:
             for face_index in range(self.dimensions):
@@ -277,7 +291,18 @@ class SimpleMultigridSolver(object):
                     level.space,
                     dtype=level.exact_solution.dtype
                 )
-
+        symbols = self.problem.symbols
+        beta_first_derivative = [sympy.diff(beta_expression, sym) for sym in symbols]
+        u_first_derivative = [sympy.diff(self.problem.expression, sym) for sym in symbols]
+        BU_derivative_1 = sum(a * b for a, b in zip(beta_first_derivative, u_first_derivative))
+        U_derivative_2 = [sympy.diff(problem.expression, sym, 2) for sym in symbols]
+        f_exp = self.a * alpha * problem.expression - self.b * (BU_derivative_1 + beta_expression * sum(U_derivative_2))
+        # print(f_exp)
+        # rhs = np.zeros_like(level.right_hand_side)
+        self.initialize_mesh(level, level.right_hand_side, f_exp, level.coord_to_cell_center_point)
+        #
+        # print(rhs.ravel()[:10])
+        # print(level.right_hand_side.ravel()[:10])
 
         b = time.time()
 
