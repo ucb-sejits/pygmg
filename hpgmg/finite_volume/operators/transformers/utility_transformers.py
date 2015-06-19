@@ -1,7 +1,10 @@
+from __future__ import print_function
 import ast
+import copy
 import sys
+from ctree.frontend import dump
 
-from ctree.c.nodes import FunctionCall, SymbolRef, Add, Sub, Constant, MultiNode, Div, Mul
+from ctree.c.nodes import FunctionCall, SymbolRef, Add, Sub, Constant, MultiNode, Div, Mul, BinaryOp, Assign, Op
 
 from hpgmg.finite_volume.operators.nodes import ArrayIndex
 
@@ -95,6 +98,22 @@ class IndexOpTransformer(ast.NodeTransformer):
             )
         return node
 
+class IndexOpTransformBugfixer(ast.NodeTransformer):
+    """
+    Designed to fix the Index = Index + Things encoding bug
+    """
+    def __init__(self, func_name='encode'):
+        self.func_name = func_name
+
+    def visit_Assign(self, node):
+        target = node.targets[0]
+        if isinstance(target, ast.Call) and isinstance(node.value, ast.Call):
+            if target.func.id == node.value.func.id == self.func_name:
+                return MultiNode([
+                    Assign(a, b) for a, b in zip(target.args, node.value.args)
+                ])
+        return self.generic_visit(node)
+
 
 class IndexDirectTransformer(ast.NodeTransformer):
     def __init__(self, ndim, encode_func_name='encode'):
@@ -102,9 +121,10 @@ class IndexDirectTransformer(ast.NodeTransformer):
         self.encode_func_name = encode_func_name
 
     def visit_ArrayIndex(self, node):
-        return FunctionCall(self.encode_func_name, args=[
-            SymbolRef(node.name+"_{}".format(i)) for i in range(self.ndim)
-        ])
+        return ast.Call(func=ast.Name(id=self.encode_func_name, ctx=ast.Load()), args=[
+            ast.Name(id=node.name+"_{}".format(i), ctx=ast.Load()) for i in range(self.ndim)
+        ],
+                        keywords=None, starargs=None)
 
 
 class AttributeRenamer(ast.NodeTransformer):
@@ -192,3 +212,20 @@ class BranchSimplifier(ast.NodeTransformer):
         if node.elze:
             node.elze = [self.visit(i) for i in node.elze]
         return node
+
+class FunctionCallSimplifier(ast.NodeTransformer):
+    def visit_Call(self, node):
+        if node.func.id == 'len':
+            return ast.Num(n=len(node.args[0].elts))
+        return self.generic_visit(node)
+
+class LoopUnroller(ast.NodeTransformer):
+    def visit_For(self, node):
+        body = node.body
+        result = MultiNode()
+        for elt in node.iter.elts:
+            #print(*[dump(i) for i in body])
+            body_copy = [AttributeRenamer({node.target.id: elt}).visit(i) for i in copy.deepcopy(body)]
+            body_copy = [self.visit(i) for i in body_copy]
+            result.body.extend(body_copy)
+        return result
