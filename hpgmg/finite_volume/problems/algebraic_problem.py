@@ -10,6 +10,7 @@ __author__ = 'nzhang-dev'
 class AlgebraicProblem(Problem):
     pass
 
+
 class SymmetricAlgebraicProblem(AlgebraicProblem):
     def __init__(self, expression, dimensions, reduction_operator=operator.mul):
         expression = sympy.sympify(expression)
