@@ -10,6 +10,7 @@ __author__ = 'nzhang-dev'
 class AlgebraicProblem(Problem):
     pass
 
+
 class SymmetricAlgebraicProblem(AlgebraicProblem):
     def __init__(self, expression, dimensions, reduction_operator=operator.mul):
         expression = sympy.sympify(expression)
@@ -28,7 +29,6 @@ class SymmetricAlgebraicProblem(AlgebraicProblem):
     def get_derivative(self, dim, derivative=0):
         #print(self.expression.diff(self.symbols[dim-1], derivative))
         return self.expression.diff(self.symbols[dim-1], derivative)
-
 
     def get_func(self, func):
         lambda_func = sympy.lambdify(self.symbols, func, "numpy")
