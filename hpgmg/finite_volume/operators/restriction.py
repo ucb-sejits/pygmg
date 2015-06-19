@@ -59,9 +59,9 @@ class Restriction(object):
         self.neighbor_offsets = tuple(tuple(i) for i in self.neighbor_offsets)
 
     @time_this
-    @specialized_func_dispatcher({
-        'c': CRestrictSpecializer
-    })
+    # @specialized_func_dispatcher({
+    #     'c': CRestrictSpecializer
+    # }) #buggy
     def restrict(self, level, target, source, restriction_type):
         #assert(isinstance(level, SimpleLevel))
 

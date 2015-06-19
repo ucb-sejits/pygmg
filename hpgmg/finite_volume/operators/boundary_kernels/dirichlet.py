@@ -11,5 +11,5 @@ class DirichletBoundary(KernelGenerator):
         def kernel(level, mesh):
             for index in level.boundary_iterator(boundary):
                 mesh[index] = kernel.multiplier * mesh[index - boundary]
-        kernel.multiplier = functools.reduce(operator.mul, (i for i in boundary if i != 0))
+        kernel.multiplier = (-1.0)**sum(abs(i) for i in boundary)
         return kernel

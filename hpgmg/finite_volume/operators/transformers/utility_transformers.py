@@ -20,6 +20,17 @@ def get_name(attribute_node):
         return attribute_node.id
     return get_name(attribute_node.value) + "." + attribute_node.attr
 
+
+def eval_node(node, locals, globals):
+    expr = ast.Expression(node)
+    expr = ast.fix_missing_locations(expr)
+    #print(locals, globals)
+    items = eval(
+        compile(expr, "<string>", "eval"),
+        globals, locals
+    )
+    return items
+
 class ParamStripper(ast.NodeTransformer):
     def __init__(self, params):
         self.params = params
@@ -229,3 +240,15 @@ class LoopUnroller(ast.NodeTransformer):
             body_copy = [self.visit(i) for i in body_copy]
             result.body.extend(body_copy)
         return result
+
+class PyBranchSimplifier(ast.NodeTransformer):
+    def visit_If(self, node):
+        test = node.test
+        try:
+            result = eval_node(test, {}, {})
+            if result:
+                return self.visit(MultiNode(body=node.body))
+            else:
+                return self.visit(MultiNode(body=node.orelse))
+        except:
+            return self.generic_visit(node)

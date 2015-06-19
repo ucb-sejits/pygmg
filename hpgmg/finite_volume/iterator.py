@@ -12,6 +12,9 @@ class RangeIterator(object):
     def __iter__(self):
         return (self.map_func(i) for i in itertools.product(*[range(low, high) for low, high in self.ranges], repeat=self.repeat))
 
+    def __str__(self):
+        return "RangeIterator <{}>".format(str(self.ranges))
+
 class MultiIterator(object):
     def __init__(self, iterators):
         self.iterators = iterators

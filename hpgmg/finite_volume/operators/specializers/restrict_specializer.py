@@ -11,7 +11,7 @@ from hpgmg.finite_volume.operators.transformers.semantic_transformer import Sema
 from hpgmg.finite_volume.operators.transformers.transformer_util import nest_loops
 from hpgmg.finite_volume.operators.transformers.utility_transformers import ParamStripper, AttributeGetter, \
     LookupSimplificationTransformer, AttributeRenamer, FunctionCallSimplifier, IndexTransformer, LoopUnroller, \
-    IndexOpTransformer, IndexDirectTransformer, IndexOpTransformBugfixer
+    IndexOpTransformer, IndexDirectTransformer, IndexOpTransformBugfixer, PyBranchSimplifier
 
 import numpy as np
 
@@ -73,10 +73,12 @@ class CRestrictSpecializer(LazySpecializedFunction):
         ndim = subconfig['self'].dimensions
         layers = [
             ParamStripper(('self', 'level', 'restriction_type')),
+            AttributeRenamer({'restriction_type': ast.Num(n=subconfig['restriction_type'])}),
+            PyBranchSimplifier(),
             SemanticFinder(subconfig, locals=subconfig),
             IndexTransformer(('target_point', 'source_point')),
-            AttributeRenamer({'restriction_type': ast.Num(n=subconfig['restriction_type'])}),
             AttributeGetter(subconfig),
+
             LookupSimplificationTransformer(),
             FunctionCallSimplifier(),
             LoopUnroller(),
