@@ -104,7 +104,7 @@ class SimpleLevel(object):
 
     def beta_interpolation_points(self, axis):
         pts = self.space.beta_interior_points(self.ghost_zone, axis)
-        print(pts)
+        #print(pts)
         return pts
 
     def valid_indices(self):
