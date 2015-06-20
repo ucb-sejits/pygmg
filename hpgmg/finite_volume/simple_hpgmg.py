@@ -297,7 +297,8 @@ class SimpleMultigridSolver(object):
         BU_derivative_1 = sum(a * b for a, b in zip(beta_first_derivative, u_first_derivative))
         U_derivative_2 = [sympy.diff(problem.expression, sym, 2) for sym in symbols]
         f_exp = self.a * alpha * problem.expression - self.b * (BU_derivative_1 + beta_expression * sum(U_derivative_2))
-        # print(f_exp)
+        #F = a*A*U - b*( (Bx*Ux + By*Uy + Bz*Uz)  +  B*(Uxx + Uyy + Uzz) );
+        print(f_exp)
         # rhs = np.zeros_like(level.right_hand_side)
         self.initialize_mesh(level, level.right_hand_side, f_exp, level.coord_to_cell_center_point)
         #
@@ -393,8 +394,11 @@ class SimpleMultigridSolver(object):
             #level.temp.dump("VECTOR_TEMP_RESIDUAL level {}".format(level.level_number))
 
             coarser_level = self.all_levels[level.level_number+1]
-
+            # print('pre:', np.sum(abs(level.temp.ravel())))
+            # print(level.temp[:4, :4, :4])
             self.restrictor.restrict(coarser_level, coarser_level.residual, level.temp, Restriction.RESTRICT_CELL)
+            # print('post:', np.sum(abs(coarser_level.residual.ravel())))
+            # print(coarser_level.residual[:4, :4, :4])
             coarser_level.fill_mesh(coarser_level.cell_values, 0.0)
 
             coarser_level.residual.dump("RESTRICTED_RID level {}".format(coarser_level.level_number))

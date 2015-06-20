@@ -1,9 +1,13 @@
 import ast
 import ctypes
+import random
 from ctree.c.nodes import Assign, For, SymbolRef, Constant, PostInc, Lt, FunctionDecl, CFile
 from ctree.nodes import Project
+from ctree.templates.nodes import StringTemplate
 from ctree.transformations import PyBasicConversions
 import math
+from hpgmg.finite_volume.operators.transformers.generator_transformers import GeneratorTransformer, \
+    CompReductionTransformer
 from rebox.specializers.order import Ordering
 from rebox.specializers.rm.encode import MultiplyEncode
 from hpgmg.finite_volume.operators.specializers.util import apply_all_layers, include_mover, time_this
@@ -48,15 +52,20 @@ class CRestrictSpecializer(LazySpecializedFunction):
             return top
 
     class RestrictSubconfig(dict):
-        def __hash__(self):
-            hash_thing = (
-                self['level'].space,
-                self['level'].ghost_zone,
-                self['self'].neighbor_offsets,
-                self['restriction_type']
-            )
-            #print(hash_thing)
-            return hash(hash_thing)
+        #hash_count = 0
+        pass
+        # def __hash__(self):
+        #     hash_thing = (
+        #         self['level'].space,
+        #         self['level'].ghost_zone,
+        #         self['self'].neighbor_offsets,
+        #         self['source'].shape,
+        #         self['target'].shape,
+        #         self['restriction_type'],
+        #     )
+        #     #print(hash_thing)
+        #     #self.hash_count += 1
+        #     return id(self)
 
     def args_to_subconfig(self, args):
         return self.RestrictSubconfig({
@@ -74,14 +83,16 @@ class CRestrictSpecializer(LazySpecializedFunction):
         layers = [
             ParamStripper(('self', 'level', 'restriction_type')),
             AttributeRenamer({'restriction_type': ast.Num(n=subconfig['restriction_type'])}),
+            AttributeGetter({'self': subconfig['self']}),
             PyBranchSimplifier(),
             SemanticFinder(subconfig, locals=subconfig),
             IndexTransformer(('target_point', 'source_point')),
             AttributeGetter(subconfig),
-
             LookupSimplificationTransformer(),
             FunctionCallSimplifier(),
             LoopUnroller(),
+            GeneratorTransformer(subconfig),
+            CompReductionTransformer(),
             IndexOpTransformer(ndim=ndim),
             IndexDirectTransformer(ndim=ndim),
             self.RangeTransformer(),
@@ -103,6 +114,10 @@ class CRestrictSpecializer(LazySpecializedFunction):
         encode_func = ordering.generate(ndim, bits_per_dim, ctypes.c_uint64)
         cfile = CFile(body=[tree, encode_func])
         cfile = include_mover(cfile)
+        #print(subconfig['self'].neighbor_offsets[subconfig['restriction_type']])
+        # if subconfig['restriction_type'] == 0:
+        #     print(cfile)
+        #print(subconfig['target'].shape, subconfig['source'].shape)
         return [cfile]
 
     def finalize(self, transform_result, program_config):

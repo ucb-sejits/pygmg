@@ -48,7 +48,7 @@ class Restriction(object):
         ]
         for dim in range(self.dimensions):
             def all_positive_locked(coord):
-                return coord[dim] == 0 and all(x >= 0 for x in coord)
+                return coord[dim] == 0 and all_positive(coord)
 
             self.neighbor_offsets.append(
                 filter(
@@ -66,16 +66,27 @@ class Restriction(object):
         #assert(isinstance(level, SimpleLevel))
 
         if restriction_type == self.RESTRICT_CELL:
+            #print("CELL:", level.interior_points())
             for target_point in level.interior_points():
                 source_point = (target_point * 2) - level.ghost_zone
-                target[target_point] = 0.0
-                for neighbor_offset in self.neighbor_offsets[restriction_type]:
-                    target[target_point] += source[source_point + neighbor_offset]
-                target[target_point] *= (1.0 / len(self.neighbor_offsets[restriction_type]))
+                # target[target_point] = 0.0
+                # for neighbor_offset in self.neighbor_offsets[restriction_type]:
+                #     target[target_point] += source[source_point + neighbor_offset]
+                # target[target_point] *= (1.0 / len(self.neighbor_offsets[restriction_type]))
+
+                target[target_point] = sum(
+                    source[source_point + neighbor_offset] for neighbor_offset in self.neighbor_offsets[restriction_type]
+                ) / len(self.neighbor_offsets[restriction_type])
         else:
+            #print(restriction_type, level.beta_interpolation_points(restriction_type-1))
             for target_point in level.beta_interpolation_points(restriction_type-1):
+                #print(target_point)
                 source_point = (target_point * 2) - level.ghost_zone
-                target[target_point] = 0.0
-                for neighbor_offset in self.neighbor_offsets[restriction_type]:
-                    target[target_point] += source[source_point + neighbor_offset]
-                target[target_point] *= (1.0 / len(self.neighbor_offsets[restriction_type]))
+                # target[target_point] = 0.0
+                # for neighbor_offset in self.neighbor_offsets[restriction_type]:
+                #     target[target_point] += source[source_point + neighbor_offset]
+                # target[target_point] *= (1.0 / len(self.neighbor_offsets[restriction_type]))
+                target[target_point] = sum(
+                    source[source_point + neighbor_offset] for neighbor_offset in self.neighbor_offsets[restriction_type]
+                ) / len(self.neighbor_offsets[restriction_type])
+

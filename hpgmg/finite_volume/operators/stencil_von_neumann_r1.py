@@ -8,6 +8,8 @@ from hpgmg.finite_volume.operators.specializers.rebuild_specializer import CRebu
 from hpgmg.finite_volume.operators.specializers.util import specialized_func_dispatcher
 from hpgmg.finite_volume.space import Coord
 
+import numpy as np
+
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
@@ -102,8 +104,10 @@ class StencilVonNeumannR1(BaseOperator):
         if source_level is not None:
             self.restrictor.restrict(target_level, target_level.alpha, source_level.alpha, Restriction.RESTRICT_CELL)
             for dim in range(self.dimensions):
+                #print(np.sum(abs(target_level.beta_face_values[dim].ravel())))
                 self.restrictor.restrict(target_level, target_level.beta_face_values[dim],
                                          source_level.beta_face_values[dim], dim+1)
+                #print(np.sum(abs(target_level.beta_face_values[dim].ravel())))
 
         with target_level.timer("blas1"):
             target_level.dominant_eigen_value_of_d_inv_a = self.get_dominant_eigenvalue(target_level)

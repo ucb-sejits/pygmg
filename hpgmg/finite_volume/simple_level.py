@@ -103,6 +103,7 @@ class SimpleLevel(object):
         return self.space.interior_points(self.ghost_zone)
 
     def beta_interpolation_points(self, axis):
+        #print(axis)
         pts = self.space.beta_interior_points(self.ghost_zone, axis)
         #print(pts)
         return pts
