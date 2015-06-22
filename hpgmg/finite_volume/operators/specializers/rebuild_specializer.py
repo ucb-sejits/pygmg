@@ -86,7 +86,7 @@ class CRebuildSpecializer(LazySpecializedFunction):
                 ndim=ndim
             ),
             LookupSimplificationTransformer(),
-            IndexOpTransformer(ndim),
+            IndexOpTransformer(ndim, encode_func_names={'index': 'encode'}),
             IndexDirectTransformer(ndim),
             PyBasicConversions(constants_dict={'False': 0, 'True': 1}),
             BranchSimplifier()

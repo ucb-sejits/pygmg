@@ -20,6 +20,7 @@ from hpgmg.finite_volume.operators.transformers.utility_transformers import Para
 import numpy as np
 
 from ctree.jit import LazySpecializedFunction, ConcreteSpecializedFunction
+from ctree.frontend import dump
 
 __author__ = 'nzhang-dev'
 
@@ -93,13 +94,14 @@ class CRestrictSpecializer(LazySpecializedFunction):
             LoopUnroller(),
             GeneratorTransformer(subconfig),
             CompReductionTransformer(),
-            IndexOpTransformer(ndim=ndim),
-            IndexDirectTransformer(ndim=ndim),
+            IndexOpTransformer(ndim=ndim, encode_func_names={'target_point': 'target_encode', 'source_point': 'source_encode'}),
+            IndexDirectTransformer(ndim=ndim, encode_func_names={'source_point': 'source_encode', 'target_point': 'target_encode'}),
+            IndexOpTransformBugfixer(func_names=('target_encode', 'source_encode')),
             self.RangeTransformer(),
-            IndexOpTransformBugfixer(),
             PyBasicConversions(),
         ]
         tree = apply_all_layers(layers, tree)
+        #print(dump(tree))
         function = tree.find(FunctionDecl)
         function.defn = [
             SymbolRef('source_point_{}'.format(i), sym_type=ctypes.c_uint64())
@@ -109,15 +111,19 @@ class CRestrictSpecializer(LazySpecializedFunction):
         for param in function.params:
             param.type = ctypes.POINTER(ctypes.c_double)()
         #print(dump(tree))
-        ordering = Ordering([MultiplyEncode()])
-        bits_per_dim = min([math.log(i, 2) for i in subconfig['level'].space]) + 1
-        encode_func = ordering.generate(ndim, bits_per_dim, ctypes.c_uint64)
-        cfile = CFile(body=[tree, encode_func])
+        ordering = Ordering([MultiplyEncode()], prefix='source_')
+        bits_per_dim = min([math.log(i, 2) for i in subconfig['source'].shape]) + 1
+        encode_func_source = ordering.generate(ndim, bits_per_dim, ctypes.c_uint64)
+        ordering = Ordering([MultiplyEncode()], prefix='target_')
+        bits_per_dim = min([math.log(i, 2) for i in subconfig['target'].shape]) + 1
+        encode_func_target = ordering.generate(ndim, bits_per_dim, ctypes.c_uint64)
+        cfile = CFile(body=[tree, encode_func_source, encode_func_target])
         cfile = include_mover(cfile)
         #print(subconfig['self'].neighbor_offsets[subconfig['restriction_type']])
         # if subconfig['restriction_type'] == 0:
         #     print(cfile)
         #print(subconfig['target'].shape, subconfig['source'].shape)
+        #print(cfile)
         return [cfile]
 
     def finalize(self, transform_result, program_config):
