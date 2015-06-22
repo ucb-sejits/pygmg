@@ -108,7 +108,7 @@ def time_this(func):
     wrapper.total_time = 0
     @atexit.register
     def dump_time():
-        if finite_volume.CONFIG.verbose and timings:
+        if finite_volume.CONFIG and finite_volume.CONFIG.verbose and timings:
             maxlen = max(len(i) for i in time_this.names)
             print('Function:', func.__name__.ljust(maxlen), 'Total time:', sum(timings), 'calls:', len(timings), sep="\t")
     return wrapper
