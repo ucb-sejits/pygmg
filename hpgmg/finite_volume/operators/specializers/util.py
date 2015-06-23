@@ -8,8 +8,9 @@ from ctree import get_ast
 import ctree
 from ctree.cpp.nodes import CppDefine
 from ctree.frontend import dump
-from ctree.c.nodes import SymbolRef, MultiNode
+from ctree.c.nodes import SymbolRef, MultiNode, Constant, Add, Mul, FunctionCall
 from ctree.transformations import PyBasicConversions
+import sympy
 
 from hpgmg import finite_volume
 from hpgmg.finite_volume.operators.transformers.generator_transformers import GeneratorTransformer, CompReductionTransformer, \
@@ -35,7 +36,8 @@ def specialized_func_dispatcher(specializers):
 
 
 
-def to_macro_function(f, namespace=None, rename=None):
+def to_macro_function(f, namespace=None, rename=None, index_map=None):
+    index_map = index_map or {'index': 'encode'}
     namespace = {} if namespace is None else namespace.copy()
     rename = {} if rename is None else rename.copy()
     tree = get_ast(f).body[0]
@@ -53,7 +55,7 @@ def to_macro_function(f, namespace=None, rename=None):
         AttributeFiller(namespace),
         IndexTransformer(('index',)),
         LookupSimplificationTransformer(),
-        IndexOpTransformer(self.solver.dimensions, {'index': 'encode'}),
+        IndexOpTransformer(self.solver.dimensions, index_map),
         IndexDirectTransformer(self.solver.dimensions),
         PyBasicConversions()
     ]
@@ -120,3 +122,30 @@ def profile(func):
     if 'profile' in __builtins__:
         return __builtins__['profile'](func)
     return func
+
+def sympy_to_c(exp, sym_name='x'):
+    if isinstance(exp, sympy.Number):
+        if exp.is_Float:
+            return Constant(float(exp))
+        if exp.is_Integer:
+            return Constant(int(exp))
+
+    args = [sympy_to_c(i, sym_name) for i in exp.args]
+
+    if isinstance(exp, sympy.Add):
+        return functools.reduce(Add, args)
+
+    if isinstance(exp, sympy.Mul):
+        return functools.reduce(Mul, args)
+
+    if isinstance(exp, sympy.Pow):
+        return FunctionCall(SymbolRef("pow"), args)
+
+    if isinstance(exp, sympy.functions.elementary.trigonometric.TrigonometricFunction):
+        return FunctionCall(SymbolRef(type(exp).__name__), args)
+
+    if isinstance(exp, sympy.Symbol):
+        s = sym_name + str(exp)[1:]
+        return SymbolRef(s)
+
+    raise ValueError("Could not parse {}".format(exp))

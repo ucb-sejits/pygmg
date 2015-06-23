@@ -12,7 +12,8 @@ import sympy
 from hpgmg import finite_volume
 from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.operators.chebyshev_smoother import ChebyshevSmoother
-from hpgmg.finite_volume.operators.specializers.util import profile, time_this
+from hpgmg.finite_volume.operators.specializers.initialize_mesh_specializer import CInitializeMesh
+from hpgmg.finite_volume.operators.specializers.util import profile, time_this, specialized_func_dispatcher
 
 from hpgmg.finite_volume.operators.stencil_von_neumann_r1 import StencilVonNeumannR1
 from hpgmg.finite_volume.operators.interpolation import InterpolatorPC
@@ -173,6 +174,10 @@ class SimpleMultigridSolver(object):
                 self.all_levels[index].beta_face_values[0].dump("VECTOR_BETA_K_LEVEL_{}".format(index))
                 self.all_levels[index].d_inverse.dump("VECTOR_DINV_LEVEL_{}".format(index))
 
+
+    @specialized_func_dispatcher({
+        'c': CInitializeMesh,
+    })
     def initialize_mesh(self, level, mesh, exp, coord_transform):
         func = self.problem.get_func(exp, self.problem.symbols)
         for coord in level.indices():

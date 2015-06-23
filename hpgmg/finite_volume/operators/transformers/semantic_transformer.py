@@ -1,5 +1,5 @@
 import ast
-from hpgmg.finite_volume.operators.nodes import RangeNode
+from hpgmg.finite_volume.operators.nodes import RangeNode, ArrayIndex
 from hpgmg.finite_volume.operators.transformers.transformer_util import get_obj
 from hpgmg.finite_volume.operators.transformers.utility_transformers import get_name, eval_node
 
@@ -10,7 +10,8 @@ class SemanticFinder(ast.NodeTransformer):
     registered = {
         'interior_points',
         'boundary_iterator',
-        'beta_interpolation_points'
+        'beta_interpolation_points',
+        'indices'
     }
     def __init__(self, namespace=None, locals=None, globals=None):
         self.namespace = {} if namespace is None else namespace
@@ -32,3 +33,7 @@ class SemanticFinder(ast.NodeTransformer):
             return self.generic_visit(node)
         func_obj = get_obj(self.namespace, iter_name)
         return RangeNode(iteration_variable_name, func_obj(*[eval_node(arg, self.locals, self.globals) for arg in node.iter.args]), node.body)
+
+    def visit_Call(self, node):
+        if node.func.id in ('Vector', 'Coord', 'Space'):
+            return ArrayIndex(name=node.args[0].id)

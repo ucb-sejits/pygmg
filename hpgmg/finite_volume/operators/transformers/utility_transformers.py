@@ -129,6 +129,17 @@ class IndexDirectTransformer(ast.NodeTransformer):
         self.ndim = ndim
         self.encode_func_names = encode_func_names or {}
 
+    def visit_Call(self, node):
+        # intercepts functions of indices
+        new_args = []
+        for arg in node.args:
+            if isinstance(arg, ArrayIndex):
+                new_args.extend(ast.Name(arg.name + "_{}".format(i)) for i in range(self.ndim))
+            else:
+                new_args.append(arg)
+        node.args = new_args
+        return self.generic_visit(node)
+
     def visit_ArrayIndex(self, node):
         return ast.Call(func=ast.Name(id=self.encode_func_names.get(node.name, 'encode'), ctx=ast.Load()), args=[
             ast.Name(id=node.name+"_{}".format(i), ctx=ast.Load()) for i in range(self.ndim)
@@ -145,6 +156,12 @@ class AttributeRenamer(ast.NodeTransformer):
 
     def visit_Attribute(self, node):
         name = get_name(node)
+        if name in self.substitutes:
+            return self.substitutes[name]
+        return node
+
+    def visit_SymbolRef(self, node):
+        name = node.name
         if name in self.substitutes:
             return self.substitutes[name]
         return node
@@ -249,3 +266,17 @@ class PyBranchSimplifier(ast.NodeTransformer):
                 return self.visit(MultiNode(body=node.orelse))
         except:
             return self.generic_visit(node)
+
+
+class CallReplacer(ast.NodeTransformer):
+    def __init__(self, replacements):
+        self.replacements = replacements
+    def visit_FunctionCall(self, node):
+        if node.func.name in self.replacements:
+            return self.generic_visit(self.replacements[node.func.name])
+        return self.generic_visit(node)
+
+    def visit_Call(self, node):
+        if node.func.id in self.replacements:
+            return self.generic_visit(self.replacements[node.func.id])
+        return self.generic_visit(node)
