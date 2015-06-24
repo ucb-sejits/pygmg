@@ -22,7 +22,6 @@ class SemanticFinder(ast.NodeTransformer):
         if not isinstance(node.iter, ast.Call):
             return self.generic_visit(node)
         iter_name = get_name(node.iter.func)
-
         iteration_variable_name = node.target.id
         split = iter_name.split(".")
         obj_name = split[0]
@@ -35,5 +34,5 @@ class SemanticFinder(ast.NodeTransformer):
         return RangeNode(iteration_variable_name, func_obj(*[eval_node(arg, self.locals, self.globals) for arg in node.iter.args]), node.body)
 
     def visit_Call(self, node):
-        if node.func.id in ('Vector', 'Coord', 'Space'):
+        if isinstance(node.func, ast.Name) and node.func.id in ('Vector', 'Coord', 'Space'):
             return ArrayIndex(name=node.args[0].id)
