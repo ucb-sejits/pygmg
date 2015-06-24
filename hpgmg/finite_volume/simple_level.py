@@ -180,7 +180,9 @@ class SimpleLevel(object):
             target_mesh[index] = shift_value + source_mesh[index]
 
     @time_this
-    @time_this
+    @specialized_func_dispatcher({
+        'c': CGeneralizedSimpleMeshOpSpecializer
+    })
     def dot_mesh(self, mesh_a, mesh_b):
         accumulator = 0.0
         for index in self.interior_points():
@@ -188,7 +190,9 @@ class SimpleLevel(object):
         return accumulator
 
     @time_this
-    @time_this
+    @specialized_func_dispatcher({
+        'c': CGeneralizedSimpleMeshOpSpecializer
+    })
     def norm_mesh(self, mesh):
         max_norm = 0.0
         for index in self.interior_points():
