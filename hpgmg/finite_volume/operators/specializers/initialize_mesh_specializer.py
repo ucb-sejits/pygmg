@@ -44,6 +44,7 @@ class CInitializeMesh(LazySpecializedFunction):
                 str(self['exp']),
                 self['coord_transform'].__name__
             ]
+            return hash(tuple(to_hash))
 
     def args_to_subconfig(self, args):
         return self.InitializeMeshSubconfig({
@@ -132,7 +133,7 @@ class CInitializeMesh(LazySpecializedFunction):
         subconfig, tuner_config = program_config
         fn = InitializeCFunction()
         return fn.finalize(
-            transform_result[0].find(FunctionDecl).name,
+            self.original_tree.body[0].name,
             Project(transform_result),
             ctypes.CFUNCTYPE(None, np.ctypeslib.ndpointer(
                 subconfig['mesh'].dtype,
