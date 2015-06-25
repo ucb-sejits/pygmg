@@ -1,7 +1,8 @@
 import ast
 from collections import OrderedDict
 import ctypes
-from ctree.c.nodes import SymbolRef, Constant, PostInc, Lt, For, Assign, FunctionDecl, CFile, Return
+from ctree.c.nodes import SymbolRef, Constant, PostInc, Lt, For, Assign, FunctionDecl, CFile, Return, FunctionCall
+from ctree.cpp.nodes import CppInclude
 from ctree.jit import LazySpecializedFunction, ConcreteSpecializedFunction
 from ctree.nodes import Project
 from ctree.transformations import PyBasicConversions
@@ -150,7 +151,13 @@ class CGeneralizedSimpleMeshOpSpecializer(MeshOpSpecializer):
         decl.params = params
         if decl.find(Return):
             decl.return_type = ctypes.c_double()
+
+        for call in decl.find_all(FunctionCall):
+            if call.func.name == 'abs':
+                call.func.name = 'fabs'
+                f.body.append(CppInclude("math.h"))
         #print(f)
+        f = include_mover(f)
         return [f]
 
 

@@ -656,6 +656,7 @@ class SimpleMultigridSolver(object):
         return SimpleMultigridSolver(config)
 
     @staticmethod
+    @time_this
     @profile
     def main():
         configuration = SimpleMultigridSolver.get_configuration()
