@@ -35,14 +35,24 @@ class InitializeCFunction(ConcreteSpecializedFunction):
 
 class CInitializeMesh(LazySpecializedFunction):
 
+    class InitializeMeshSubconfig(dict):
+        def __hash__(self):
+            to_hash = [
+                self['level'].space,
+                self['level'].ghost_zone,
+                self['mesh'].shape,
+                str(self['exp']),
+                self['coord_transform'].__name__
+            ]
+
     def args_to_subconfig(self, args):
-        return {
+        return self.InitializeMeshSubconfig({
             'self': args[0],
             'level': args[1],
             'mesh': args[2],
             'exp': args[3],
             'coord_transform': args[4]
-        }
+        })
 
     class RangeTransformer(ast.NodeTransformer):
         def visit_RangeNode(self, node):
