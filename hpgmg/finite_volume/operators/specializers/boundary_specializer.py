@@ -76,7 +76,7 @@ class CBoundarySpecializer(LazySpecializedFunction):
                 SemanticFinder(namespace=subconfig, locals={}),
                 AttributeGetter(namespace),
                 IndexTransformer(indices=('index',)),
-                IndexOpTransformer(ndim=ndim),
+                IndexOpTransformer(ndim=ndim, encode_func_names={'index': 'encode'}),
                 IndexDirectTransformer(ndim=ndim),
                 self.RangeTransformer(),
                 PyBasicConversions()

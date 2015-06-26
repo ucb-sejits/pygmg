@@ -122,6 +122,6 @@ class BoundaryUpdaterV1(object):
         )
 
     def boundary_cases(self):
-        cases = [Vector(i) for i in  itertools.product((0, -1, 1), repeat=self.solver.dimensions) if any(i)]
+        cases = [Vector(i) for i in itertools.product((0, -1, 1), repeat=self.solver.dimensions) if any(i)]
         cases.sort(key=functools.partial(np.linalg.norm))
         return cases

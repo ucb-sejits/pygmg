@@ -81,12 +81,13 @@ class CRebuildSpecializer(LazySpecializedFunction):
             AttributeGetter(subconfig),
             IndexTransformer(('index',)),
             ArrayRefIndexTransformer(
-                indices=['index'],
-                encode_func_name='encode',
+                encode_map={
+                    'index': 'encode'
+                },
                 ndim=ndim
             ),
             LookupSimplificationTransformer(),
-            IndexOpTransformer(ndim),
+            IndexOpTransformer(ndim, encode_func_names={'index': 'encode'}),
             IndexDirectTransformer(ndim),
             PyBasicConversions(constants_dict={'False': 0, 'True': 1}),
             BranchSimplifier()

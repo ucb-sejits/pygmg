@@ -102,8 +102,9 @@ class CSmoothSpecializer(LazySpecializedFunction):
             #RowMajorInteriorPoints(subconfig),
             AttributeGetter({'self': subconfig['self']}),
             ArrayRefIndexTransformer(
-                indices=['index'],
-                encode_func_name='encode',
+                encode_map={
+                    'index': 'encode'
+                },
                 ndim=ndim
             ),
             PyBasicConversions(),

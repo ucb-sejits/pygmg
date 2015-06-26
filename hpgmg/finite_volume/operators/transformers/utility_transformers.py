@@ -20,6 +20,17 @@ def get_name(attribute_node):
         return attribute_node.id
     return get_name(attribute_node.value) + "." + attribute_node.attr
 
+
+def eval_node(node, locals, globals):
+    expr = ast.Expression(node)
+    expr = ast.fix_missing_locations(expr)
+    #print(locals, globals)
+    items = eval(
+        compile(expr, "<string>", "eval"),
+        globals, locals
+    )
+    return items
+
 class ParamStripper(ast.NodeTransformer):
     def __init__(self, params):
         self.params = params
@@ -44,9 +55,9 @@ class IndexTransformer(ast.NodeTransformer):
 
 class IndexOpTransformer(ast.NodeTransformer):
 
-    def __init__(self, ndim, encode_func_name='encode'):
+    def __init__(self, ndim, encode_func_names=None):
         self.ndim = ndim
-        self.encode_func_name = encode_func_name
+        self.encode_func_names = encode_func_names or {}
 
     def visit_BinOp(self, node):
         node.left = self.visit(node.left)
@@ -54,23 +65,21 @@ class IndexOpTransformer(ast.NodeTransformer):
         op = node.op
         if isinstance(node.left, ArrayIndex):
             if isinstance(node.right, (ast.List, ast.Tuple)):
-                #print(dump(node))
                 args = [
                     ast.BinOp(left=ast.Name(id=node.left.name+"_{}".format(i), ctx=ast.Load()),
                               right=node.right.elts[i],
                               op=op) for i in range(self.ndim)
                 ]
-                return ast.Call(
-                    func=ast.Name(id=self.encode_func_name, ctx=ast.Load()),
+                return self.generic_visit(ast.Call(
+                    func=ast.Name(id=self.encode_func_names[node.left.name], ctx=ast.Load()),
                     args=args,
                     keywords=[],
                     starargs=None
-                )
+                ))
             elif isinstance(node.right, ast.Num):
                 node.right = ast.Tuple(elts=[node.right]*self.ndim, ctx=ast.Load())
                 return self.visit(node)
-        if isinstance(node.left, ast.Call) and node.left.func.id == self.encode_func_name:
-            #print("ENCODE")
+        if isinstance(node.left, ast.Call) and node.left.func.id in self.encode_func_names.values():
             if isinstance(node.right, (ast.Tuple, ast.List)):
                 args = [
                     ast.BinOp(left=arg,
@@ -79,7 +88,7 @@ class IndexOpTransformer(ast.NodeTransformer):
                     for arg, elt in zip(node.left.args, node.right.elts)
                 ]
                 return ast.Call(
-                    func=ast.Name(id=self.encode_func_name, ctx=ast.Load()),
+                    func=ast.Name(id=node.left.func.id, ctx=ast.Load()),
                     args=args,
                     keywords=[],
                     starargs=None
@@ -102,13 +111,13 @@ class IndexOpTransformBugfixer(ast.NodeTransformer):
     """
     Designed to fix the Index = Index + Things encoding bug
     """
-    def __init__(self, func_name='encode'):
-        self.func_name = func_name
+    def __init__(self, func_names=('encode',)):
+        self.func_names = func_names
 
     def visit_Assign(self, node):
         target = node.targets[0]
         if isinstance(target, ast.Call) and isinstance(node.value, ast.Call):
-            if target.func.id == node.value.func.id == self.func_name:
+            if target.func.id in self.func_names and node.value.func.id in self.func_names:
                 return MultiNode([
                     Assign(a, b) for a, b in zip(target.args, node.value.args)
                 ])
@@ -116,12 +125,23 @@ class IndexOpTransformBugfixer(ast.NodeTransformer):
 
 
 class IndexDirectTransformer(ast.NodeTransformer):
-    def __init__(self, ndim, encode_func_name='encode'):
+    def __init__(self, ndim, encode_func_names=None):
         self.ndim = ndim
-        self.encode_func_name = encode_func_name
+        self.encode_func_names = encode_func_names or {}
+
+    def visit_Call(self, node):
+        # intercepts functions of indices
+        new_args = []
+        for arg in node.args:
+            if isinstance(arg, ArrayIndex):
+                new_args.extend(ast.Name(arg.name + "_{}".format(i)) for i in range(self.ndim))
+            else:
+                new_args.append(arg)
+        node.args = new_args
+        return self.generic_visit(node)
 
     def visit_ArrayIndex(self, node):
-        return ast.Call(func=ast.Name(id=self.encode_func_name, ctx=ast.Load()), args=[
+        return ast.Call(func=ast.Name(id=self.encode_func_names.get(node.name, 'encode'), ctx=ast.Load()), args=[
             ast.Name(id=node.name+"_{}".format(i), ctx=ast.Load()) for i in range(self.ndim)
         ],
                         keywords=None, starargs=None)
@@ -136,6 +156,12 @@ class AttributeRenamer(ast.NodeTransformer):
 
     def visit_Attribute(self, node):
         name = get_name(node)
+        if name in self.substitutes:
+            return self.substitutes[name]
+        return node
+
+    def visit_SymbolRef(self, node):
+        name = node.name
         if name in self.substitutes:
             return self.substitutes[name]
         return node
@@ -166,15 +192,14 @@ class AttributeGetter(ast.NodeTransformer):
             return node
 
 class ArrayRefIndexTransformer(ast.NodeTransformer):
-    def __init__(self, indices, encode_func_name, ndim):
-        self.indices = indices
-        self.encode_func_name = encode_func_name
+    def __init__(self, encode_map, ndim):
+        self.encode_map = encode_map
         self.ndim = ndim
 
     def visit_Index(self, node):
-        if isinstance(node.value, ast.Name) and node.value.id in self.indices:
+        if isinstance(node.value, ast.Name) and node.value.id in self.encode_map:
             node.value = ast.Call(
-                func=ast.Name(self.encode_func_name, ast.Load()),
+                func=ast.Name(self.encode_map[node.value.id], ast.Load()),
                 args=[
                     ast.Name(id=node.value.id+"_{}".format(dim), ctx=ast.Load())
                     for dim in range(self.ndim)
@@ -229,3 +254,29 @@ class LoopUnroller(ast.NodeTransformer):
             body_copy = [self.visit(i) for i in body_copy]
             result.body.extend(body_copy)
         return result
+
+class PyBranchSimplifier(ast.NodeTransformer):
+    def visit_If(self, node):
+        test = node.test
+        try:
+            result = eval_node(test, {}, {})
+            if result:
+                return self.visit(MultiNode(body=node.body))
+            else:
+                return self.visit(MultiNode(body=node.orelse))
+        except:
+            return self.generic_visit(node)
+
+
+class CallReplacer(ast.NodeTransformer):
+    def __init__(self, replacements):
+        self.replacements = replacements
+    def visit_FunctionCall(self, node):
+        if node.func.name in self.replacements:
+            return self.generic_visit(self.replacements[node.func.name])
+        return self.generic_visit(node)
+
+    def visit_Call(self, node):
+        if node.func.id in self.replacements:
+            return self.generic_visit(self.replacements[node.func.id])
+        return self.generic_visit(node)

@@ -11,7 +11,8 @@ from hpgmg.finite_volume.operators.specializers.util import apply_all_layers, in
 from hpgmg.finite_volume.operators.transformers.semantic_transformer import SemanticFinder
 from hpgmg.finite_volume.operators.transformers.transformer_util import nest_loops
 from hpgmg.finite_volume.operators.transformers.utility_transformers import AttributeRenamer, AttributeGetter, \
-    ParamStripper, ArrayRefIndexTransformer, IndexOpTransformer, IndexTransformer, IndexDirectTransformer
+    ParamStripper, ArrayRefIndexTransformer, IndexOpTransformer, IndexTransformer, IndexDirectTransformer, \
+    IndexOpTransformBugfixer
 
 import numpy as np
 
@@ -71,30 +72,33 @@ class CInterpolateSpecializer(LazySpecializedFunction):
             SemanticFinder(subconfig),
             AttributeGetter(subconfig),
             self.RangeTransformer(),
-            IndexTransformer({'target_index'}),
-            IndexOpTransformer(ndim),
+            IndexTransformer(('target_index', 'source_index')),
+            IndexOpTransformer(ndim, {'target_index': 'target_encode', 'source_index': 'source_encode'}),
             ArrayRefIndexTransformer(
-                indices=['target_index'],
-                encode_func_name='encode',
+                encode_map={
+                    'target_index': 'target_encode',
+                    'source_index': 'source_encode'
+                },
                 ndim=ndim
             ),
-            IndexDirectTransformer(ndim, encode_func_name='targetencode'),
+            IndexDirectTransformer(ndim, encode_func_names={'target_index': 'target_encode', 'source_index': 'source_encode'}),
+            IndexOpTransformBugfixer(func_names=('target_encode', 'source_encode')),
             PyBasicConversions(),
         ]
         func = apply_all_layers(layers, func)
         for param in func.params:
             param.type = ctypes.POINTER(ctypes.c_double)()
 
-        func.defn = [
-            SymbolRef('source_index', sym_type=ctypes.c_uint64()),
-            SymbolRef('target_index', sym_type=ctypes.c_uint64())
-        ] + func.defn
+        # func.defn = [
+        #     SymbolRef('source_index', sym_type=ctypes.c_uint64()),
+        #     SymbolRef('target_index', sym_type=ctypes.c_uint64())
+        # ] + func.defn
 
-        ordering = Ordering([MultiplyEncode()])
+        ordering = Ordering([MultiplyEncode()], prefix="source_")
         source_bits_per_dim = min([math.log(i, 2) for i in subconfig['source_mesh'].space]) + 1
         target_bits_per_dim = min([math.log(i, 2) for i in subconfig['target_mesh'].space]) + 1
         source_encode = ordering.generate(ndim, source_bits_per_dim, ctypes.c_uint64)
-        ordering.prefix = 'target'
+        ordering.prefix = 'target_'
         target_encode = ordering.generate(ndim, target_bits_per_dim, ctypes.c_uint64)
 
         # print(source_encode)
