@@ -102,7 +102,7 @@ class CFillMeshSpecializer(MeshOpSpecializer):
         subconfig, tuner_config = program_config
         tree = transform_result[0]
         retval = None
-        entry_point = self.original_tree.body[0].name
+        entry_point = self.tree.body[0].name
         param_types = []
         for param in (('mesh', 'value')):
             if isinstance(subconfig[param], np.ndarray):
@@ -129,7 +129,7 @@ class CGeneralizedSimpleMeshOpSpecializer(MeshOpSpecializer):
             return hash(tuple(to_hash))
 
     def args_to_subconfig(self, args):
-        argument_names = [arg.id for arg in self.original_tree.body[0].args.args]
+        argument_names = [arg.id for arg in self.tree.body[0].args.args]
         retval = self.GeneralizedSubconfig()
         for key, val in ((argument_name, arg) for argument_name, arg in zip(argument_names, args)):
             retval[key] = val
@@ -171,8 +171,8 @@ class CGeneralizedSimpleMeshOpSpecializer(MeshOpSpecializer):
             if isinstance(value, np.ndarray):
                 param_types.append(np.ctypeslib.ndpointer(value.dtype, 1, value.size))
 
-        name = self.original_tree.body[0].name
-        if any(isinstance(i, ast.Return) for i in ast.walk(self.original_tree)):
+        name = self.tree.body[0].name
+        if any(isinstance(i, ast.Return) for i in ast.walk(self.tree)):
             return_type = ctypes.c_double
         else:
             return_type = None

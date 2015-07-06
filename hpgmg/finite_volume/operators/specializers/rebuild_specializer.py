@@ -167,7 +167,7 @@ class CRebuildSpecializer(LazySpecializedFunction):
             if subconfig['self'].solver.is_helmholtz:
                 copies += 1
         parameter_types *= copies
-        name = self.original_tree.body[0].name
+        name = self.tree.body[0].name
         return fn.finalize(
             name, Project(transform_result),
             ctypes.CFUNCTYPE(ctypes.c_double, *parameter_types)

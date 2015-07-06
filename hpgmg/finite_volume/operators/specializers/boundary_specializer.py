@@ -106,7 +106,7 @@ class CBoundarySpecializer(LazySpecializedFunction):
     def finalize(self, transform_result, program_config):
         subconfig, tuner_config = program_config
         fn = BoundaryCFunction()
-        name = self.original_tree.body[0].name
+        name = self.tree.body[0].name
         mesh = subconfig['mesh']
         return fn.finalize(
             name,

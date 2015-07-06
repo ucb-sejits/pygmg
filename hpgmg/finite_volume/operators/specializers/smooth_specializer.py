@@ -12,6 +12,7 @@ from ctree.nodes import Project
 from ctree.transformations import PyBasicConversions
 from rebox.specializers.order import Ordering
 from rebox.specializers.rm.encode import MultiplyEncode
+import time
 
 from hpgmg.finite_volume.operators.specializers.util import to_macro_function, apply_all_layers, include_mover, \
     LayerPrinter
@@ -19,7 +20,7 @@ from hpgmg.finite_volume.operators.transformers.level_transformers import RowMaj
 from hpgmg.finite_volume.operators.transformers.semantic_transformer import SemanticFinder
 from hpgmg.finite_volume.operators.transformers.transformer_util import nest_loops
 from hpgmg.finite_volume.operators.transformers.utility_transformers import ParamStripper, AttributeRenamer, \
-    AttributeGetter, ArrayRefIndexTransformer
+    AttributeGetter, ArrayRefIndexTransformer, FunctionCallTimer
 
 
 __author__ = 'nzhang-dev'
@@ -43,7 +44,9 @@ class SmoothCFunction(ConcreteSpecializedFunction):
                 args.append(level.alpha)
         flattened = [arg.ravel() for arg in args]
         #print(self.entry_point_name, [i.shape for i in flattened])
+        #t = time.time()
         self._c_function(*flattened)
+        #print("C-Call: {}".format(time.time() - t), end="\t")
 
 class CSmoothSpecializer(LazySpecializedFunction):
 
@@ -108,6 +111,7 @@ class CSmoothSpecializer(LazySpecializedFunction):
                 ndim=ndim
             ),
             PyBasicConversions(),
+            #FunctionCallTimer((self.original_tree.body[0].name,)),
             #LayerPrinter(),
         ]
         func = apply_all_layers(layers, func)
@@ -187,13 +191,24 @@ class CSmoothSpecializer(LazySpecializedFunction):
                     param_types[-1]
                 ) # add 1 more for alpha
         #print(dump(self.original_tree))
-        name = self.original_tree.body[0].name
+        name = self.tree.body[0].name
         return fn.finalize(name, Project(transform_result),
                     ctypes.CFUNCTYPE(None, *param_types))
+
+    def __call__(self, *args, **kwargs):
+        #t = time.time()
+        res = super(CSmoothSpecializer, self).__call__(*args, **kwargs)
+        # print("LSF Call: ", time.time() - t)
+        return res
+
+
 
 class OmpSmoothSpecializer(CSmoothSpecializer):
 
     class RangeTransformer(ast.NodeTransformer):
+        def __init__(self, block_hierarchy):
+            self.block_hierarchy = block_hierarchy
+
         def visit_RangeNode(self, node):
             ndim = len(node.iterator.ranges)
             index_names = ['index_{}'.format(i) for i in range(ndim)]

@@ -133,6 +133,6 @@ class CRestrictSpecializer(LazySpecializedFunction):
         param_types = [
             np.ctypeslib.ndpointer(arr.dtype, 1, arr.size) for arr in np_arrays
         ]
-        name = self.original_tree.body[0].name
+        name = self.tree.body[0].name
         return fn.finalize('totally_not_restrict', Project(transform_result),
                            ctypes.CFUNCTYPE(None, *param_types))

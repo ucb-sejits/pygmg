@@ -133,7 +133,7 @@ class CInitializeMesh(LazySpecializedFunction):
         subconfig, tuner_config = program_config
         fn = InitializeCFunction()
         return fn.finalize(
-            self.original_tree.body[0].name,
+            self.tree.body[0].name,
             Project(transform_result),
             ctypes.CFUNCTYPE(None, np.ctypeslib.ndpointer(
                 subconfig['mesh'].dtype,
