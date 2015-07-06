@@ -117,7 +117,7 @@ class CInterpolateSpecializer(LazySpecializedFunction):
     def finalize(self, transform_result, program_config):
         fn = InterpolateCFunction()
         subconfig = program_config[0]
-        name = self.original_tree.body[0].name
+        name = self.tree.body[0].name
         ctype = [np.ctypeslib.ndpointer(
                 subconfig[key].dtype,
                 1,

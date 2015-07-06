@@ -2,9 +2,10 @@ from __future__ import print_function
 import ast
 import copy
 import sys
-from ctree.frontend import dump
+from ctree.cpp.nodes import CppInclude
 
-from ctree.c.nodes import FunctionCall, SymbolRef, Add, Sub, Constant, MultiNode, Div, Mul, BinaryOp, Assign, Op
+from ctree.c.nodes import Constant, MultiNode, Assign, Return
+from ctree.templates.nodes import StringTemplate
 
 from hpgmg.finite_volume.operators.nodes import ArrayIndex
 
@@ -280,3 +281,35 @@ class CallReplacer(ast.NodeTransformer):
         if node.func.id in self.replacements:
             return self.generic_visit(self.replacements[node.func.id])
         return self.generic_visit(node)
+
+class FunctionCallTimer(ast.NodeTransformer):
+    class ReturnFiller(ast.NodeTransformer):
+        def __init__(self, name, title=""):
+            self.name = name
+            self.title = title
+
+        def visit_Return(self, node):
+            return MultiNode(body=[FunctionCallTimer.print_time(self.name, self.title), node])
+
+    def __init__(self, function_names):
+        self.function_names = function_names
+
+    def visit_FunctionDecl(self, node):
+        if node.name in self.function_names:
+            node.defn.insert(0, self.make_timer("time_start"))
+            if node.find(Return):  #insert the timing thing before every return
+                self.ReturnFiller("time", node.name).visit(node)
+            else:
+                node.defn.append(self.print_time("time_start", node.name))
+            node.defn.append(CppInclude("time.h"))
+            node.defn.append(CppInclude("stdio.h"))
+            return node
+        return node
+
+    @staticmethod
+    def make_timer(name):
+        return StringTemplate("clock_t {} = clock();".format(name))
+
+    @staticmethod
+    def print_time(name, title=""):
+        return StringTemplate(r"""printf("{title}: %5.5e\t", (((float)(clock() - {name}))) / CLOCKS_PER_SEC);""".format(title=title, name=name))

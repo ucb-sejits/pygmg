@@ -23,14 +23,19 @@ __author__ = 'nzhang-dev'
 
 def specialized_func_dispatcher(specializers):
     def decorator(func):
+        func.specializer = None
+        func.is_specialized = False
+        func.callable = None
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            if finite_volume.CONFIG.backend not in specializers:
-                specializer = lambda x: func
-            else:
-                specializer = specializers[finite_volume.CONFIG.backend]
-            callable_thing = specializer(get_ast(func))
-            return callable_thing(*args, **kwargs)
+            if not func.is_specialized and func.specializer is None:
+                if finite_volume.CONFIG.backend not in specializers:
+                    func.specializer = lambda x: func
+                else:
+                    func.specializer = specializers[finite_volume.CONFIG.backend]
+                    func.is_specialized = True
+                func.callable = func.specializer(get_ast(func))
+            return func.callable(*args, **kwargs)
         return wrapper
     return decorator
 
@@ -149,3 +154,35 @@ def sympy_to_c(exp, sym_name='x'):
         return SymbolRef(s)
 
     raise ValueError("Could not parse {}".format(exp))
+
+
+def analyze_dependencies(tree):
+    class Analyzer(ast.NodeVisitor):
+        def __init__(self):
+            self.dependencies = set()
+            self.defines = set()
+
+        def visit_Assign(self, node):
+            self.visit(node.value)
+            for target in node.targets:
+                for node in ast.walk(target):
+                    if isinstance(node, ast.Name):
+                        self.defines.add(node.id)
+            return node
+
+        def visit_Name(self, node):
+            if node.id not in self.defines:
+                self.dependencies.add(node.id)
+            return node
+
+        def visit_For(self, node):
+            for node in ast.walk(node.target):
+                if isinstance(node, ast.Name):
+                    self.defines.add(node.id)
+
+    analyzer = Analyzer()
+    analyzer.visit(tree)
+    return analyzer
+
+def find_fusible_blocks(tree, specialized_functions):
+    pass

@@ -41,12 +41,11 @@ class JacobiSmoother(Smoother):
         working_target, working_source = mesh_to_smooth, level.temp
 
         self.operator.set_scale(level.h)
+
         for i in range(self.iterations):
             working_target, working_source = working_source, working_target
             level.solver.boundary_updater.apply(level, working_source)
-
-            with level.timer("smooth"):
-                self.smooth_points(level, working_source, working_target, rhs_mesh, lambda_mesh)
+            self.smooth_points(level, working_source, working_target, rhs_mesh, lambda_mesh)
 
     @time_this
     @specialized_func_dispatcher({
