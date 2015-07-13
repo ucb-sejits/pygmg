@@ -1,6 +1,7 @@
 from __future__ import division, print_function
 import ast
 import ctypes
+import inspect
 import math
 from ast import Name
 
@@ -38,10 +39,10 @@ class SmoothCFunction(ConcreteSpecializedFunction):
             working_source, working_target,
             rhs_mesh, lambda_mesh
         ]
-        if thing.operator.is_variable_coefficient:
-            args.extend(level.beta_face_values)
-            if thing.operator.solver.is_helmholtz:
-                args.append(level.alpha)
+        #if thing.operator.is_variable_coefficient:
+        args.extend(level.beta_face_values)
+          #  if thing.operator.solver.is_helmholtz:
+        args.append(level.alpha)
         flattened = [arg.ravel() for arg in args]
         #print(self.entry_point_name, [i.shape for i in flattened])
         #t = time.time()
@@ -49,6 +50,8 @@ class SmoothCFunction(ConcreteSpecializedFunction):
         #print("C-Call: {}".format(time.time() - t), end="\t")
 
 class CSmoothSpecializer(LazySpecializedFunction):
+
+    argspec = ['source', 'target', 'rhs_mesh', 'lambda_mesh', '*level.beta_face_values', 'level.alpha']
 
     class RangeTransformer(ast.NodeTransformer):
         def visit_RangeNode(self, node):
@@ -131,27 +134,27 @@ class CSmoothSpecializer(LazySpecializedFunction):
             SymbolRef('a_x', sym_type=ctypes.c_double()),
             SymbolRef('b', sym_type=ctypes.c_double())
         ]
-        if subconfig['self'].operator.is_variable_coefficient:
+        # if subconfig['self'].operator.is_variable_coefficient:
             # needs beta values
-            beta_sample = subconfig['level'].beta_face_values[0]
-            beta_def = ArrayDef(
-                SymbolRef("beta_face_values", sym_type=ctypes.POINTER(ctypes.c_double)()),
-                size=ndim,
-                body=Array(
-                    body=[
-                        SymbolRef("beta_face_values_{}".format(i)) for i in range(ndim)
-                    ]
-                )
+        beta_sample = subconfig['level'].beta_face_values[0]
+        beta_def = ArrayDef(
+            SymbolRef("beta_face_values", sym_type=ctypes.POINTER(ctypes.c_double)()),
+            size=ndim,
+            body=Array(
+                body=[
+                    SymbolRef("beta_face_values_{}".format(i)) for i in range(ndim)
+                ]
             )
-            func.defn.append(beta_def)
-            func.params.extend([
-                SymbolRef("beta_face_values_{}".format(i), sym_type=ctypes.POINTER(ctypes.c_double)())
-                for i in range(ndim)
-            ])
-            if subconfig['self'].operator.solver.is_helmholtz:
-                func.params.append(
-                    SymbolRef("alpha", sym_type=ctypes.POINTER(ctypes.c_double)())
-                )
+        )
+        func.defn.append(beta_def)
+        func.params.extend([
+            SymbolRef("beta_face_values_{}".format(i), sym_type=ctypes.POINTER(ctypes.c_double)())
+            for i in range(ndim)
+        ])
+        #if subconfig['self'].operator.solver.is_helmholtz:
+        func.params.append(
+            SymbolRef("alpha", sym_type=ctypes.POINTER(ctypes.c_double)())
+        )
         func.defn.extend(defn)
         for call in func.find_all(FunctionCall):
             if call.func.name == 'apply_op':
@@ -182,14 +185,14 @@ class CSmoothSpecializer(LazySpecializedFunction):
                 1,
                 beta_sample.size
             )
-        if subconfig['self'].operator.is_variable_coefficient:
-            param_types.extend(
-                [beta_type]*subconfig['self'].operator.dimensions
-            )
-            if subconfig['self'].operator.solver.is_helmholtz:
-                param_types.append(
-                    param_types[-1]
-                ) # add 1 more for alpha
+        #if subconfig['self'].operator.is_variable_coefficient:
+        param_types.extend(
+            [beta_type]*subconfig['self'].operator.dimensions
+        )
+        #if subconfig['self'].operator.solver.is_helmholtz:
+        param_types.append(
+            param_types[-1]
+        ) # add 1 more for alpha
         #print(dump(self.original_tree))
         name = self.tree.body[0].name
         return fn.finalize(name, Project(transform_result),

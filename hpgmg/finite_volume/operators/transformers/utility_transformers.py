@@ -282,6 +282,14 @@ class CallReplacer(ast.NodeTransformer):
             return self.generic_visit(self.replacements[node.func.id])
         return self.generic_visit(node)
 
+class GeneralAttributeRenamer(ast.NodeTransformer):
+    def __init__(self, rename_func):
+        self.rename_func = rename_func
+
+    def visit_Attribute(self, node):
+        name = get_name(node)
+        return ast.Name(id=self.rename_func(name), ctx=ast.Load())
+
 class FunctionCallTimer(ast.NodeTransformer):
     class ReturnFiller(ast.NodeTransformer):
         def __init__(self, name, title=""):

@@ -200,6 +200,7 @@ class SimpleMultigridSolver(object):
         face_betas = [1.0 for _ in range(self.dimensions)]
 
         problem = self.problem
+        print(self.problem.expression)
 
         if level.is_variable_coefficient:
             beta_generator = self.beta_generator
@@ -374,6 +375,7 @@ class SimpleMultigridSolver(object):
             level.alpha_is_zero = level.dot_mesh(level.alpha, level.alpha) == 0.0
         logging.debug("level.alpha_is_zero {}".format(level.alpha_is_zero))
 
+    @time_this
     def build_all_levels(self):
         level = self.fine_level
         while level.space[0] > self.minimum_coarse_dimension and level.space[0] % 2 == 0:
