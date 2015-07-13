@@ -30,7 +30,6 @@ class InitializeCFunction(ConcreteSpecializedFunction):
         return self
 
     def __call__(self, thing, level, mesh, exp, coord_transform):
-
         return self._c_function(mesh.ravel())
 
 
@@ -38,14 +37,14 @@ class CInitializeMesh(LazySpecializedFunction):
 
     class InitializeMeshSubconfig(dict):
         def __hash__(self):
-            to_hash = [
+            to_hash = (
                 self['level'].space,
                 self['level'].ghost_zone,
                 self['mesh'].shape,
                 str(self['exp']),
                 self['coord_transform'].__name__
-            ]
-            return hash(tuple(to_hash))
+            )
+            return hash(to_hash)
 
     def args_to_subconfig(self, args):
         return self.InitializeMeshSubconfig({
@@ -63,8 +62,6 @@ class CInitializeMesh(LazySpecializedFunction):
         ndim = subconfig['self'].dimensions
 
         coord_tree = get_ast(subconfig['coord_transform']).body[0].body[-1].value
-
-
 
         coord_layers = [
             SemanticFinder(),

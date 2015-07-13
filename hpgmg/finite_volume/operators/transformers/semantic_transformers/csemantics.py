@@ -8,7 +8,7 @@ __author__ = 'nzhang-dev'
 
 class RangeTransformer(ast.NodeTransformer):
     def __init__(self, cache_hierarchy=()):
-        self.cache_hierarchy = cache_hierarchy
+        self.cache_hierarchy = cache_hierarchy or (32, 32)
 
     def visit_RangeNode(self, node):
         ndim = len(node.iterator.ranges)
@@ -25,8 +25,7 @@ class RangeTransformer(ast.NodeTransformer):
             blocking_index_outer = SymbolRef("{}_{}_coarse".format(node.target, dim))
             blocking_index_inner = SymbolRef("{}_{}_fine".format(node.target, dim))
 
-
-            if block_size:
+            if block_size and block_size < (high - low):
                 outer_loop = For(
                     init=Assign(make_declare(blocking_index_outer), Constant(low)),
                     test=Lt(blocking_index_outer, Constant(high)),
