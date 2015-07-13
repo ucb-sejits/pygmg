@@ -8,7 +8,7 @@ __author__ = 'nzhang-dev'
 
 class RangeTransformer(ast.NodeTransformer):
     def __init__(self, cache_hierarchy=()):
-        self.cache_hierarchy = cache_hierarchy or (32, 32)
+        self.cache_hierarchy = cache_hierarchy# or (32, 32)
 
     def visit_RangeNode(self, node):
         ndim = len(node.iterator.ranges)
