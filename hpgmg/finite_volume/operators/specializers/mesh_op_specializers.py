@@ -12,6 +12,7 @@ from rebox.specializers.rm.encode import MultiplyEncode
 from hpgmg.finite_volume.operators.specializers.smooth_specializer import apply_all_layers
 from hpgmg.finite_volume.operators.specializers.util import include_mover
 from hpgmg.finite_volume.operators.transformers.semantic_transformer import SemanticFinder
+from hpgmg.finite_volume.operators.transformers.semantic_transformers.csemantics import RangeTransformer
 from hpgmg.finite_volume.operators.transformers.transformer_util import nest_loops
 
 from ctree.frontend import dump
@@ -59,7 +60,7 @@ class MeshOpSpecializer(LazySpecializedFunction):
         layers = [
             ParamStripper(('self')),
             SemanticFinder(subconfig),
-            self.RangeTransformer(),
+            RangeTransformer(),
             IndexTransformer(('index')),
             IndexDirectTransformer(ndim, {'index': 'encode'}),
             PyBasicConversions()

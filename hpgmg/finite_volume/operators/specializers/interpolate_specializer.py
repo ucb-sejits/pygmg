@@ -9,6 +9,7 @@ from rebox.specializers.order import Ordering
 from rebox.specializers.rm.encode import MultiplyEncode
 from hpgmg.finite_volume.operators.specializers.util import apply_all_layers, include_mover
 from hpgmg.finite_volume.operators.transformers.semantic_transformer import SemanticFinder
+from hpgmg.finite_volume.operators.transformers.semantic_transformers.csemantics import RangeTransformer
 from hpgmg.finite_volume.operators.transformers.transformer_util import nest_loops
 from hpgmg.finite_volume.operators.transformers.utility_transformers import AttributeRenamer, AttributeGetter, \
     ParamStripper, ArrayRefIndexTransformer, IndexOpTransformer, IndexTransformer, IndexDirectTransformer, \
@@ -37,20 +38,6 @@ class InterpolateCFunction(ConcreteSpecializedFunction):
 
 class CInterpolateSpecializer(LazySpecializedFunction):
 
-    class RangeTransformer(ast.NodeTransformer):
-        def visit_RangeNode(self, node):
-            ndim = len(node.iterator.ranges)
-            index_names = ['target_index_{}'.format(i) for i in range(ndim)]
-            for_loops = [For(
-                init=Assign(SymbolRef(index), Constant(low)),
-                test=Lt(SymbolRef(index), Constant(high)),
-                incr=PostInc(SymbolRef(index))
-            ) for index, (low, high) in zip(index_names, node.iterator.ranges)]
-            top, bottom = nest_loops(for_loops)
-            bottom.body = node.body
-            self.generic_visit(bottom)
-            return top
-
     def args_to_subconfig(self, args):
         return {
             'self': args[0],
@@ -71,7 +58,7 @@ class CInterpolateSpecializer(LazySpecializedFunction):
             # }),
             SemanticFinder(subconfig),
             AttributeGetter(subconfig),
-            self.RangeTransformer(),
+            RangeTransformer(),
             IndexTransformer(('target_index', 'source_index')),
             IndexOpTransformer(ndim, {'target_index': 'target_encode', 'source_index': 'source_encode'}),
             ArrayRefIndexTransformer(

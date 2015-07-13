@@ -12,6 +12,7 @@ from rebox.specializers.order import Ordering
 from rebox.specializers.rm.encode import MultiplyEncode
 from hpgmg.finite_volume.operators.specializers.util import apply_all_layers, include_mover
 from hpgmg.finite_volume.operators.transformers.semantic_transformer import SemanticFinder
+from hpgmg.finite_volume.operators.transformers.semantic_transformers.csemantics import RangeTransformer
 from hpgmg.finite_volume.operators.transformers.transformer_util import nest_loops
 from hpgmg.finite_volume.operators.transformers.utility_transformers import AttributeRenamer, AttributeGetter, \
     IndexTransformer, IndexOpTransformer, IndexDirectTransformer, ParamStripper
@@ -31,20 +32,6 @@ class BoundaryCFunction(ConcreteSpecializedFunction):
         self._c_function(mesh.ravel())
 
 class CBoundarySpecializer(LazySpecializedFunction):
-
-    class RangeTransformer(ast.NodeTransformer):
-        def visit_RangeNode(self, node):
-            ndim = len(node.iterator.ranges)
-            index_names = ['index_{}'.format(i) for i in range(ndim)]
-            for_loops = [For(
-                init=Assign(SymbolRef(index, sym_type=ctypes.c_uint64()), Constant(low)),
-                test=Lt(SymbolRef(index), Constant(high)),
-                incr=PostInc(SymbolRef(index))
-            ) for index, (low, high) in zip(index_names, node.iterator.ranges)]
-            top, bottom = nest_loops(for_loops)
-            bottom.body = node.body
-            self.generic_visit(bottom)
-            return top
 
     class BoundarySpecializerSubconfig(dict):
         def __hash__(self):
@@ -78,7 +65,7 @@ class CBoundarySpecializer(LazySpecializedFunction):
                 IndexTransformer(indices=('index',)),
                 IndexOpTransformer(ndim=ndim, encode_func_names={'index': 'encode'}),
                 IndexDirectTransformer(ndim=ndim),
-                self.RangeTransformer(),
+                RangeTransformer(),
                 PyBasicConversions()
             ]
             kernel_tree = apply_all_layers(layers, kernel_tree)

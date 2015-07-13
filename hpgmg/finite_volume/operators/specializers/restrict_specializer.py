@@ -12,6 +12,7 @@ from rebox.specializers.order import Ordering
 from rebox.specializers.rm.encode import MultiplyEncode
 from hpgmg.finite_volume.operators.specializers.util import apply_all_layers, include_mover, time_this
 from hpgmg.finite_volume.operators.transformers.semantic_transformer import SemanticFinder
+from hpgmg.finite_volume.operators.transformers.semantic_transformers.csemantics import RangeTransformer
 from hpgmg.finite_volume.operators.transformers.transformer_util import nest_loops
 from hpgmg.finite_volume.operators.transformers.utility_transformers import ParamStripper, AttributeGetter, \
     LookupSimplificationTransformer, AttributeRenamer, FunctionCallSimplifier, IndexTransformer, LoopUnroller, \
@@ -38,33 +39,21 @@ class RestrictCFunction(ConcreteSpecializedFunction):
 
 class CRestrictSpecializer(LazySpecializedFunction):
 
-    class RangeTransformer(ast.NodeTransformer):
-        def visit_RangeNode(self, node):
-            ndim = len(node.iterator.ranges)
-            index_names = ['{}_{}'.format(node.target, i) for i in range(ndim)]
-            for_loops = [For(
-                init=Assign(SymbolRef(index, sym_type=ctypes.c_uint64()), Constant(low)),
-                test=Lt(SymbolRef(index), Constant(high)),
-                incr=PostInc(SymbolRef(index))
-            ) for index, (low, high) in zip(index_names, node.iterator.ranges)]
-            top, bottom = nest_loops(for_loops)
-            bottom.body = node.body
-            self.generic_visit(bottom)
-            return top
 
     class RestrictSubconfig(dict):
         #hash_count = 0
-        pass
-        # def __hash__(self):
-        #     hash_thing = (
-        #         self['level'].space,
-        #         self['level'].ghost_zone,
-        #         self['self'].neighbor_offsets,
-        #         self['source'].shape,
-        #         self['target'].shape,
-        #         self['restriction_type'],
-        #     )
-        #     #print(hash_thing)
+        #pass
+        def __hash__(self):
+            hash_thing = (
+                self['level'].space,
+                self['level'].ghost_zone,
+                self['self'].neighbor_offsets,
+                self['source'].shape,
+                self['target'].shape,
+                self['restriction_type'],
+            )
+            return hash(hash_thing)
+            #print(hash_thing)
         #     #self.hash_count += 1
         #     return id(self)
 
@@ -97,7 +86,7 @@ class CRestrictSpecializer(LazySpecializedFunction):
             IndexOpTransformer(ndim=ndim, encode_func_names={'target_point': 'target_encode', 'source_point': 'source_encode'}),
             IndexDirectTransformer(ndim=ndim, encode_func_names={'source_point': 'source_encode', 'target_point': 'target_encode'}),
             IndexOpTransformBugfixer(func_names=('target_encode', 'source_encode')),
-            self.RangeTransformer(),
+            RangeTransformer(),
             PyBasicConversions(),
         ]
         tree = apply_all_layers(layers, tree)

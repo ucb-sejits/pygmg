@@ -13,6 +13,7 @@ from hpgmg.finite_volume.operators.specializers.util import apply_all_layers, to
 from hpgmg.finite_volume.operators.transformers.semantic_transformer import SemanticFinder
 
 from ctree.frontend import dump, get_ast
+from hpgmg.finite_volume.operators.transformers.semantic_transformers.csemantics import RangeTransformer
 from hpgmg.finite_volume.operators.transformers.transformer_util import nest_loops
 from hpgmg.finite_volume.operators.transformers.utility_transformers import ParamStripper, AttributeGetter, \
     IndexOpTransformer, AttributeRenamer, CallReplacer, IndexDirectTransformer, IndexTransformer
@@ -55,20 +56,6 @@ class CInitializeMesh(LazySpecializedFunction):
             'coord_transform': args[4]
         })
 
-    class RangeTransformer(ast.NodeTransformer):
-        def visit_RangeNode(self, node):
-            ndim = len(node.iterator.ranges)
-            index_names = ['coord_{}'.format(i) for i in range(ndim)]
-            for_loops = [For(
-                init=Assign(SymbolRef(index), Constant(low)),
-                test=Lt(SymbolRef(index), Constant(high)),
-                incr=PostInc(SymbolRef(index))
-            ) for index, (low, high) in zip(index_names, node.iterator.ranges)]
-            top, bottom = nest_loops(for_loops)
-            bottom.body = node.body
-            self.generic_visit(bottom)
-            return top
-
     def transform(self, tree, program_config):
         subconfig, tuner_config = program_config
         func_node = tree.body[0]
@@ -104,7 +91,7 @@ class CInitializeMesh(LazySpecializedFunction):
             CallReplacer({
                 'func': expr
             }),
-            self.RangeTransformer(),
+            RangeTransformer(),
             IndexTransformer(('coord',)),
             IndexDirectTransformer(ndim=ndim, encode_func_names={'coord': 'encode'}),
             PyBasicConversions(),

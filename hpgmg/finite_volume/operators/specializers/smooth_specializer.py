@@ -19,6 +19,7 @@ from hpgmg.finite_volume.operators.specializers.util import to_macro_function, a
     LayerPrinter
 from hpgmg.finite_volume.operators.transformers.level_transformers import RowMajorInteriorPoints
 from hpgmg.finite_volume.operators.transformers.semantic_transformer import SemanticFinder
+from hpgmg.finite_volume.operators.transformers.semantic_transformers.csemantics import RangeTransformer
 from hpgmg.finite_volume.operators.transformers.transformer_util import nest_loops
 from hpgmg.finite_volume.operators.transformers.utility_transformers import ParamStripper, AttributeRenamer, \
     AttributeGetter, ArrayRefIndexTransformer, FunctionCallTimer
@@ -53,20 +54,6 @@ class CSmoothSpecializer(LazySpecializedFunction):
 
     argspec = ['source', 'target', 'rhs_mesh', 'lambda_mesh', '*level.beta_face_values', 'level.alpha']
 
-    class RangeTransformer(ast.NodeTransformer):
-        def visit_RangeNode(self, node):
-            ndim = len(node.iterator.ranges)
-            index_names = ['index_{}'.format(i) for i in range(ndim)]
-            for_loops = [For(
-                init=Assign(SymbolRef(index), Constant(low)),
-                test=Lt(SymbolRef(index), Constant(high)),
-                incr=PostInc(SymbolRef(index))
-            ) for index, (low, high) in zip(index_names, node.iterator.ranges)]
-            top, bottom = nest_loops(for_loops)
-            bottom.body = node.body
-            self.generic_visit(bottom)
-            return top
-
     class SmoothSubconfig(dict):
         def __hash__(self):
             operator = self['self'].operator
@@ -97,14 +84,14 @@ class CSmoothSpecializer(LazySpecializedFunction):
         ndim = subconfig['self'].operator.solver.dimensions
         ghost = subconfig['self'].operator.ghost_zone
         subconfig['ghost'] = ghost
-        #shape = subconfig['self'].operator.
+        shape = subconfig['level'].interior_space
         layers = [
             ParamStripper(('self', 'level')),
             AttributeRenamer({
                 'self.operator.apply_op': Name('apply_op', ast.Load())
             }),
             SemanticFinder(subconfig),
-            self.RangeTransformer(),
+            RangeTransformer(),
             #RowMajorInteriorPoints(subconfig),
             AttributeGetter({'self': subconfig['self']}),
             ArrayRefIndexTransformer(
