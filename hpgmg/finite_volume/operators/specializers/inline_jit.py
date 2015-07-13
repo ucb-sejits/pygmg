@@ -198,7 +198,7 @@ def partial_jit(function):
             #print(type(function), isinstance(function, types.MethodType))
             tree = c2c.visit(tree)
             jits = [QuickJit(py_ast=sub_tree) for sub_tree in c2c.specialized]
-            print(dump(c2c.specialized[0]))
+            #print(dump(c2c.specialized[0]))
             print(dump(tree))
             #print(len(jits))
             f_tree = tree.body[0]

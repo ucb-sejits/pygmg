@@ -197,10 +197,11 @@ class Analyzer(ast.NodeVisitor):
     def visit_Attribute(self, node):
         name = get_name(node)
         levels = name.split('.')
-        parts = ""
+        parts = []
         for level in levels:
-            parts = ".".join((parts, level))
-            if parts in self.defines | self.dependencies:
+            parts.append(level)
+            s = ".".join(parts)
+            if s in self.defines | self.dependencies:
                 return
         if self.define:
             self.defines.add(name)
