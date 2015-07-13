@@ -2,13 +2,15 @@ import ast
 import ctypes
 from ctree.c.nodes import For, Assign, SymbolRef, Constant, PostInc, Lt, AddAssign, Add
 import itertools
+import hpgmg
 from hpgmg.finite_volume.operators.transformers.transformer_util import nest_loops
 
 __author__ = 'nzhang-dev'
 
 class RangeTransformer(ast.NodeTransformer):
     def __init__(self, cache_hierarchy=()):
-        self.cache_hierarchy = cache_hierarchy# or (32, 32)
+        default_hierarchy = (int(hpgmg.finite_volume.CONFIG.block_size),) * int(hpgmg.finite_volume.CONFIG.blocking_dimensions)
+        self.cache_hierarchy = cache_hierarchy or default_hierarchy
 
     def visit_RangeNode(self, node):
         ndim = len(node.iterator.ranges)
