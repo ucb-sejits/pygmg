@@ -29,7 +29,6 @@ class JacobiSmoother(Smoother):
         self.iterations = iterations
 
     #@time_this
-    @partial_jit
     def smooth(self, level, mesh_to_smooth, rhs_mesh):
         """
 
