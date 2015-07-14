@@ -14,6 +14,7 @@ from ctree.transformations import PyBasicConversions
 from rebox.specializers.order import Ordering
 from rebox.specializers.rm.encode import MultiplyEncode
 import time
+import hpgmg
 
 from hpgmg.finite_volume.operators.specializers.util import to_macro_function, apply_all_layers, include_mover, \
     LayerPrinter
@@ -91,7 +92,9 @@ class CSmoothSpecializer(LazySpecializedFunction):
                 'self.operator.apply_op': Name('apply_op', ast.Load())
             }),
             SemanticFinder(subconfig),
-            RangeTransformer(),
+            RangeTransformer(
+                (int(hpgmg.finite_volume.CONFIG.block_size),) * int(hpgmg.finite_volume.CONFIG.blocking_dimensions)
+            ),
             #RowMajorInteriorPoints(subconfig),
             AttributeGetter({'self': subconfig['self']}),
             ArrayRefIndexTransformer(
