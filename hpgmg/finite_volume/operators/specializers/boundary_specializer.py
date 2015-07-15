@@ -12,7 +12,7 @@ from rebox.specializers.order import Ordering
 from rebox.specializers.rm.encode import MultiplyEncode
 from hpgmg.finite_volume.operators.specializers.util import apply_all_layers, include_mover
 from hpgmg.finite_volume.operators.transformers.semantic_transformer import SemanticFinder
-from hpgmg.finite_volume.operators.transformers.semantic_transformers.csemantics import RangeTransformer
+from hpgmg.finite_volume.operators.transformers.semantic_transformers.csemantics import CRangeTransformer
 from hpgmg.finite_volume.operators.transformers.transformer_util import nest_loops
 from hpgmg.finite_volume.operators.transformers.utility_transformers import AttributeRenamer, AttributeGetter, \
     IndexTransformer, IndexOpTransformer, IndexDirectTransformer, ParamStripper
@@ -65,7 +65,7 @@ class CBoundarySpecializer(LazySpecializedFunction):
                 IndexTransformer(indices=('index',)),
                 IndexOpTransformer(ndim=ndim, encode_func_names={'index': 'encode'}),
                 IndexDirectTransformer(ndim=ndim),
-                RangeTransformer(),
+                CRangeTransformer(),
                 PyBasicConversions()
             ]
             kernel_tree = apply_all_layers(layers, kernel_tree)

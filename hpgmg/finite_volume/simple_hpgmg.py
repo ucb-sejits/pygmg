@@ -177,8 +177,9 @@ class SimpleMultigridSolver(object):
 
     @specialized_func_dispatcher({
         'c': CInitializeMesh,
+        'omp': CInitializeMesh
     })
-    def initialize_mesh(self, level, mesh, exp, coord_transform):
+    def initialize_mesh(self, level, mesh, exp, coord_transform):  # TODO: Handle variable coefficient shifts
         func = self.problem.get_func(exp, self.problem.symbols)
         for coord in level.indices():
             mesh[coord] = func(*coord_transform(coord))
@@ -549,9 +550,14 @@ class SimpleMultigridSolver(object):
         parser.add_argument('-l', '--log', help='turn on logging', action="store_true", default=False)
         parser.add_argument('-b', '--backend', help='turn on JIT', choices=('python', 'c', 'omp', 'ocl'), default='python')
         parser.add_argument('-v', '--verbose', help='print verbose', action="store_true", default=False)
-        parser.add_argument('-bd', '--blocking_dimensions', help='number of dimensions to block in', default=0)
-        parser.add_argument('-bls', '--block_size', help='size of each block', default=32)
+        parser.add_argument('-bd', '--blocking_dimensions', help='number of dimensions to block in', default=0, type=int)
+        parser.add_argument('-bls', '--block_size', help='size of each block', default=32, type=int)
+        parser.add_argument('-t', '--tune', help='try tuning it', default=False, action="store_true")
         finite_volume.CONFIG = parser.parse_args(args=args)
+        finite_volume.CONFIG.block_hierarchy = (finite_volume.CONFIG.block_size,) * int(
+            finite_volume.CONFIG.blocking_dimensions or 2
+        )
+
         return finite_volume.CONFIG
 
     @staticmethod

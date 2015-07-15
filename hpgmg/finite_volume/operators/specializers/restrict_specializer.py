@@ -12,7 +12,7 @@ from rebox.specializers.order import Ordering
 from rebox.specializers.rm.encode import MultiplyEncode
 from hpgmg.finite_volume.operators.specializers.util import apply_all_layers, include_mover, time_this
 from hpgmg.finite_volume.operators.transformers.semantic_transformer import SemanticFinder
-from hpgmg.finite_volume.operators.transformers.semantic_transformers.csemantics import RangeTransformer
+from hpgmg.finite_volume.operators.transformers.semantic_transformers.csemantics import CRangeTransformer
 from hpgmg.finite_volume.operators.transformers.transformer_util import nest_loops
 from hpgmg.finite_volume.operators.transformers.utility_transformers import ParamStripper, AttributeGetter, \
     LookupSimplificationTransformer, AttributeRenamer, FunctionCallSimplifier, IndexTransformer, LoopUnroller, \
@@ -86,7 +86,7 @@ class CRestrictSpecializer(LazySpecializedFunction):
             IndexOpTransformer(ndim=ndim, encode_func_names={'target_point': 'target_encode', 'source_point': 'source_encode'}),
             IndexDirectTransformer(ndim=ndim, encode_func_names={'source_point': 'source_encode', 'target_point': 'target_encode'}),
             IndexOpTransformBugfixer(func_names=('target_encode', 'source_encode')),
-            RangeTransformer(),
+            CRangeTransformer(),
             PyBasicConversions(),
         ]
         tree = apply_all_layers(layers, tree)

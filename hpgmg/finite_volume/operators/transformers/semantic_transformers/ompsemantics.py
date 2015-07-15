@@ -1,13 +1,13 @@
 import ast
 import ctypes
-from ctree.c.nodes import For, Assign, SymbolRef, Constant, PostInc, Lt, AddAssign, Add
+from ctree.c.nodes import For, Assign, SymbolRef, Constant, PostInc, Lt, AddAssign, Add, Pragma
 import itertools
 import hpgmg
 from hpgmg.finite_volume.operators.transformers.transformer_util import nest_loops
 
 __author__ = 'nzhang-dev'
 
-class CRangeTransformer(ast.NodeTransformer):
+class OmpRangeTransformer(ast.NodeTransformer):
     def __init__(self, cache_hierarchy=()):
         self.cache_hierarchy = cache_hierarchy
 
@@ -55,4 +55,7 @@ class CRangeTransformer(ast.NodeTransformer):
         top, bottom = nest_loops(outer_loops + blocked_loops)
         bottom.body = assignments + node.body
         self.generic_visit(bottom)
-        return top
+        return Pragma(
+            pragma="omp parallel for collapse({})".format(len(outer_loops) or min(2, ndim)),
+            body=[top]
+        )

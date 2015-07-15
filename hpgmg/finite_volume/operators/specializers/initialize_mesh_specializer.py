@@ -13,7 +13,7 @@ from hpgmg.finite_volume.operators.specializers.util import apply_all_layers, to
 from hpgmg.finite_volume.operators.transformers.semantic_transformer import SemanticFinder
 
 from ctree.frontend import dump, get_ast
-from hpgmg.finite_volume.operators.transformers.semantic_transformers.csemantics import RangeTransformer
+from hpgmg.finite_volume.operators.transformers.semantic_transformers.csemantics import CRangeTransformer
 from hpgmg.finite_volume.operators.transformers.transformer_util import nest_loops
 from hpgmg.finite_volume.operators.transformers.utility_transformers import ParamStripper, AttributeGetter, \
     IndexOpTransformer, AttributeRenamer, CallReplacer, IndexDirectTransformer, IndexTransformer
@@ -88,7 +88,7 @@ class CInitializeMesh(LazySpecializedFunction):
             CallReplacer({
                 'func': expr
             }),
-            RangeTransformer(),
+            CRangeTransformer(),
             IndexTransformer(('coord',)),
             IndexDirectTransformer(ndim=ndim, encode_func_names={'coord': 'encode'}),
             PyBasicConversions(),

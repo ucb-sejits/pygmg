@@ -9,7 +9,7 @@ from rebox.specializers.order import Ordering
 from rebox.specializers.rm.encode import MultiplyEncode
 from hpgmg.finite_volume.operators.specializers.util import apply_all_layers, include_mover
 from hpgmg.finite_volume.operators.transformers.semantic_transformer import SemanticFinder
-from hpgmg.finite_volume.operators.transformers.semantic_transformers.csemantics import RangeTransformer
+from hpgmg.finite_volume.operators.transformers.semantic_transformers.csemantics import CRangeTransformer
 from hpgmg.finite_volume.operators.transformers.transformer_util import nest_loops
 from hpgmg.finite_volume.operators.transformers.utility_transformers import AttributeRenamer, AttributeGetter, \
     ParamStripper, ArrayRefIndexTransformer, IndexOpTransformer, IndexTransformer, IndexDirectTransformer, \
@@ -58,7 +58,7 @@ class CInterpolateSpecializer(LazySpecializedFunction):
             # }),
             SemanticFinder(subconfig),
             AttributeGetter(subconfig),
-            RangeTransformer(),
+            CRangeTransformer(),
             IndexTransformer(('target_index', 'source_index')),
             IndexOpTransformer(ndim, {'target_index': 'target_encode', 'source_index': 'source_encode'}),
             ArrayRefIndexTransformer(
