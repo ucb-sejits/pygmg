@@ -6,6 +6,7 @@ from ctree.nodes import Project
 from ctree.templates.nodes import StringTemplate
 from ctree.transformations import PyBasicConversions
 import math
+from hpgmg.finite_volume.operators.specializers.jit import PyGMGConcreteSpecializedFunction
 from hpgmg.finite_volume.operators.transformers.generator_transformers import GeneratorTransformer, \
     CompReductionTransformer
 from rebox.specializers.order import Ordering
@@ -25,16 +26,19 @@ from ctree.frontend import dump
 
 __author__ = 'nzhang-dev'
 
-class RestrictCFunction(ConcreteSpecializedFunction):
+class RestrictCFunction(PyGMGConcreteSpecializedFunction):
 
-    def finalize(self, entry_point_name, project_node, entry_point_typesig):
-        self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)
-        self.entry_point_name = entry_point_name
-        return self
+    # def finalize(self, entry_point_name, project_node, entry_point_typesig):
+    #     self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)
+    #     self.entry_point_name = entry_point_name
+    #     return self
 
-    def __call__(self, thing, level, target, source, restriction_type):
-        #print(self.entry_point_name, [i.shape for i in flattened])
-        self._c_function(target.ravel(), source.ravel())
+    def pyargs_to_cargs(self, args, kwargs):
+        return (args[2].ravel(), args[3].ravel()), {}
+
+    # def __call__(self, thing, level, target, source, restriction_type):
+    #     #print(self.entry_point_name, [i.shape for i in flattened])
+    #     self._c_function(target.ravel(), source.ravel())
 
 
 class CRestrictSpecializer(LazySpecializedFunction):

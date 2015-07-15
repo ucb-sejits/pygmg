@@ -17,6 +17,7 @@ from rebox.specializers.order import Ordering
 from rebox.specializers.rm.encode import MultiplyEncode
 import time
 import hpgmg
+from hpgmg.finite_volume.operators.specializers.jit import PyGMGConcreteSpecializedFunction
 
 from hpgmg.finite_volume.operators.specializers.util import to_macro_function, apply_all_layers, include_mover, \
     LayerPrinter, time_this
@@ -33,27 +34,36 @@ from hpgmg.finite_volume.operators.tune.tuners import SmoothTuningDriver
 __author__ = 'nzhang-dev'
 
 
-class SmoothCFunction(ConcreteSpecializedFunction):
+class SmoothCFunction(PyGMGConcreteSpecializedFunction):
 
-    def finalize(self, entry_point_name, project_node, entry_point_typesig):
-        self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)
-        self.entry_point_name = entry_point_name
-        return self
+    # def finalize(self, entry_point_name, project_node, entry_point_typesig):
+    #     #print("SmoothCFunction Finalize", entry_point_name)
+    #     self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)
+    #     self.entry_point_name = entry_point_name
+    #     return self
 
-    @time_this
-    def __call__(self, thing, level, working_source, working_target, rhs_mesh, lambda_mesh):
-        args = [
+    def pyargs_to_cargs(self, args, kwargs):
+        thing, level, working_source, working_target, rhs_mesh, lambda_mesh = args
+        c_args = [
             working_source, working_target,
             rhs_mesh, lambda_mesh
-        ]
-        args.extend(level.beta_face_values)
-        args.append(level.alpha)
-        flattened = [arg.ravel() for arg in args]
-        self._c_function(*flattened)
+        ] + level.beta_face_values + [level.alpha]
+        return c_args, {}
+
+    # def __call__(self, thing, level, working_source, working_target, rhs_mesh, lambda_mesh):
+    #     args = [
+    #         working_source, working_target,
+    #         rhs_mesh, lambda_mesh
+    #     ] + level.beta_face_values + [level.alpha]
+    #     # args.extend(level.beta_face_values)
+    #     # args.append(level.alpha)
+    #     #flattened = [arg.ravel() for arg in args]
+    #     #self._c_function(*flattened)
+    #     self._c_function(*args)
 
 class CSmoothSpecializer(LazySpecializedFunction):
 
-    argspec = ['source', 'target', 'rhs_mesh', 'lambda_mesh', '*level.beta_face_values', 'level.alpha']
+    #argspec = ['source', 'target', 'rhs_mesh', 'lambda_mesh', '*level.beta_face_values', 'level.alpha']
 
     class SmoothSubconfig(dict):
         def __hash__(self):
@@ -169,15 +179,15 @@ class CSmoothSpecializer(LazySpecializedFunction):
     def finalize(self, transform_result, program_config):
         fn = SmoothCFunction()
         subconfig = program_config[0]
-        param_types = [np.ctypeslib.ndpointer(thing.dtype, 1, thing.size) for thing in
+        param_types = [np.ctypeslib.ndpointer(thing.dtype, len(thing.shape), thing.shape) for thing in
         [
             subconfig[key] for key in ('source', 'target', 'rhs_mesh', 'lambda_mesh')
         ]]
         beta_sample = subconfig['level'].beta_face_values[0]
         beta_type = np.ctypeslib.ndpointer(
             beta_sample.dtype,
-            1,
-            beta_sample.size
+            len(beta_sample.shape),
+            beta_sample.shape
         )
         #if subconfig['self'].operator.is_variable_coefficient:
         param_types.extend(
@@ -214,9 +224,7 @@ class CSmoothSpecializer(LazySpecializedFunction):
                           "best config:",
                           self._tuner.best_configs[subconfig])
                 atexit.register(print_report)
-            res = super(CSmoothSpecializer, self).__call__(*args, **kwargs)
-        else:
-            res = super(CSmoothSpecializer, self).__call__(*args, **kwargs)
+        res = super(CSmoothSpecializer, self).__call__(*args, **kwargs)
         return res
 
 

@@ -8,6 +8,7 @@ from ctree.transformations import PyBasicConversions
 import math
 from rebox.specializers.order import Ordering
 from rebox.specializers.rm.encode import MultiplyEncode
+from hpgmg.finite_volume.operators.specializers.jit import PyGMGConcreteSpecializedFunction
 from hpgmg.finite_volume.operators.specializers.util import apply_all_layers, to_macro_function, sympy_to_c, \
     include_mover
 from hpgmg.finite_volume.operators.transformers.semantic_transformer import SemanticFinder
@@ -23,14 +24,17 @@ import numpy as np
 __author__ = 'nzhang-dev'
 
 
-class InitializeCFunction(ConcreteSpecializedFunction):
-    def finalize(self, entry_point_name, project_node, entry_point_typesig):
-        self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)
-        self.entry_point_name = entry_point_name
-        return self
+class InitializeCFunction(PyGMGConcreteSpecializedFunction):
+    # def finalize(self, entry_point_name, project_node, entry_point_typesig):
+    #     self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)
+    #     self.entry_point_name = entry_point_name
+    #     return self
 
-    def __call__(self, thing, level, mesh, exp, coord_transform):
-        return self._c_function(mesh.ravel())
+    def pyargs_to_cargs(self, args, kwargs):
+        return [args[2].ravel()], {}
+
+    # def __call__(self, thing, level, mesh, exp, coord_transform):
+    #     return self._c_function(mesh.ravel())
 
 
 class CInitializeMesh(LazySpecializedFunction):
