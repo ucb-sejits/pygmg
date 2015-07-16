@@ -28,7 +28,8 @@ class RebuildCFunction(PyGMGConcreteSpecializedFunction):
     #     self.entry_point_name = entry_point_name
     #     return self
 
-    def pyargs_to_cargs(self, c_args, kwargs):
+    @staticmethod
+    def pyargs_to_cargs(c_args, kwargs):
         thing, target_level = c_args
         c_args = [target_level.valid, target_level.l1_inverse, target_level.d_inverse]
         if thing.is_variable_coefficient:

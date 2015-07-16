@@ -42,7 +42,8 @@ class SmoothCFunction(PyGMGConcreteSpecializedFunction):
     #     self.entry_point_name = entry_point_name
     #     return self
 
-    def pyargs_to_cargs(self, args, kwargs):
+    @staticmethod
+    def pyargs_to_cargs(args, kwargs):
         thing, level, working_source, working_target, rhs_mesh, lambda_mesh = args
         c_args = [
             working_source, working_target,

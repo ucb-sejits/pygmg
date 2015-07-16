@@ -12,9 +12,9 @@ class PyGMGConcreteSpecializedFunction(ConcreteSpecializedFunction):
         self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)
         return self
 
-    @abc.abstractmethod
-    def pyargs_to_cargs(self, args, kwargs):
-        pass
+    @staticmethod
+    def pyargs_to_cargs(args, kwargs):
+        raise NotImplementedError("PyArgs need to be C-Argified")
 
     def __call__(self, *args, **kwargs):
         result = self.pyargs_to_cargs(args, kwargs)

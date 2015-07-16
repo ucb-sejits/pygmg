@@ -28,7 +28,8 @@ class InterpolateCFunction(PyGMGConcreteSpecializedFunction):
     #     self.entry_point_name = entry_point_name
     #     return self
 
-    def pyargs_to_cargs(self, args, kwargs):
+    @staticmethod
+    def pyargs_to_cargs(args, kwargs):
         target_mesh, source_mesh = args[-2:]
         return (target_mesh.ravel(), source_mesh.ravel()), {}
 

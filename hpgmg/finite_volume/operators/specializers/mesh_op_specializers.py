@@ -29,7 +29,8 @@ class MeshOpCFunction(PyGMGConcreteSpecializedFunction):
     #     self.entry_point_name = entry_point_name
     #     return self
 
-    def pyargs_to_cargs(self, args, kwargs):
+    @staticmethod
+    def pyargs_to_cargs(args, kwargs):
         flattened = []
         for arg in args:
             if isinstance(arg, np.ndarray):

@@ -33,7 +33,8 @@ class RestrictCFunction(PyGMGConcreteSpecializedFunction):
     #     self.entry_point_name = entry_point_name
     #     return self
 
-    def pyargs_to_cargs(self, args, kwargs):
+    @staticmethod
+    def pyargs_to_cargs(args, kwargs):
         return (args[2].ravel(), args[3].ravel()), {}
 
     # def __call__(self, thing, level, target, source, restriction_type):
