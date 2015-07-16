@@ -327,3 +327,11 @@ def get_arg_spec(f):
         return f.argspec[:]
     f.argspec = inspect.getargspec(f).args
     return f.argspec[:]
+
+def compute_local_work_size(device, global_work_dims):
+    # local_size = min(device.max_work_item_sizes[0], device.max_work_group_size)
+    local_size = 2
+    global_size = reduce(operator.mul, global_work_dims, 1)
+    while (global_size % local_size) != 0:
+        local_size -= 1
+    return local_size

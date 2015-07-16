@@ -3,7 +3,8 @@ from __future__ import print_function
 from hpgmg.finite_volume.operators.base_operator import BaseOperator
 from hpgmg.finite_volume.operators.smoother import Smoother
 from hpgmg.finite_volume.operators.specializers.inline_jit import partial_jit
-from hpgmg.finite_volume.operators.specializers.smooth_specializer import CSmoothSpecializer, OmpSmoothSpecializer
+from hpgmg.finite_volume.operators.specializers.smooth_specializer import CSmoothSpecializer, OmpSmoothSpecializer, \
+    OclSmoothSpecializer
 from hpgmg.finite_volume.operators.specializers.util import specialized_func_dispatcher, profile, time_this
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
@@ -51,7 +52,8 @@ class JacobiSmoother(Smoother):
     @time_this
     @specialized_func_dispatcher({
         'c': CSmoothSpecializer,
-        'omp': OmpSmoothSpecializer
+        'omp': OmpSmoothSpecializer,
+        'ocl': OclSmoothSpecializer
     })
     def smooth_points(self, level, working_source, working_target, rhs_mesh, lambda_mesh):
         for index in level.interior_points():
