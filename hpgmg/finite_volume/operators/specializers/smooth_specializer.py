@@ -80,7 +80,9 @@ class CSmoothSpecializer(LazySpecializedFunction):
             return hash(tuple(hashed))
 
     def get_tuning_driver(self):
-        return SmoothTuningDriver(objective=MinimizeTime())
+        if hpgmg.finite_volume.CONFIG.tune:
+            return SmoothTuningDriver(objective=MinimizeTime())
+        return super(CSmoothSpecializer, self).get_tuning_driver()
 
     def args_to_subconfig(self, args):
         params = (
