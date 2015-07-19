@@ -6,12 +6,14 @@ from ctree.nodes import Project
 from ctree.templates.nodes import StringTemplate
 from ctree.transformations import PyBasicConversions
 import math
+from hpgmg.finite_volume.operators.specializers.jit import PyGMGConcreteSpecializedFunction
 from hpgmg.finite_volume.operators.transformers.generator_transformers import GeneratorTransformer, \
     CompReductionTransformer
 from rebox.specializers.order import Ordering
 from rebox.specializers.rm.encode import MultiplyEncode
 from hpgmg.finite_volume.operators.specializers.util import apply_all_layers, include_mover, time_this
 from hpgmg.finite_volume.operators.transformers.semantic_transformer import SemanticFinder
+from hpgmg.finite_volume.operators.transformers.semantic_transformers.csemantics import CRangeTransformer
 from hpgmg.finite_volume.operators.transformers.transformer_util import nest_loops
 from hpgmg.finite_volume.operators.transformers.utility_transformers import ParamStripper, AttributeGetter, \
     LookupSimplificationTransformer, AttributeRenamer, FunctionCallSimplifier, IndexTransformer, LoopUnroller, \
@@ -24,47 +26,39 @@ from ctree.frontend import dump
 
 __author__ = 'nzhang-dev'
 
-class RestrictCFunction(ConcreteSpecializedFunction):
+class RestrictCFunction(PyGMGConcreteSpecializedFunction):
 
-    def finalize(self, entry_point_name, project_node, entry_point_typesig):
-        self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)
-        self.entry_point_name = entry_point_name
-        return self
+    # def finalize(self, entry_point_name, project_node, entry_point_typesig):
+    #     self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)
+    #     self.entry_point_name = entry_point_name
+    #     return self
 
-    def __call__(self, thing, level, target, source, restriction_type):
-        #print(self.entry_point_name, [i.shape for i in flattened])
-        self._c_function(target.ravel(), source.ravel())
+    @staticmethod
+    def pyargs_to_cargs(args, kwargs):
+        return (args[2].ravel(), args[3].ravel()), {}
+
+    # def __call__(self, thing, level, target, source, restriction_type):
+    #     #print(self.entry_point_name, [i.shape for i in flattened])
+    #     self._c_function(target.ravel(), source.ravel())
 
 
 class CRestrictSpecializer(LazySpecializedFunction):
 
-    class RangeTransformer(ast.NodeTransformer):
-        def visit_RangeNode(self, node):
-            ndim = len(node.iterator.ranges)
-            index_names = ['{}_{}'.format(node.target, i) for i in range(ndim)]
-            for_loops = [For(
-                init=Assign(SymbolRef(index, sym_type=ctypes.c_uint64()), Constant(low)),
-                test=Lt(SymbolRef(index), Constant(high)),
-                incr=PostInc(SymbolRef(index))
-            ) for index, (low, high) in zip(index_names, node.iterator.ranges)]
-            top, bottom = nest_loops(for_loops)
-            bottom.body = node.body
-            self.generic_visit(bottom)
-            return top
 
     class RestrictSubconfig(dict):
         #hash_count = 0
-        pass
-        # def __hash__(self):
-        #     hash_thing = (
-        #         self['level'].space,
-        #         self['level'].ghost_zone,
-        #         self['self'].neighbor_offsets,
-        #         self['source'].shape,
-        #         self['target'].shape,
-        #         self['restriction_type'],
-        #     )
-        #     #print(hash_thing)
+        #pass
+        def __hash__(self):
+            hash_thing = (
+                self['level'].space,
+                self['level'].ghost_zone,
+                self['self'].neighbor_offsets,
+                self['source'].shape,
+                self['target'].shape,
+                self['restriction_type'],
+            )
+            return hash(hash_thing)
+            #print(hash_thing)
         #     #self.hash_count += 1
         #     return id(self)
 
@@ -97,7 +91,7 @@ class CRestrictSpecializer(LazySpecializedFunction):
             IndexOpTransformer(ndim=ndim, encode_func_names={'target_point': 'target_encode', 'source_point': 'source_encode'}),
             IndexDirectTransformer(ndim=ndim, encode_func_names={'source_point': 'source_encode', 'target_point': 'target_encode'}),
             IndexOpTransformBugfixer(func_names=('target_encode', 'source_encode')),
-            self.RangeTransformer(),
+            CRangeTransformer(),
             PyBasicConversions(),
         ]
         tree = apply_all_layers(layers, tree)

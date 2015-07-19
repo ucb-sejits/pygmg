@@ -10,6 +10,7 @@ from ctree.transformations import PyBasicConversions
 from rebox.specializers.order import Ordering
 from rebox.specializers.rm.encode import MultiplyEncode
 import numpy as np
+from hpgmg.finite_volume.operators.specializers.jit import PyGMGConcreteSpecializedFunction
 
 from hpgmg.finite_volume.operators.specializers.util import apply_all_layers, include_mover
 from hpgmg.finite_volume.operators.transformers.generator_transformers import GeneratorTransformer, CompReductionTransformer
@@ -21,20 +22,31 @@ from hpgmg.finite_volume.operators.transformers.utility_transformers import Para
 
 __author__ = 'nzhang-dev'
 
-class RebuildCFunction(ConcreteSpecializedFunction):
-    def finalize(self, entry_point_name, project_node, entry_point_typesig):
-        self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)
-        self.entry_point_name = entry_point_name
-        return self
+class RebuildCFunction(PyGMGConcreteSpecializedFunction):
+    # def finalize(self, entry_point_name, project_node, entry_point_typesig):
+    #     self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)
+    #     self.entry_point_name = entry_point_name
+    #     return self
 
-    def __call__(self, thing, target_level):
-        args = [target_level.valid, target_level.l1_inverse, target_level.d_inverse]
+    @staticmethod
+    def pyargs_to_cargs(c_args, kwargs):
+        thing, target_level = c_args
+        c_args = [target_level.valid, target_level.l1_inverse, target_level.d_inverse]
         if thing.is_variable_coefficient:
-            args.extend(target_level.beta_face_values)
+            c_args.extend(target_level.beta_face_values)
             if thing.solver.is_helmholtz:
-                args.append(target_level.alpha)
-        flattened = [arg.ravel() for arg in args]
-        return self._c_function(*flattened)
+                c_args.append(target_level.alpha)
+        flattened = [arg.ravel() for arg in c_args]
+        return flattened, {}
+    #
+    # def __call__(self, thing, target_level):
+    #     args = [target_level.valid, target_level.l1_inverse, target_level.d_inverse]
+    #     if thing.is_variable_coefficient:
+    #         args.extend(target_level.beta_face_values)
+    #         if thing.solver.is_helmholtz:
+    #             args.append(target_level.alpha)
+    #     flattened = [arg.ravel() for arg in args]
+    #     return self._c_function(*flattened)
 
 class CRebuildSpecializer(LazySpecializedFunction):
 

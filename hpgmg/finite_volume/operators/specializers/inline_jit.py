@@ -12,6 +12,7 @@ from ctree.nodes import Project
 import ctypes
 import ast
 from hpgmg import finite_volume
+from hpgmg.finite_volume.operators.specializers.jit import PyGMGConcreteSpecializedFunction
 from hpgmg.finite_volume.operators.specializers.util import analyze_dependencies, get_object, include_mover, \
     string_to_ast, apply_all_layers
 from hpgmg.finite_volume.operators.transformers.utility_transformers import get_name, AttributeGetter, \
@@ -19,7 +20,7 @@ from hpgmg.finite_volume.operators.transformers.utility_transformers import get_
 
 __author__ = 'nzhang-dev'
 
-class QuickFunction(ConcreteSpecializedFunction):
+class QuickFunction(PyGMGConcreteSpecializedFunction):
 
     def finalize(self, entry_point_name, project_node, entry_point_typesig):
         self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)

@@ -7,8 +7,10 @@ from ctree.transformations import PyBasicConversions
 import math
 from rebox.specializers.order import Ordering
 from rebox.specializers.rm.encode import MultiplyEncode
+from hpgmg.finite_volume.operators.specializers.jit import PyGMGConcreteSpecializedFunction
 from hpgmg.finite_volume.operators.specializers.util import apply_all_layers, include_mover
 from hpgmg.finite_volume.operators.transformers.semantic_transformer import SemanticFinder
+from hpgmg.finite_volume.operators.transformers.semantic_transformers.csemantics import CRangeTransformer
 from hpgmg.finite_volume.operators.transformers.transformer_util import nest_loops
 from hpgmg.finite_volume.operators.transformers.utility_transformers import AttributeRenamer, AttributeGetter, \
     ParamStripper, ArrayRefIndexTransformer, IndexOpTransformer, IndexTransformer, IndexDirectTransformer, \
@@ -20,36 +22,27 @@ from ctree.frontend import dump
 
 __author__ = 'nzhang-dev'
 
-class InterpolateCFunction(ConcreteSpecializedFunction):
-    def finalize(self, entry_point_name, project_node, entry_point_typesig):
-        self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)
-        self.entry_point_name = entry_point_name
-        return self
+class InterpolateCFunction(PyGMGConcreteSpecializedFunction):
+    # def finalize(self, entry_point_name, project_node, entry_point_typesig):
+    #     self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)
+    #     self.entry_point_name = entry_point_name
+    #     return self
 
-    def __call__(self, thing, target_level, target_mesh, source_mesh):
-        args = [
-            target_mesh,
-            source_mesh
-        ]
-        flattened = [i.ravel() for i in args]
-        return self._c_function(*flattened)
+    @staticmethod
+    def pyargs_to_cargs(args, kwargs):
+        target_mesh, source_mesh = args[-2:]
+        return (target_mesh.ravel(), source_mesh.ravel()), {}
+
+    # def __call__(self, thing, target_level, target_mesh, source_mesh):
+    #     args = [
+    #         target_mesh,
+    #         source_mesh
+    #     ]
+    #     flattened = [i.ravel() for i in args]
+    #     return self._c_function(*flattened)
 
 
 class CInterpolateSpecializer(LazySpecializedFunction):
-
-    class RangeTransformer(ast.NodeTransformer):
-        def visit_RangeNode(self, node):
-            ndim = len(node.iterator.ranges)
-            index_names = ['target_index_{}'.format(i) for i in range(ndim)]
-            for_loops = [For(
-                init=Assign(SymbolRef(index), Constant(low)),
-                test=Lt(SymbolRef(index), Constant(high)),
-                incr=PostInc(SymbolRef(index))
-            ) for index, (low, high) in zip(index_names, node.iterator.ranges)]
-            top, bottom = nest_loops(for_loops)
-            bottom.body = node.body
-            self.generic_visit(bottom)
-            return top
 
     def args_to_subconfig(self, args):
         return {
@@ -71,7 +64,7 @@ class CInterpolateSpecializer(LazySpecializedFunction):
             # }),
             SemanticFinder(subconfig),
             AttributeGetter(subconfig),
-            self.RangeTransformer(),
+            CRangeTransformer(),
             IndexTransformer(('target_index', 'source_index')),
             IndexOpTransformer(ndim, {'target_index': 'target_encode', 'source_index': 'source_encode'}),
             ArrayRefIndexTransformer(

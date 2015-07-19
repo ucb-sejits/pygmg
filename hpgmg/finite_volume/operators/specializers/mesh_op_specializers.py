@@ -9,9 +9,11 @@ from ctree.transformations import PyBasicConversions
 import math
 from rebox.specializers.order import Ordering
 from rebox.specializers.rm.encode import MultiplyEncode
+from hpgmg.finite_volume.operators.specializers.jit import PyGMGConcreteSpecializedFunction
 from hpgmg.finite_volume.operators.specializers.smooth_specializer import apply_all_layers
 from hpgmg.finite_volume.operators.specializers.util import include_mover
 from hpgmg.finite_volume.operators.transformers.semantic_transformer import SemanticFinder
+from hpgmg.finite_volume.operators.transformers.semantic_transformers.csemantics import CRangeTransformer
 from hpgmg.finite_volume.operators.transformers.transformer_util import nest_loops
 
 from ctree.frontend import dump
@@ -21,20 +23,21 @@ from hpgmg.finite_volume.operators.transformers.utility_transformers import Para
 
 __author__ = 'nzhang-dev'
 
-class MeshOpCFunction(ConcreteSpecializedFunction):
-    def finalize(self, entry_point_name, project_node, entry_point_typesig):
-        self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)
-        self.entry_point_name = entry_point_name
-        return self
+class MeshOpCFunction(PyGMGConcreteSpecializedFunction):
+    # def finalize(self, entry_point_name, project_node, entry_point_typesig):
+    #     self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)
+    #     self.entry_point_name = entry_point_name
+    #     return self
 
-    def __call__(self, *args):
+    @staticmethod
+    def pyargs_to_cargs(args, kwargs):
         flattened = []
         for arg in args:
             if isinstance(arg, np.ndarray):
                 flattened.append(arg.ravel())
             elif isinstance(arg, (int, float)):
                 flattened.append(arg)
-        return self._c_function(*flattened)
+        return flattened, {}
 
 
 class MeshOpSpecializer(LazySpecializedFunction):
@@ -59,7 +62,7 @@ class MeshOpSpecializer(LazySpecializedFunction):
         layers = [
             ParamStripper(('self')),
             SemanticFinder(subconfig),
-            self.RangeTransformer(),
+            CRangeTransformer(),
             IndexTransformer(('index')),
             IndexDirectTransformer(ndim, {'index': 'encode'}),
             PyBasicConversions()

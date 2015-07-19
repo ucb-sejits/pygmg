@@ -177,8 +177,9 @@ class SimpleMultigridSolver(object):
 
     @specialized_func_dispatcher({
         'c': CInitializeMesh,
+        'omp': CInitializeMesh
     })
-    def initialize_mesh(self, level, mesh, exp, coord_transform):
+    def initialize_mesh(self, level, mesh, exp, coord_transform):  # TODO: Handle variable coefficient shifts
         func = self.problem.get_func(exp, self.problem.symbols)
         for coord in level.indices():
             mesh[coord] = func(*coord_transform(coord))
@@ -211,47 +212,7 @@ class SimpleMultigridSolver(object):
         level.alpha.fill(alpha)
 
         #fill U
-        #level.exact_solution[:]
-        def to_absolute_func(f):
-            return lambda *coord: f(*level.coord_to_cell_center_point(coord))
-        # func = problem.get_func(problem.expression)
-        # level.exact_solution[:] = np.fromfunction(
-        #     to_absolute_func(func),
-        #     level.space,
-        #     dtype=level.exact_solution.dtype
-        # )
-        #other_mesh = np.zeros_like(level.exact_solution)
         self.initialize_mesh(level, level.exact_solution, problem.expression, level.coord_to_cell_center_point)
-        #print(exact_solution[10, 10, 10])
-
-        #fill F = aAU - b * (B * U + B * Uxx + Uyy + Uzz)
-        #Part 1: a*A*U
-        #level.right_hand_side
-        # level.right_hand_side[:] = self.a * alpha * level.exact_solution
-        # #Part 2: b * (B * U + B * (Uxx + Uyy + Uzz)
-        # #u_xyz
-        # first_derivative_functions = [
-        #     to_absolute_func(problem.get_func(problem.get_derivative(dim, 1))) for dim in range(self.dimensions)
-        # ]
-        # first_derivatives = [
-        #     np.fromfunction(
-        #         func,
-        #         level.space,
-        #         dtype=level.exact_solution.dtype
-        #     ) for func in first_derivative_functions
-        # ]
-
-        #sum(u_xxyyzz)
-
-        # second_derivative_sum_func = to_absolute_func(problem.get_func(
-        #     sum(problem.get_derivative(dim, 2) for dim in range(self.dimensions))
-        # ))
-        #
-        # second_derivatives = np.fromfunction(
-        #     second_derivative_sum_func,
-        #     level.space,
-        #     dtype=level.exact_solution.dtype
-        # )
 
 
 
@@ -304,7 +265,7 @@ class SimpleMultigridSolver(object):
         U_derivative_2 = [sympy.diff(problem.expression, sym, 2) for sym in symbols]
         f_exp = self.a * alpha * problem.expression - self.b * (BU_derivative_1 + beta_expression * sum(U_derivative_2))
         #F = a*A*U - b*( (Bx*Ux + By*Uy + Bz*Uz)  +  B*(Uxx + Uyy + Uzz) );
-        print(f_exp)
+        #print(f_exp)
         # rhs = np.zeros_like(level.right_hand_side)
         self.initialize_mesh(level, level.right_hand_side, f_exp, level.coord_to_cell_center_point)
         #
@@ -313,69 +274,13 @@ class SimpleMultigridSolver(object):
 
         b = time.time()
 
-        # evaluate_u = problem.get_func(problem.expression)
-        # firsts = [problem.get_func(problem.get_derivative(dim, 1)) for dim in range(self.dimensions)]
-        # def evaluate_first(position):
-        #     return Vector(first(*position) for first in firsts)
-        # seconds = [problem.get_func(problem.get_derivative(dim, 2)) for dim in range(self.dimensions)]
-        # def evaluate_second(position):
-        #     return sum(second(*position) for second in seconds)
-        #
-        # for element_index in level.indices():
-        #     absolute_position = level.coord_to_cell_center_point(element_index)
-        #
-        #     if level.is_variable_coefficient:
-        #         for face_index in range(self.dimensions):
-        #             # print("##,{} ".format(",".join(map(str, element_index))), end="")
-        #             # the following face_betas are reversed in order to keep
-        #             # strict compatibility with c,
-        #             # TODO: figure out if there is a way to get iteration to do this naturally
-        #             # face_betas[self.dimensions-(face_index+1)], _ = beta_generator.evaluate_beta(
-        #             #     level.coord_to_face_center_point(element_index, face_index)
-        #             # )
-        #             face_betas[face_index] = beta_generator.evaluate_beta(
-        #                 level.coord_to_face_center_point(element_index, face_index)
-        #             )
-        #             # face_betas[face_index] = face_index * 1000.0 + element_index[2] * 100 + \
-        #             #     element_index[1] * 10 + element_index[0]
-        #
-        #         # print("{}".format(",".join(map(str, element_index))), end="")
-        #         beta, beta_xyz = beta_generator.evaluate_beta(absolute_position)
-        #
-        #     u = evaluate_u(*absolute_position)
-        #     u_xyz = evaluate_first(absolute_position)
-        #     u_xxyyzz = evaluate_second(absolute_position)
-        #
-        #     # double F = a*A*U - b*( (Bx*Ux + By*Uy + Bz*Uz)  +  B*(Uxx + Uyy + Uzz) );
-        #     #print(*[type(i) for i in [self.a, alpha, u, self.b, beta_xyz, u_xyz, beta, u_xxyyzz]])
-        #     f = self.a * alpha * u - (
-        #         self.b * ((beta_xyz * u_xyz) + beta * u_xxyyzz)
-        #     )
-        #
-        #     # print("init {:12s} {:20} u {:e} beta_xyz ({}) u_xyz {} u_xxyyzz {} f {:8.6f}".format(
-        #     #     element_index, absolute_position, u,
-        #     #     ",".join("{:8.6f}".format(n) for n in beta_xyz),
-        #     #     ",".join("{:8.6f}".format(n) for n in u_xyz),
-        #     #     ",".join("{:8.6f}".format(n) for n in u_xxyyzz), f
-        #     # ))
-        #
-        #     level.right_hand_side[element_index] = f
-        #     level.exact_solution[element_index] = u
-        #
-        #     level.alpha[element_index] = alpha
-        #     for face_index in range(self.dimensions):
-        #         # if all(element_index[d] < level.space[d]-1 for d in range(self.dimensions)):
-        #         level.beta_face_values[face_index][element_index] = face_betas[face_index]
-        # c = time.time()
-        #
-        # print(b-a, c-b)
-
 
         if level.alpha_is_zero is None:
             level.alpha_is_zero = level.dot_mesh(level.alpha, level.alpha) == 0.0
         logging.debug("level.alpha_is_zero {}".format(level.alpha_is_zero))
 
     @time_this
+    @profile
     def build_all_levels(self):
         level = self.fine_level
         while level.space[0] > self.minimum_coarse_dimension and level.space[0] % 2 == 0:
@@ -645,7 +550,14 @@ class SimpleMultigridSolver(object):
         parser.add_argument('-l', '--log', help='turn on logging', action="store_true", default=False)
         parser.add_argument('-b', '--backend', help='turn on JIT', choices=('python', 'c', 'omp', 'ocl'), default='python')
         parser.add_argument('-v', '--verbose', help='print verbose', action="store_true", default=False)
+        parser.add_argument('-bd', '--blocking_dimensions', help='number of dimensions to block in', default=0, type=int)
+        parser.add_argument('-bls', '--block_size', help='size of each block', default=32, type=int)
+        parser.add_argument('-t', '--tune', help='try tuning it', default=False, action="store_true")
         finite_volume.CONFIG = parser.parse_args(args=args)
+        finite_volume.CONFIG.block_hierarchy = (finite_volume.CONFIG.block_size,) * int(
+            finite_volume.CONFIG.blocking_dimensions or 2
+        )
+
         return finite_volume.CONFIG
 
     @staticmethod
