@@ -452,17 +452,27 @@ class OclSmoothSpecializer(LazySpecializedFunction):
 
     def finalize(self, transform_result, program_config):
 
+        subconfig = program_config[0]
+        fn = SmoothOclFunction()
+
         project = Project(transform_result)
         kernel = project.find(OclFile)
         control = project.find(CFile)
-        fn = SmoothOclFunction()
         program = cl.clCreateProgramWithSource(fn.context, kernel.codegen()).build()
         stencil_kernel_ptr = program[kernel.name]
-        entry_type = [ctypes.c_int32, cl.cl_command_queue, cl.cl_kernel]
-        smooth_points_func = kernel.find(FunctionDecl, name='smooth_points_kernel')
-        entry_type.extend(cl.cl_mem for _ in range(8))
-        # entry_type.extend(cl.cl_mem for _ in range(len(smooth_points_func.params)))
 
+        param_types = [cl.cl_mem for _ in
+        [
+            subconfig[key] for key in ('source', 'target', 'rhs_mesh', 'lambda_mesh')
+        ]]
+        # beta face values
+        param_types.extend([cl.cl_mem]*subconfig['self'].operator.dimensions)
+        # alpha
+        param_types.append(param_types[-1])
+
+
+        entry_type = [ctypes.c_int32, cl.cl_command_queue, cl.cl_kernel]
+        entry_type.extend(param_types)
         entry_type = ctypes.CFUNCTYPE(*entry_type)
 
         return fn.finalize(control.name, project, entry_type, stencil_kernel_ptr)
