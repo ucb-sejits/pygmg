@@ -306,14 +306,18 @@ class OclSmoothSpecializer(LazySpecializedFunction):
         def visit_RangeNode(self, node):
             body = []
             ndim = len(node.iterator.ranges)
-            body.append(Assign(SymbolRef("thread_id", ctypes.c_int()),
-                               Add(Mul(FunctionCall(SymbolRef("get_global_id"), [Constant(0)]),
-                                       FunctionCall(SymbolRef("get_local_size"), [Constant(0)])),
-                                   FunctionCall(SymbolRef("get_local_id"), [Constant(0)]))))
+            # body.append(Assign(SymbolRef("thread_id", ctypes.c_int()),
+            #                    Add(Mul(FunctionCall(SymbolRef("get_global_id"), [Constant(0)]),
+            #                            FunctionCall(SymbolRef("get_local_size"), [Constant(0)])),
+            #                        FunctionCall(SymbolRef("get_local_id"), [Constant(0)]))))
+            body.append(Assign(SymbolRef("thread_id", ctypes.c_int()), FunctionCall(SymbolRef("get_global_id"), [Constant(0)])))
             body.append(ArrayRef(SymbolRef("indices", ctypes.c_int()), Constant(ndim)))
             body.append(FunctionCall(SymbolRef("decode"), [SymbolRef("thread_id"), SymbolRef("indices")]))
             for i in range(ndim):
                 body.append(Assign(SymbolRef("index_{}".format(i), ctypes.c_int()), ArrayRef(SymbolRef("indices"), Constant(i))))
+
+            # body.append(StringTemplate("""printf("thread_id %d\\n", get_global_id(0));"""))
+
             body.extend(node.body)
             return MultiNode(body=body)
 

@@ -23,7 +23,8 @@ class Residual(object):
 
     @specialized_func_dispatcher({
         'c': CSmoothSpecializer,
-        'omp': OmpSmoothSpecializer
+        'omp': OmpSmoothSpecializer,
+        'ocl': CSmoothSpecializer
     })
     def residue(self, level, target_mesh, source_mesh, right_hand_side, lambda_mesh):
         for index in level.interior_points():

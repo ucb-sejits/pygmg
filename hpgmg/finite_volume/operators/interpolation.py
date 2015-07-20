@@ -29,7 +29,8 @@ class InterpolatorPC(Interpolator):
     @time_this
     @specialized_func_dispatcher({
         'c': CInterpolateSpecializer,
-        'omp': CInterpolateSpecializer
+        'omp': CInterpolateSpecializer,
+        'ocl': CInterpolateSpecializer
     })
     def interpolate(self, target_level, target_mesh, source_mesh):
         for target_index in target_level.interior_points():

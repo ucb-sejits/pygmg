@@ -177,7 +177,8 @@ class SimpleMultigridSolver(object):
 
     @specialized_func_dispatcher({
         'c': CInitializeMesh,
-        'omp': CInitializeMesh
+        'omp': CInitializeMesh,
+        'ocl': CInitializeMesh,
     })
     def initialize_mesh(self, level, mesh, exp, coord_transform):  # TODO: Handle variable coefficient shifts
         func = self.problem.get_func(exp, self.problem.symbols)

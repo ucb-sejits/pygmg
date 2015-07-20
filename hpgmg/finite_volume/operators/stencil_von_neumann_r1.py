@@ -116,7 +116,9 @@ class StencilVonNeumannR1(BaseOperator):
 
     @specialized_func_dispatcher({
         'c': CRebuildSpecializer,
-        'omp': CRebuildSpecializer
+        'omp': CRebuildSpecializer,
+        'ocl'
+        '': CRebuildSpecializer
     })
     def get_dominant_eigenvalue(self, target_level):
         adjust_value = 2.0
