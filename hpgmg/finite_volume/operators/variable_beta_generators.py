@@ -48,7 +48,7 @@ class VariableBeta(object):
         #delta = vector - self.center
         #distance = sum(d**2 for d in delta)**0.5
         symbols = [sympy.Symbol("x{}" for i in range(self.dimensions))]
-        distance = sum((sym - d)**2 for sym, d in zip(symbols, self.center))
+        distance = sum((sym - d)**2 for sym, d in zip(symbols, self.center)) ** 0.5
         return c1 + c2 * sympy.tanh(c3 * (distance - 0.25))
 
 
