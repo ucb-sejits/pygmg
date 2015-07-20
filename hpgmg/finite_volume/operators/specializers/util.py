@@ -327,3 +327,6 @@ def get_arg_spec(f):
         return f.argspec[:]
     f.argspec = inspect.getargspec(f).args
     return f.argspec[:]
+
+def compute_local_work_size(device, shape):
+    return 1

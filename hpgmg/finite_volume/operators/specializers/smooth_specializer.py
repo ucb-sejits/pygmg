@@ -5,8 +5,15 @@ import ctypes
 import inspect
 import math
 from ast import Name
+from ctree.c.macros import NULL
+from ctree.ocl import get_context_and_queue_from_devices
+from ctree.ocl.nodes import OclFile
+from ctree.templates.nodes import StringTemplate
+import pycl as cl
+import operator
 
-from ctree.c.nodes import SymbolRef, CFile, FunctionCall, ArrayDef, Array, For, String, Assign, Constant, Lt, PostInc
+from ctree.c.nodes import SymbolRef, CFile, FunctionCall, ArrayDef, Array, For, String, Assign, Constant, Lt, PostInc, \
+    Return, NotEq, If, FunctionDecl, Ref, Mul, ArrayRef, Sub, Add, Mul, MultiNode, AddAssign, Div
 from ctree.cpp.nodes import CppInclude
 from ctree.tune import MinimizeTime
 import numpy as np
@@ -20,7 +27,7 @@ import hpgmg
 from hpgmg.finite_volume.operators.specializers.jit import PyGMGConcreteSpecializedFunction
 
 from hpgmg.finite_volume.operators.specializers.util import to_macro_function, apply_all_layers, include_mover, \
-    LayerPrinter, time_this
+    LayerPrinter, time_this, compute_local_work_size
 from hpgmg.finite_volume.operators.transformers.level_transformers import RowMajorInteriorPoints
 from hpgmg.finite_volume.operators.transformers.semantic_transformer import SemanticFinder
 from hpgmg.finite_volume.operators.transformers.semantic_transformers.csemantics import CRangeTransformer
@@ -61,6 +68,44 @@ class SmoothCFunction(PyGMGConcreteSpecializedFunction):
     #     #flattened = [arg.ravel() for arg in args]
     #     #self._c_function(*flattened)
     #     self._c_function(*args)
+
+
+class SmoothOclFunction(ConcreteSpecializedFunction):
+
+    def __init__(self):
+        device = cl.clGetDeviceIDs()[-1]
+        self.context, self.queue = get_context_and_queue_from_devices([device])
+        self.kernel = []
+        self._c_function = lambda: 0
+
+    def finalize(self, entry_point_name, project_node, entry_point_typesig, kernel):
+        self.kernel = kernel
+        self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)
+        self.entry_point_name = entry_point_name
+        return self
+
+    def __call__(self, thing, level, working_source, working_target, rhs_mesh, lambda_mesh):
+        args = [
+            working_source, working_target,
+            rhs_mesh, lambda_mesh
+        ]
+        args.extend(level.beta_face_values)
+        args.append(level.alpha)
+        flattened = [arg.ravel() for arg in args]
+
+        buffers_and_events = [cl.buffer_from_ndarray(self.queue, ary=mesh) for mesh in flattened]
+
+        buffers = [b for b, e in buffers_and_events]
+
+        arguments = [self.queue, self.kernel]
+
+        arguments.extend(buffers)
+
+        self._c_function(*arguments)
+
+        for i in range(len(buffers)):
+            cl.buffer_to_ndarray(self.queue, buffers[i], out=flattened[i])
+
 
 class CSmoothSpecializer(LazySpecializedFunction):
 
@@ -252,4 +297,285 @@ class OmpSmoothSpecializer(CSmoothSpecializer):
     #     #     )
     #     # )
         return stuff
+
+
+class OclSmoothSpecializer(LazySpecializedFunction):
+    # does not inherit from CSmoothSpecializer because structurally, kernel is different
+
+    class RangeTransformer(ast.NodeTransformer):
+        def visit_RangeNode(self, node):
+            body = []
+            ndim = len(node.iterator.ranges)
+            body.append(Assign(SymbolRef("thread_id", ctypes.c_int()),
+                               Add(Mul(FunctionCall(SymbolRef("get_global_id"), [Constant(0)]),
+                                       FunctionCall(SymbolRef("get_local_size"), [Constant(0)])),
+                                   FunctionCall(SymbolRef("get_local_id"), [Constant(0)]))))
+            body.append(ArrayRef(SymbolRef("indices", ctypes.c_int()), Constant(ndim)))
+            body.append(FunctionCall(SymbolRef("decode"), [SymbolRef("thread_id"), SymbolRef("indices")]))
+            for i in range(ndim):
+                body.append(Assign(SymbolRef("index_{}".format(i), ctypes.c_int()), ArrayRef(SymbolRef("indices"), Constant(i))))
+            body.extend(node.body)
+            return MultiNode(body=body)
+
+    def args_to_subconfig(self, args):
+        params = (
+            'self', 'level', 'source',
+            'target', 'rhs_mesh', 'lambda_mesh'
+        )
+        return CSmoothSpecializer.SmoothSubconfig({
+                param: arg for param, arg in zip(params, args)
+            })
+
+    def transform(self, tree, program_config):
+        kernel = tree.body[0]
+
+        subconfig, tuner = program_config
+
+        ndim = subconfig['self'].operator.solver.dimensions
+        shape = subconfig['level'].interior_space
+        ghost_zone = subconfig['self'].operator.ghost_zone
+        # transform to get the kernel function
+
+        layers = [
+            ParamStripper(('self', 'level')),
+            AttributeRenamer({
+                'self.operator.apply_op': Name('apply_op', ast.Load())
+            }),
+            SemanticFinder(subconfig), # you should add your own semantic nodes!!!!
+            self.RangeTransformer(),
+            AttributeGetter({'self': subconfig['self']}),
+            ArrayRefIndexTransformer(
+                encode_map={
+                    'index': 'encode'
+                },
+                ndim=ndim
+            ),
+            PyBasicConversions(),
+            # DeclarationFiller(),
+        ]
+
+        kernel = apply_all_layers(layers, kernel)
+
+        params = kernel.params
+
+        defn = [
+            SymbolRef('a_x', sym_type=ctypes.c_double()),
+            SymbolRef('b', sym_type=ctypes.c_double())
+        ]
+
+        beta_def = ArrayDef(
+            SymbolRef("beta_face_values", sym_type=ctypes.POINTER(ctypes.c_double)()),
+            size=ndim,
+            body=Array(
+                body=[
+                    SymbolRef("beta_face_values_{}".format(i)) for i in range(ndim)
+                ]
+            )
+        )
+        defn.append(beta_def)
+        defn.extend(kernel.defn)
+
+        kernel.defn = defn
+
+        kernel.set_kernel()
+        kernel.name = "smooth_points_kernel"
+
+        for call in kernel.find_all(FunctionCall):
+            if call.func.name == 'apply_op':
+                call.args.pop()  #remove level
+
+        beta_face_values = kernel.find(SymbolRef, name='beta_face_values')
+        beta_face_values.set_global()
+
+        kernel.find(SymbolRef, name='____temp__a_x').type = ctypes.c_double()
+        kernel.find(SymbolRef, name='____temp__b').type = ctypes.c_double()
+        kernel.find(SymbolRef, name='index_0').type = ctypes.c_int()
+        kernel.find(SymbolRef, name='index_1').type = ctypes.c_int()
+        kernel.find(SymbolRef, name='index_2').type = ctypes.c_int()
+
+        # macros and defines
+
+        double_enabler = StringTemplate("""
+            #pragma OPENCL EXTENSION cl_khr_fp64 : enable
+            """)
+
+        macro_func = to_macro_function(subconfig['self'].operator.apply_op,
+                                       rename={"level.beta_face_values": SymbolRef("beta_face_values"),
+                                               "level.alpha": SymbolRef("alpha")})
+        macro_func.params = [
+            param for param in macro_func.params if param.name != 'level'
+        ]
+        ordering = Ordering([MultiplyEncode()])
+        bits_per_dim = min([math.log(i, 2) for i in subconfig['level'].space]) + 1
+        encode_func = ordering.generate(ndim, bits_per_dim, ctypes.c_uint64)
+        encode_func = encode_func.body[-1]
+
+        ocl_include = StringTemplate("""
+            #include <stdio.h>
+            #ifdef __APPLE__
+            #include <OpenCL/opencl.h>
+            #else
+            #include <CL/cl.h>
+            #endif
+            """)
+
+        decode_func = generate_decode(shape, ghost_zone)
+
+        # parameter management
+
+        params.extend([
+            SymbolRef("beta_face_values_{}".format(i), sym_type=ctypes.POINTER(ctypes.c_double)())
+            for i in range(ndim)
+        ])
+        params.append(
+            SymbolRef("alpha", sym_type=ctypes.POINTER(ctypes.c_double)())
+        )
+
+        for param in params:
+            param.type = ctypes.POINTER(ctypes.c_double)()
+            param.set_global()  # this is not safe
+
+        # file creation
+
+        ocl_file = OclFile(name="smooth_points_kernel", body=[double_enabler, encode_func, macro_func, decode_func, kernel])
+
+        control_func = generate_control(params, shape)
+
+        control = CFile(name="smooth_points_control", body=[ocl_include, control_func])
+
+        control.config_target = 'opencl'
+
+        print(ocl_file)
+        print(control)
+
+        return [control, ocl_file]
+
+    def finalize(self, transform_result, program_config):
+
+        project = Project(transform_result)
+        kernel = project.find(OclFile)
+        control = project.find(CFile)
+        fn = SmoothOclFunction()
+        program = cl.clCreateProgramWithSource(fn.context, kernel.codegen()).build()
+        stencil_kernel_ptr = program[kernel.name]
+        entry_type = [ctypes.c_int32, cl.cl_command_queue, cl.cl_kernel]
+        smooth_points_func = kernel.find(FunctionDecl, name='smooth_points_kernel')
+        entry_type.extend(cl.cl_mem for _ in range(8))
+        # entry_type.extend(cl.cl_mem for _ in range(len(smooth_points_func.params)))
+
+        entry_type = ctypes.CFUNCTYPE(*entry_type)
+
+        return fn.finalize(control.name, project, entry_type, stencil_kernel_ptr)
+
+
+def generate_decode(shape, ghost_zone):
+
+    params = [
+        SymbolRef("thread_id", ctypes.c_int()),
+        SymbolRef("indices", ctypes.POINTER(ctypes.c_int)())
+    ]
+    defn = []
+
+    divisors = [reduce(operator.mul, shape[i+1:], 1) for i in range(len(shape))]
+
+    for d in range(len(shape)):
+        if d == 0:
+            dividend = SymbolRef("thread_id")
+            previous = Mul(ArrayRef(SymbolRef("indices"), Constant(0)), Constant(divisors[0]))
+        else:
+            dividend = dividend = Sub(SymbolRef("thread_id"), previous)
+            previous = Add(previous, Mul(ArrayRef(SymbolRef("indices"), Constant(d)), Constant(divisors[d])))
+        index = Div(dividend, Constant(divisors[d]))
+        assign = Assign(ArrayRef(SymbolRef("indices"), Constant(d)), index)
+        defn.append(assign)
+
+    for i in range(len(shape)):
+            defn.append(AddAssign(ArrayRef(SymbolRef("indices"), Constant(i)), Constant(ghost_zone[i])))
+
+    return FunctionDecl(name="decode", params=params, defn=defn)
+
+def generate_control(params, shape):
+
+    control_params = []
+    control_params.append(SymbolRef("queue", cl.cl_command_queue()))
+    control_params.append(SymbolRef("kernel", cl.cl_kernel()))
+    b = 0
+    for param in params:
+        if isinstance(param.type, ctypes.POINTER(ctypes.c_double)):
+            control_params.append(SymbolRef("buf_{}".format(b), cl.cl_mem()))
+            b += 1
+        else:
+            control_params.append(param)
+
+    defn = []
+
+    device = cl.clGetDeviceIDs()[-1]
+
+    global_size = reduce(operator.mul, shape, 1)
+    local_size = compute_local_work_size(device, shape)
+
+    defn.append(ArrayDef(SymbolRef("global", ctypes.c_ulong()), 1, Array(body=[Constant(global_size)])))
+    defn.append(ArrayDef(SymbolRef("local", ctypes.c_ulong()), 1, Array(body=[Constant(local_size)])))
+
+    defn.append(Assign(SymbolRef("error_code", ctypes.c_int()), Constant(0)))
+
+    b = 0
+    for arg_num in range(len(params)):
+        if isinstance(params[arg_num].type, ctypes.POINTER(ctypes.c_double)):
+            defn.append(FunctionCall(SymbolRef("clSetKernelArg"),
+                                     [SymbolRef("kernel"),
+                                      Constant(b),
+                                      FunctionCall(SymbolRef("sizeof"), [SymbolRef("cl_mem")]),
+                                      Ref(SymbolRef("buf_{}".format(b)))]))
+            b += 1
+        else:
+            defn.append(FunctionCall(SymbolRef("clSetKernelArg"),
+                                     [SymbolRef("kernel"),
+                                      Constant(arg_num),
+                                      FunctionCall(SymbolRef("sizeof"), [SymbolRef("cl_mem")]),
+                                      params[arg_num]]))
+
+    enqueue_call = FunctionCall(SymbolRef("clEnqueueNDRangeKernel"), [
+            SymbolRef("queue"),
+            SymbolRef("kernel"),
+            Constant(1),
+            NULL(),
+            SymbolRef("global"),
+            SymbolRef("local"),
+            Constant(0),
+            NULL(),
+            NULL()
+        ])
+
+    defn.extend(check_ocl_error(enqueue_call, "clEnqueueNDRangeKernel"))
+    finish_call = check_ocl_error(
+            FunctionCall(SymbolRef('clFinish'), [SymbolRef('queue')]),
+            "clFinish"
+        )
+    defn.extend(finish_call)
+    defn.append(Return(SymbolRef("error_code")))
+
+    return FunctionDecl(ctypes.c_int(), "smooth_points_control", control_params, defn)
+
+def check_ocl_error(code_block, message="kernel"):
+    return [
+        Assign(
+            SymbolRef("error_code"),
+            code_block
+        ),
+        If(
+            NotEq(SymbolRef("error_code"), SymbolRef("CL_SUCCESS")),
+            [
+                FunctionCall(
+                    SymbolRef("printf"),
+                    [
+                        String("OPENCL ERROR: {}:error code \
+                               %d\\n".format(message)),
+                        SymbolRef("error_code")
+                    ]
+                ),
+                Return(SymbolRef("error_code")),
+            ]
+        )
+    ]
 

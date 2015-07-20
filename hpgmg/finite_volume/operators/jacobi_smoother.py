@@ -49,7 +49,8 @@ class JacobiSmoother(Smoother):
     @time_this
     @specialized_func_dispatcher({
         'c': CSmoothSpecializer,
-        'omp': OmpSmoothSpecializer
+        'omp': OmpSmoothSpecializer,
+        'ocl': OclSmoothSpecializer
     })
     def smooth_points(self, level, working_source, working_target, rhs_mesh, lambda_mesh):
         for index in level.interior_points():
