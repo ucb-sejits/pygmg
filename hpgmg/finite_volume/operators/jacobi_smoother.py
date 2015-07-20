@@ -3,8 +3,7 @@ from __future__ import print_function
 from hpgmg.finite_volume.operators.base_operator import BaseOperator
 from hpgmg.finite_volume.operators.smoother import Smoother
 from hpgmg.finite_volume.operators.specializers.inline_jit import partial_jit
-from hpgmg.finite_volume.operators.specializers.smooth_specializer import CSmoothSpecializer, OmpSmoothSpecializer, \
-    OclSmoothSpecializer
+from hpgmg.finite_volume.operators.specializers.smooth_specializer import CSmoothSpecializer, OmpSmoothSpecializer
 from hpgmg.finite_volume.operators.specializers.util import specialized_func_dispatcher, profile, time_this
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
@@ -13,7 +12,6 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 class JacobiSmoother(Smoother):
     def __init__(self, op, use_l1_jacobi=True, iterations=6):
         """
-
         :param op:
         :param use_l1_jacobi:
         :param iterations:
@@ -32,7 +30,6 @@ class JacobiSmoother(Smoother):
     #@time_this
     def smooth(self, level, mesh_to_smooth, rhs_mesh):
         """
-
         :param level: the level being smoothed
         :param mesh_to_smooth:
         :param rhs_mesh:
@@ -52,8 +49,7 @@ class JacobiSmoother(Smoother):
     @time_this
     @specialized_func_dispatcher({
         'c': CSmoothSpecializer,
-        'omp': OmpSmoothSpecializer,
-        'ocl': OclSmoothSpecializer
+        'omp': OmpSmoothSpecializer
     })
     def smooth_points(self, level, working_source, working_target, rhs_mesh, lambda_mesh):
         for index in level.interior_points():
