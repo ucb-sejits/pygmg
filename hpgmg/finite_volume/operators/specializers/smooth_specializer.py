@@ -252,3 +252,4 @@ class OmpSmoothSpecializer(CSmoothSpecializer):
     #     #     )
     #     # )
         return stuff
+
