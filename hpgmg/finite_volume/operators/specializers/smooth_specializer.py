@@ -165,6 +165,7 @@ class CSmoothSpecializer(LazySpecializedFunction):
                 call.args.pop()  #remove level
         for param in func.params:
             param.type = ctypes.POINTER(ctypes.c_double)()
+            param.set_restrict()
         # print(func)
         # print(macro_func)
         # print(encode_func)

@@ -150,6 +150,7 @@ class CGeneralizedSimpleMeshOpSpecializer(MeshOpSpecializer):
                 param.type = ctypes.c_double()
             else:
                 param.type = ctypes.POINTER(ctypes.c_double)()
+                param.set_restrict()
             params.append(param)
         decl.params = params
         if decl.find(Return):
