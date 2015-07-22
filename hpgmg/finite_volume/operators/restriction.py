@@ -60,7 +60,8 @@ class Restriction(object):
 
     @time_this
     @specialized_func_dispatcher({
-        'c': CRestrictSpecializer
+        'c': CRestrictSpecializer,
+        'omp': CRestrictSpecializer
     }) #buggy
     def restrict(self, level, target, source, restriction_type):
         #assert(isinstance(level, SimpleLevel))

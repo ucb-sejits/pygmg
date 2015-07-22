@@ -2,6 +2,7 @@ from __future__ import print_function
 
 from hpgmg.finite_volume.operators.base_operator import BaseOperator
 from hpgmg.finite_volume.operators.smoother import Smoother
+from hpgmg.finite_volume.operators.specializers.inline_jit import partial_jit
 from hpgmg.finite_volume.operators.specializers.smooth_specializer import CSmoothSpecializer, OmpSmoothSpecializer
 from hpgmg.finite_volume.operators.specializers.util import specialized_func_dispatcher, profile, time_this
 

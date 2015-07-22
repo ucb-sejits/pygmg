@@ -5,7 +5,7 @@ from stencil_code.neighborhood import Neighborhood
 from hpgmg.finite_volume.operators.base_operator import BaseOperator
 from hpgmg.finite_volume.operators.restriction import Restriction
 from hpgmg.finite_volume.operators.specializers.rebuild_specializer import CRebuildSpecializer
-from hpgmg.finite_volume.operators.specializers.util import specialized_func_dispatcher
+from hpgmg.finite_volume.operators.specializers.util import specialized_func_dispatcher, profile
 from hpgmg.finite_volume.space import Coord
 
 import numpy as np
@@ -98,6 +98,8 @@ class StencilVonNeumannR1(BaseOperator):
         print("apply_op h2inv {} neighbor_sum {} second_term {}".format(self.h2inv, neighbor_sum, second_term))
         return self.a * m_i - self.b * self.h2inv * second_term
 
+
+    @profile
     def rebuild_operator(self, target_level, source_level=None):
         self.set_scale(target_level.h)
 

@@ -10,7 +10,7 @@ import hpgmg.finite_volume.space as space
 class Mesh(np.ndarray):
     def __new__(cls, *args, **kwargs):
         obj = np.ndarray(*args, **kwargs).view(cls)
-        obj.fill(0)
+        #obj.fill(0)
         return obj
 
     @property
