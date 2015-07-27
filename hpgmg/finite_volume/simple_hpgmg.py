@@ -569,6 +569,22 @@ class SimpleMultigridSolver(object):
         config = SimpleMultigridSolver.get_configuration(args=args)
         return SimpleMultigridSolver(config)
 
+    @time_this
+    @profile
+    def benchmark_hpgmg(self, start_level=0):
+        min_solves = 10
+        for pass_num in range(1):
+            if pass_num == 0:
+                print("===== Warming up by running %d solves ===============================".format(min_solves))
+
+        for solve_pass in range(min_solves):
+            self.all_levels[start_level].fill_mesh(self.all_levels[start_level].cell_values, 0.0)
+
+            self.solve(start_level=start_level)
+
+        print("===== Timing Breakdown ==============================================")
+        self.show_timing_information()
+
     @staticmethod
     @time_this
     @profile
