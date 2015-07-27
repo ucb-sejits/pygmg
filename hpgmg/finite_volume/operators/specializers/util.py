@@ -159,7 +159,11 @@ def sympy_to_c(exp, sym_name='x'):
     if isinstance(exp, sympy.Pow):
         return FunctionCall(SymbolRef("pow"), args)
 
-    if isinstance(exp, sympy.functions.elementary.trigonometric.TrigonometricFunction):
+    if isinstance(exp,
+                  (
+                      sympy.functions.elementary.trigonometric.TrigonometricFunction,
+                      sympy.functions.elementary.hyperbolic.HyperbolicFunction
+                  )):
         return FunctionCall(SymbolRef(type(exp).__name__), args)
 
     if isinstance(exp, sympy.Symbol):
