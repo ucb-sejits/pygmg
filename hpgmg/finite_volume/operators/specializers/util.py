@@ -17,13 +17,14 @@ import operator
 import sympy
 
 from hpgmg import finite_volume
-from hpgmg.finite_volume.operators.transformers.generator_transformers import GeneratorTransformer, CompReductionTransformer, \
-    AttributeFiller
+from hpgmg.finite_volume.operators.transformers.generator_transformers import GeneratorTransformer, \
+    CompReductionTransformer, AttributeFiller
 from hpgmg.finite_volume.operators.transformers.utility_transformers import ParamStripper, IndexTransformer, \
     IndexOpTransformer, IndexDirectTransformer, AttributeRenamer, LookupSimplificationTransformer, get_name
 
 
 __author__ = 'nzhang-dev'
+
 
 def specialized_func_dispatcher(specializers):
     def decorator(func):
@@ -32,6 +33,7 @@ def specialized_func_dispatcher(specializers):
         func.callable = None
         func.signature = inspect.getargspec(func)
         #print(func)
+
         def set_specializer():
             if finite_volume.CONFIG.backend not in specializers:
                 func.specializer = lambda x: func
@@ -51,7 +53,6 @@ def specialized_func_dispatcher(specializers):
         wrapper.func = func
         return wrapper
     return decorator
-
 
 
 def to_macro_function(f, namespace=None, rename=None, index_map=None):
@@ -81,15 +82,18 @@ def to_macro_function(f, namespace=None, rename=None, index_map=None):
     define = CppDefine(name='apply_op', params=params, body=body)
     return define
 
+
 def apply_all_layers(layers, node):
     for layer in layers:
         node = layer.visit(node)
     return node
 
+
 class LayerPrinter(ast.NodeVisitor):
     def visit(self, node):
         print(dump(node))
         return node
+
 
 def validateCNode(node):
     for node in ast.walk(node):
@@ -99,9 +103,11 @@ def validateCNode(node):
             return False
     return True
 
+
 def include_mover(node):
     includes = set()
     defines = set()
+
     class includeFinder(ast.NodeTransformer):
         def visit_CppInclude(self, node):
             includes.add(node)
@@ -120,17 +126,21 @@ def include_mover(node):
 def time_this(func):
     time_this.names.append(func.__name__)
     timings = []
+
     def wrapper(*args, **kwargs):
         a = time.time()
         res = func(*args, **kwargs)
         timings.append(time.time() - a)
         return res
     wrapper.total_time = 0
+
     @atexit.register
     def dump_time():
         if finite_volume.CONFIG and finite_volume.CONFIG.verbose and timings:
-            maxlen = max(len(i) for i in time_this.names)
-            print('Function:', func.__name__.ljust(maxlen), 'Total time:', sum(timings), 'calls:', len(timings), sep="\t")
+            max_len = max(len(i) for i in time_this.names)
+            format_statement = "Function: {"
+            print('Function: {name:{width}.{width}}  Total time: {time:15.10f}   calls: {calls:10d}'.format(
+                name=func.__name__, width=max_len, time=sum(timings), calls=len(timings)))
     return wrapper
 time_this.names = []
 
@@ -140,6 +150,7 @@ def profile(func):
     if 'profile' in __builtins__:
         return __builtins__['profile'](func)
     return func
+
 
 def sympy_to_c(exp, sym_name='x'):
     if isinstance(exp, sympy.Number):
@@ -219,13 +230,13 @@ class Analyzer(ast.NodeVisitor):
         return "{}\t{}".format(self.defines, self.dependencies)
 
 
-
 def analyze_dependencies(tree):
     #print(dump(tree))
 
     analyzer = Analyzer()
     analyzer.visit(tree)
     return analyzer
+
 
 def find_fusible_blocks(tree, namespace):
     """
@@ -253,8 +264,6 @@ def find_fusible_blocks(tree, namespace):
             # try to find a chunk that is fusible
 
             groups = itertools.groupby(node.body, operator.attrgetter('fusible'))
-
-
 
 
 def is_fusible(tree, namespace):
@@ -297,6 +306,7 @@ def is_fusible(tree, namespace):
 
     return FusionFinder().visit(tree).fusible
 
+
 def get_object(name, namespace, allow_builtins=False):
     split = name.split(".")
     obj_name = split.pop(0)
@@ -312,6 +322,7 @@ def get_object(name, namespace, allow_builtins=False):
         obj = getattr(obj, attr_name)
     return obj
 
+
 def string_to_ast(s):
     """
     converts string s to nested ast.Attribute and Name nodes
@@ -321,6 +332,7 @@ def string_to_ast(s):
     for attrib in s_list:
         result = ast.Attribute(value=result, attr=attrib, ctx=ast.Load())
     return result
+
 
 def get_arg_spec(f):
     if hasattr(f, 'argspec'):

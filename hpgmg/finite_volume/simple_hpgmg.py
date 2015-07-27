@@ -611,13 +611,5 @@ class SimpleMultigridSolver(object):
         solver.benchmark_hpgmg(start_level=0)
         return
 
-        solver.solve()
-        solver.show_timing_information()
-        solver.show_error_information()
-        if solver.compute_richardson_error:
-            solver.run_richardson_test()
-        if configuration.verbose:
-            print('Backend: {}'.format(solver.configuration.backend))
-
 if __name__ == '__main__':
     SimpleMultigridSolver.main()
