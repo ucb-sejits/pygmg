@@ -361,7 +361,6 @@ class SimpleMultigridSolver(object):
             level.scale_mesh(level.residual, 1.0, level.right_hand_side)
 
             level.residual.dump('VECTOR_F_MINUS_AV')
-
             for cycle in range(self.number_of_v_cycles):
                 # level.residual.print('residual before v_cycle')
                 self.v_cycle(level, level.cell_values, level.residual)
