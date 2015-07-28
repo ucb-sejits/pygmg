@@ -103,8 +103,7 @@ class SmoothOclFunction(ConcreteSpecializedFunction):
 
         self._c_function(*arguments)
 
-        for i in range(len(buffers)):
-            cl.buffer_to_ndarray(self.queue, buffers[i], out=flattened[i])
+        cl.buffer_to_ndarray(self.queue, buffers[1], out=flattened[1]) # copy back target only
 
 
 class CSmoothSpecializer(LazySpecializedFunction):
