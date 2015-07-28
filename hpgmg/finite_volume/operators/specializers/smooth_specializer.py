@@ -13,7 +13,7 @@ import pycl as cl
 import operator
 
 from ctree.c.nodes import SymbolRef, CFile, FunctionCall, ArrayDef, Array, For, String, Assign, Constant, Lt, PostInc, \
-    Return, NotEq, If, FunctionDecl, Ref, Mul, ArrayRef, Sub, Add, Mul, MultiNode, AddAssign, Div
+    Return, NotEq, If, FunctionDecl, Ref, Mul, ArrayRef, Sub, Add, Mul, MultiNode, AddAssign, Div, MulAssign, Mod
 from ctree.cpp.nodes import CppInclude
 from ctree.tune import MinimizeTime
 import numpy as np
@@ -303,22 +303,23 @@ class OclSmoothSpecializer(LazySpecializedFunction):
     # does not inherit from CSmoothSpecializer because structurally, kernel is different
 
     class RangeTransformer(ast.NodeTransformer):
+
+        def __init__(self, shape, ghost_zone, local_work_shape):
+            self.shape = shape
+            self.ghost_zone = ghost_zone
+            self.local_work_shape = local_work_shape
+
         def visit_RangeNode(self, node):
             body = []
-            ndim = len(node.iterator.ranges)
-            # body.append(Assign(SymbolRef("thread_id", ctypes.c_int()),
-            #                    Add(Mul(FunctionCall(SymbolRef("get_global_id"), [Constant(0)]),
-            #                            FunctionCall(SymbolRef("get_local_size"), [Constant(0)])),
-            #                        FunctionCall(SymbolRef("get_local_id"), [Constant(0)]))))
-            body.append(Assign(SymbolRef("thread_id", ctypes.c_int()), FunctionCall(SymbolRef("get_global_id"), [Constant(0)])))
-            body.append(ArrayRef(SymbolRef("indices", ctypes.c_int()), Constant(ndim)))
-            body.append(FunctionCall(SymbolRef("decode"), [SymbolRef("thread_id"), SymbolRef("indices")]))
-            for i in range(ndim):
-                body.append(Assign(SymbolRef("index_{}".format(i), ctypes.c_int()), ArrayRef(SymbolRef("indices"), Constant(i))))
 
-            # body.append(StringTemplate("""printf("thread_id %d\\n", get_global_id(0));"""))
+            body.append(Assign(SymbolRef("group_id", ctypes.c_int()),
+                               FunctionCall(SymbolRef("get_group_id"), [Constant(0)])))
+            body.append(Assign(SymbolRef("local_id", ctypes.c_int()),
+                               FunctionCall(SymbolRef("get_local_id"), [Constant(0)])))
 
+            body.extend(generate_indices(self.shape, self.local_work_shape, self.ghost_zone))
             body.extend(node.body)
+
             return MultiNode(body=body)
 
     def args_to_subconfig(self, args):
@@ -338,6 +339,13 @@ class OclSmoothSpecializer(LazySpecializedFunction):
         ndim = subconfig['self'].operator.solver.dimensions
         shape = subconfig['level'].interior_space
         ghost_zone = subconfig['self'].operator.ghost_zone
+        entire_shape = tuple(dim + g*2 for dim, g in zip(shape, ghost_zone))
+
+        device = cl.clGetDeviceIDs()[-1]
+        local_size = compute_local_work_size(device, shape)
+        single_work_dim = int(round(local_size ** (1/float(ndim))))
+        local_work_shape = tuple(single_work_dim for _ in range(ndim))
+
         # transform to get the kernel function
 
         layers = [
@@ -345,8 +353,8 @@ class OclSmoothSpecializer(LazySpecializedFunction):
             AttributeRenamer({
                 'self.operator.apply_op': Name('apply_op', ast.Load())
             }),
-            SemanticFinder(subconfig), # you should add your own semantic nodes!!!!
-            self.RangeTransformer(),
+            SemanticFinder(subconfig),
+            self.RangeTransformer(shape, ghost_zone, local_work_shape),
             AttributeGetter({'self': subconfig['self']}),
             ArrayRefIndexTransformer(
                 encode_map={
@@ -355,7 +363,6 @@ class OclSmoothSpecializer(LazySpecializedFunction):
                 ndim=ndim
             ),
             PyBasicConversions(),
-            # DeclarationFiller(),
         ]
 
         kernel = apply_all_layers(layers, kernel)
@@ -391,11 +398,10 @@ class OclSmoothSpecializer(LazySpecializedFunction):
         beta_face_values = kernel.find(SymbolRef, name='beta_face_values')
         beta_face_values.set_global()
 
+        # need this because DeclarationFiller does not visit Ocl files
+
         kernel.find(SymbolRef, name='____temp__a_x').type = ctypes.c_double()
         kernel.find(SymbolRef, name='____temp__b').type = ctypes.c_double()
-        kernel.find(SymbolRef, name='index_0').type = ctypes.c_int()
-        kernel.find(SymbolRef, name='index_1').type = ctypes.c_int()
-        kernel.find(SymbolRef, name='index_2').type = ctypes.c_int()
 
         # macros and defines
 
@@ -423,8 +429,6 @@ class OclSmoothSpecializer(LazySpecializedFunction):
             #endif
             """)
 
-        decode_func = generate_decode(shape, ghost_zone)
-
         # parameter management
 
         params.extend([
@@ -438,19 +442,33 @@ class OclSmoothSpecializer(LazySpecializedFunction):
         for param in params:
             param.type = ctypes.POINTER(ctypes.c_double)()
             param.set_global()  # this is not safe
+            # if param.name != 'working_target':
+            #     param.set_const()
 
         # file creation
 
-        ocl_file = OclFile(name="smooth_points_kernel", body=[double_enabler, encode_func, macro_func, decode_func, kernel])
+        # kernel.defn = [Assign(SymbolRef("x", ctypes.c_int()), Constant(5))]
 
-        control_func = generate_control(params, shape)
+        ocl_file = OclFile(name="smooth_points_kernel",
+                           body=[
+                               double_enabler,
+                               encode_func,
+                               macro_func,
+                               kernel,
+                           ])
 
-        control = CFile(name="smooth_points_control", body=[ocl_include, control_func])
+        control_func = generate_control(params, shape, entire_shape, local_size)
+
+        control = CFile(name="smooth_points_control",
+                        body=[
+                            ocl_include,
+                            control_func
+                        ])
 
         control.config_target = 'opencl'
 
-        print(ocl_file)
-        print(control)
+        # print(control)
+        # print(ocl_file)
 
         return [control, ocl_file]
 
@@ -481,34 +499,40 @@ class OclSmoothSpecializer(LazySpecializedFunction):
 
         return fn.finalize(control.name, project, entry_type, stencil_kernel_ptr)
 
+def generate_indices(shape, local_work_shape, ghost_zone):
 
-def generate_decode(shape, ghost_zone):
+    ndim = len(shape)
+    global_work_dims = tuple(global_dim // work_dim for global_dim, work_dim in zip(shape, local_work_shape))
 
-    params = [
-        SymbolRef("thread_id", ctypes.c_int()),
-        SymbolRef("indices", ctypes.POINTER(ctypes.c_int)())
-    ]
-    defn = []
+    local_index_nodes = []
+    global_index_nodes = []
 
-    divisors = [reduce(operator.mul, shape[i+1:], 1) for i in range(len(shape))]
+    global_divisors = [reduce(operator.mul, global_work_dims[i+1:], 1) for i in range(ndim)]
+    local_divisors = [reduce(operator.mul, local_work_shape[i+1:], 1) for i in range(ndim)]
 
-    for d in range(len(shape)):
+    for d in range(ndim):
         if d == 0:
-            dividend = SymbolRef("thread_id")
-            previous = Mul(ArrayRef(SymbolRef("indices"), Constant(0)), Constant(divisors[0]))
+            global_dividend = SymbolRef("group_id")
+            local_dividend = SymbolRef("local_id")
         else:
-            dividend = dividend = Sub(SymbolRef("thread_id"), previous)
-            previous = Add(previous, Mul(ArrayRef(SymbolRef("indices"), Constant(d)), Constant(divisors[d])))
-        index = Div(dividend, Constant(divisors[d]))
-        assign = Assign(ArrayRef(SymbolRef("indices"), Constant(d)), index)
-        defn.append(assign)
+            global_dividend = Mod(SymbolRef("group_id"), Constant(global_divisors[d-1]))
+            local_dividend = Mod(SymbolRef("local_id"), Constant(local_divisors[d-1]))
+        global_index_nodes.append(Div(global_dividend, Constant(global_divisors[d])))
+        local_index_nodes.append(Div(local_dividend, Constant(local_divisors[d])))
 
-    for i in range(len(shape)):
-            defn.append(AddAssign(ArrayRef(SymbolRef("indices"), Constant(i)), Constant(ghost_zone[i])))
+    for i in range(ndim):
+        global_index_nodes[i] = Mul(global_index_nodes[i], Constant(local_work_shape[i]))
+        local_index_nodes[i] = Add(local_index_nodes[i], Constant(ghost_zone[i]))
 
-    return FunctionDecl(name="decode", params=params, defn=defn)
+    body = []
 
-def generate_control(params, shape):
+    for i in range(ndim):
+        body.append(Assign(SymbolRef("index_{}".format(i), ctypes.c_int()),
+                           Add(global_index_nodes[i], local_index_nodes[i])))
+
+    return body
+
+def generate_control(params, shape, entire_shape, local_size):
 
     control_params = []
     control_params.append(SymbolRef("queue", cl.cl_command_queue()))
@@ -523,10 +547,7 @@ def generate_control(params, shape):
 
     defn = []
 
-    device = cl.clGetDeviceIDs()[-1]
-
     global_size = reduce(operator.mul, shape, 1)
-    local_size = compute_local_work_size(device, shape)
 
     defn.append(ArrayDef(SymbolRef("global", ctypes.c_ulong()), 1, Array(body=[Constant(global_size)])))
     defn.append(ArrayDef(SymbolRef("local", ctypes.c_ulong()), 1, Array(body=[Constant(local_size)])))

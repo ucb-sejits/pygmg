@@ -329,8 +329,14 @@ def get_arg_spec(f):
     return f.argspec[:]
 
 def compute_local_work_size(device, shape):
+    ndim = len(shape)
     interior_space = reduce(operator.mul, shape, 1)
-    local_size = min(interior_space, device.max_work_group_size)
-    while local_size > device.max_work_group_size or interior_space % local_size != 0:
-        local_size -= 1
+    local_cube_dim, local_size = 1, 1
+    max_size = min(device.max_work_group_size, interior_space)
+
+    while local_cube_dim ** ndim < max_size:
+        if interior_space % (local_cube_dim ** ndim) == 0:
+            local_size = local_cube_dim ** ndim
+        local_cube_dim += 1
+
     return local_size
