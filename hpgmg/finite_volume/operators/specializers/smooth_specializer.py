@@ -72,38 +72,24 @@ class SmoothCFunction(PyGMGConcreteSpecializedFunction):
 
 class SmoothOclFunction(ConcreteSpecializedFunction):
 
-    def __init__(self):
-        device = cl.clGetDeviceIDs()[-1]
-        self.context, self.queue = get_context_and_queue_from_devices([device])
-        self.kernel = []
-        self._c_function = lambda: 0
-
-    def finalize(self, entry_point_name, project_node, entry_point_typesig, kernel):
+    def __init__(self, kernel, local_size):
         self.kernel = kernel
+        self._c_function = lambda: 0
+        self.local_size = local_size
+
+    def finalize(self, entry_point_name, project_node, entry_point_typesig):
         self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)
         self.entry_point_name = entry_point_name
         return self
 
     def __call__(self, thing, level, working_source, working_target, rhs_mesh, lambda_mesh):
-        args = [
-            working_source, working_target,
-            rhs_mesh, lambda_mesh
-        ]
-        args.extend(level.beta_face_values)
-        args.append(level.alpha)
-        flattened = [arg.ravel() for arg in args]
+        program = cl.clCreateProgramWithSource(level.context, self.kernel.codegen()).build()
+        kernel = program["smooth_points_kernel"]
+        kernel.argtypes = tuple(cl.cl_mem for _ in range(len(level.buffers)))
+        global_size = reduce(operator.mul, level.interior_space, 1)
 
-        buffers_and_events = [cl.buffer_from_ndarray(self.queue, ary=mesh) for mesh in flattened]
-
-        buffers = [b for b, e in buffers_and_events]
-
-        arguments = [self.queue, self.kernel]
-
-        arguments.extend(buffers)
-
-        self._c_function(*arguments)
-
-        cl.buffer_to_ndarray(self.queue, buffers[1], out=flattened[1]) # copy back target only
+        run_evt = kernel(*level.buffers).on(level.queue, gsize=global_size, lsize=self.local_size)
+        # self._c_function(level.queue, kernel, *level.buffers)
 
 
 class CSmoothSpecializer(LazySpecializedFunction):
@@ -446,8 +432,6 @@ class OclSmoothSpecializer(LazySpecializedFunction):
 
         # file creation
 
-        # kernel.defn = [Assign(SymbolRef("x", ctypes.c_int()), Constant(5))]
-
         ocl_file = OclFile(name="smooth_points_kernel",
                            body=[
                                double_enabler,
@@ -473,14 +457,13 @@ class OclSmoothSpecializer(LazySpecializedFunction):
 
     def finalize(self, transform_result, program_config):
 
-        subconfig = program_config[0]
-        fn = SmoothOclFunction()
+        subconfig, tuner = program_config
+        device = cl.clGetDeviceIDs()[-1]
+        local_size = compute_local_work_size(device, subconfig['level'].interior_space)
 
         project = Project(transform_result)
         kernel = project.find(OclFile)
         control = project.find(CFile)
-        program = cl.clCreateProgramWithSource(fn.context, kernel.codegen()).build()
-        stencil_kernel_ptr = program[kernel.name]
 
         param_types = [cl.cl_mem for _ in
         [
@@ -496,7 +479,8 @@ class OclSmoothSpecializer(LazySpecializedFunction):
         entry_type.extend(param_types)
         entry_type = ctypes.CFUNCTYPE(*entry_type)
 
-        return fn.finalize(control.name, project, entry_type, stencil_kernel_ptr)
+        fn = SmoothOclFunction(kernel, local_size)
+        return fn.finalize(control.name, project, entry_type)
 
 def generate_indices(shape, local_work_shape, ghost_zone):
 

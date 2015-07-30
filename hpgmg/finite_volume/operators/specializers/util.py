@@ -15,6 +15,7 @@ from ctree.transformations import PyBasicConversions
 import itertools
 import operator
 import sympy
+import pycl as cl
 
 from hpgmg import finite_volume
 from hpgmg.finite_volume.operators.transformers.generator_transformers import GeneratorTransformer, CompReductionTransformer, \
@@ -335,8 +336,51 @@ def compute_local_work_size(device, shape):
     max_size = min(device.max_work_group_size, interior_space)
 
     while local_cube_dim ** ndim < max_size:
+        local_cube_dim += 1
         if interior_space % (local_cube_dim ** ndim) == 0:
             local_size = local_cube_dim ** ndim
-        local_cube_dim += 1
-
     return local_size
+
+def manage_buffers(smooth_func):
+    def smooth_wrapper(self, level, mesh_to_smooth, rhs_mesh):
+        if level.configuration.backend == 'ocl':
+
+            lambda_mesh = level.l1_inverse if self.use_l1_jacobi else level.d_inverse
+            working_target, working_source = mesh_to_smooth, level.temp
+            self.operator.set_scale(level.h)
+
+            arrays = [
+                working_source,
+                working_target,
+                rhs_mesh,
+                lambda_mesh
+            ]
+            arrays.extend(level.beta_face_values)
+            arrays.append(level.alpha)
+            flattened = [a.ravel() for a in arrays]
+
+            level.context = cl.clCreateContext(devices=[cl.clGetDeviceIDs()[-1]])
+            level.queue = cl.clCreateCommandQueue(level.context)
+
+            level.buffers = [buf for buf, evt in [cl.buffer_from_ndarray(level.queue, mesh) for mesh in flattened]]
+
+            for i in range(self.iterations):
+                working_target, working_source = working_source, working_target
+                flattened[0], flattened[1] = flattened[1], flattened[0]
+                level.buffers[0], level.buffers[1] = level.buffers[1], level.buffers[0]
+
+                level.solver.boundary_updater.apply(level, working_source)
+
+                buf, evt = cl.buffer_from_ndarray(level.queue, flattened[0], buf=level.buffers[0])
+                cl.clWaitForEvents(evt)
+
+                self.smooth_points(level, working_source, working_target, rhs_mesh, lambda_mesh)
+
+                buf, evt = cl.buffer_to_ndarray(level.queue, level.buffers[1], out=flattened[1])
+                cl.clWaitForEvents(evt)
+
+            level.context, level.queue, level.buffers = None, None, []
+            # level.smooth_events, level.boundary_events = [], []
+        else:
+            return smooth_func(self, level, mesh_to_smooth, rhs_mesh)
+    return smooth_wrapper

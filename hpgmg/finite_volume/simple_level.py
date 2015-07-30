@@ -83,6 +83,12 @@ class SimpleLevel(object):
 
         self.timer = EventTimer(self)
 
+        self.buffers = []
+        self.queue = None
+        self.context = None
+        # self.smooth_events = []
+        # self.boundary_events = []
+
     def dimension_size(self):
         return self.space[0] - (self.ghost_zone[0]*2)
 
