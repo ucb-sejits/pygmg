@@ -83,12 +83,10 @@ class SmoothOclFunction(ConcreteSpecializedFunction):
         return self
 
     def __call__(self, thing, level, working_source, working_target, rhs_mesh, lambda_mesh):
-        program = cl.clCreateProgramWithSource(level.context, self.kernel.codegen()).build()
-        kernel = program["smooth_points_kernel"]
-        kernel.argtypes = tuple(cl.cl_mem for _ in range(len(level.buffers)))
+        self.kernel.argtypes = tuple(cl.cl_mem for _ in range(len(level.buffers)))
         global_size = reduce(operator.mul, level.interior_space, 1)
 
-        run_evt = kernel(*level.buffers).on(level.queue, gsize=global_size, lsize=self.local_size)
+        run_evt = self.kernel(*level.buffers).on(level.queue, gsize=global_size, lsize=self.local_size)
         # self._c_function(level.queue, kernel, *level.buffers)
 
 
@@ -206,7 +204,7 @@ class CSmoothSpecializer(LazySpecializedFunction):
         ])
         cfile = include_mover(cfile)
         #print("codegen")
-        print(cfile)
+        # print(cfile)
         return [cfile]
 
     def finalize(self, transform_result, program_config):
@@ -484,6 +482,10 @@ class OclSmoothSpecializer(LazySpecializedFunction):
         entry_type = [ctypes.c_int32, cl.cl_command_queue, cl.cl_kernel]
         entry_type.extend(param_types)
         entry_type = ctypes.CFUNCTYPE(*entry_type)
+
+
+        program = cl.clCreateProgramWithSource(subconfig['level'].context, kernel.codegen()).build()
+        kernel = program["smooth_points_kernel"]
 
         fn = SmoothOclFunction(kernel, local_size)
         return fn.finalize(control.name, project, entry_type)

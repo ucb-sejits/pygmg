@@ -350,20 +350,17 @@ def manage_smooth_buffers(smooth_func):
             working_target, working_source = mesh_to_smooth, level.temp
             self.operator.set_scale(level.h)
 
-            arrays = [
-                working_source,
-                working_target,
-                rhs_mesh,
-                lambda_mesh
-            ]
+            arrays = [working_source, working_target, rhs_mesh, lambda_mesh]
             arrays.extend(level.beta_face_values)
             arrays.append(level.alpha)
             flattened = [a.ravel() for a in arrays]
 
-            level.context = cl.clCreateContext(devices=[cl.clGetDeviceIDs()[-1]])
-            level.queue = cl.clCreateCommandQueue(level.context)
-
-            level.buffers = [buf for buf, evt in [cl.buffer_from_ndarray(level.queue, mesh) for mesh in flattened]]
+            if level.context is None:
+                level.context = cl.clCreateContext(devices=[cl.clGetDeviceIDs()[-1]])
+                level.queue = cl.clCreateCommandQueue(level.context)
+                level.buffers = [buf for buf, evt in [cl.buffer_from_ndarray(level.queue, mesh) for mesh in flattened]]
+            else:
+                level.buffers = [buf for buf, evt in [cl.buffer_from_ndarray(level.queue, mesh, buf=buf) for mesh, buf in zip(flattened, level. buffers)]]
 
             for i in range(self.iterations):
                 working_target, working_source = working_source, working_target
@@ -372,15 +369,15 @@ def manage_smooth_buffers(smooth_func):
 
                 level.solver.boundary_updater.apply(level, working_source)
 
-                buf, evt = cl.buffer_from_ndarray(level.queue, flattened[0], buf=level.buffers[0])
-                cl.clWaitForEvents(evt)
+                # ary, evt = cl.buffer_to_ndarray(level.queue, out=flattened[0], buf=level.buffers[0])
+                # cl.clWaitForEvents(evt)
 
                 self.smooth_points(level, working_source, working_target, rhs_mesh, lambda_mesh)
 
-                buf, evt = cl.buffer_to_ndarray(level.queue, level.buffers[1], out=flattened[1])
-                cl.clWaitForEvents(evt)
+            ary, evt = cl.buffer_to_ndarray(level.queue, level.buffers[1], out=flattened[1])
+            cl.clWaitForEvents(evt)
 
-            level.context, level.queue, level.buffers = None, None, []
+            # level.context, level.queue, level.buffers = None, None, []
             # level.smooth_events, level.boundary_events = [], []
         else:
             return smooth_func(self, level, mesh_to_smooth, rhs_mesh)
@@ -401,14 +398,23 @@ def manage_residual_buffers(residual_func):
             arrays.append(level.alpha)
             flattened = [a.ravel() for a in arrays]
 
-            level.context = cl.clCreateContext(devices=[cl.clGetDeviceIDs()[-1]])
-            level.queue = cl.clCreateCommandQueue(level.context)
-            level.buffers = [buf for buf, evt in [cl.buffer_from_ndarray(level.queue, mesh) for mesh in flattened]]
+            if level.context is None:
+
+                level.context = cl.clCreateContext(devices=[cl.clGetDeviceIDs()[-1]])
+                level.queue = cl.clCreateCommandQueue(level.context)
+                level.buffers = [buf for buf, evt in [cl.buffer_from_ndarray(level.queue, mesh) for mesh in flattened]]
+
+            else:
+                level.buffers = [buf for buf, evt in [cl.buffer_from_ndarray(level.queue, mesh, buf=buf) for mesh, buf in zip(flattened, level. buffers)]]
+
+            level.buffers[0], level.buffers[1] = level.buffers[1], level.buffers[0]
 
             self.solver.boundary_updater.apply(level, source_mesh)
 
-            buf, evt = cl.buffer_from_ndarray(level.queue, flattened[1], buf=level.buffers[1])
-            cl.clWaitForEvents(evt)
+            level.buffers[0], level.buffers[1] = level.buffers[1], level.buffers[0]
+
+            # buf, evt = cl.buffer_from_ndarray(level.queue, flattened[1], buf=level.buffers[1])
+            # cl.clWaitForEvents(evt)
 
             with level.timer("residual"):
                 self.residue(level, target_mesh, source_mesh, right_hand_side, np.zeros((1,)))
@@ -416,7 +422,7 @@ def manage_residual_buffers(residual_func):
             ary, evt = cl.buffer_to_ndarray(level.queue, level.buffers[0], out=flattened[0])
             cl.clWaitForEvents(evt)
 
-            level.context, level.queue, level.buffers = None, None, []
+            # level.context, level.queue, level.buffers = None, None, []
             # level.smooth_events, level.boundary_events = [], []
         else:
             return residual_func(self, level, target_mesh, source_mesh, right_hand_side)

@@ -8,7 +8,8 @@ from stencil_code.halo_enumerator import HaloEnumerator
 from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.operators.boundary_kernels.dirichlet import DirichletBoundary
 from hpgmg.finite_volume.operators.boundary_kernels.periodic import PeriodicBoundary
-from hpgmg.finite_volume.operators.specializers.boundary_specializer import CBoundarySpecializer, OmpBoundarySpecializer
+from hpgmg.finite_volume.operators.specializers.boundary_specializer import CBoundarySpecializer, OmpBoundarySpecializer, \
+    OclBoundarySpecializer
 from hpgmg.finite_volume.operators.specializers.util import time_this, specialized_func_dispatcher
 from hpgmg.finite_volume.space import Vector
 
@@ -51,7 +52,7 @@ class BoundaryUpdaterV1(object):
     @specialized_func_dispatcher({
         'c': CBoundarySpecializer,
         'omp': OmpBoundarySpecializer,
-        'ocl': CBoundarySpecializer
+        'ocl': OclBoundarySpecializer
     })
     def apply(self, level, mesh):
         for kernel in self.kernels:

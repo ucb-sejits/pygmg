@@ -49,7 +49,6 @@ class JacobiSmoother(Smoother):
             level.solver.boundary_updater.apply(level, working_source)
             self.smooth_points(level, working_source, working_target, rhs_mesh, lambda_mesh)
 
-        level.context, level.queue, level.buffers = None, None, []
 
     @time_this
     @specialized_func_dispatcher({

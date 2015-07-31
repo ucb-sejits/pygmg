@@ -4,7 +4,8 @@ import copy
 import sys
 from ctree.cpp.nodes import CppInclude
 
-from ctree.c.nodes import Constant, MultiNode, Assign, Return
+from ctree.c.nodes import Constant, MultiNode, Assign, Return, FunctionDecl
+from ctree.ocl.nodes import OclFile
 from ctree.templates.nodes import StringTemplate
 
 from hpgmg.finite_volume.operators.nodes import ArrayIndex
@@ -321,3 +322,18 @@ class FunctionCallTimer(ast.NodeTransformer):
     @staticmethod
     def print_time(name, title=""):
         return StringTemplate(r"""printf("{title}: %5.5e\t", (((float)(clock() - {name}))) / CLOCKS_PER_SEC);""".format(title=title, name=name))
+
+class OclFileWrapper(ast.NodeTransformer):
+
+    def __init__(self, name=None):
+        self.name = name
+
+    def visit_CFile(self, node):
+        name = self.name if self.name else node.name
+        body = [
+            StringTemplate("""
+                #pragma OPENCL EXTENSION cl_khr_fp64 : enable
+            """)
+        ]
+        body.extend(node.body)
+        return OclFile(name=name, body=body)
