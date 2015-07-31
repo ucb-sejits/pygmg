@@ -16,6 +16,7 @@ import itertools
 import operator
 import sympy
 import pycl as cl
+import numpy as np
 
 from hpgmg import finite_volume
 from hpgmg.finite_volume.operators.transformers.generator_transformers import GeneratorTransformer, CompReductionTransformer, \
@@ -341,7 +342,7 @@ def compute_local_work_size(device, shape):
             local_size = local_cube_dim ** ndim
     return local_size
 
-def manage_buffers(smooth_func):
+def manage_smooth_buffers(smooth_func):
     def smooth_wrapper(self, level, mesh_to_smooth, rhs_mesh):
         if level.configuration.backend == 'ocl':
 
@@ -384,3 +385,39 @@ def manage_buffers(smooth_func):
         else:
             return smooth_func(self, level, mesh_to_smooth, rhs_mesh)
     return smooth_wrapper
+
+def manage_residual_buffers(residual_func):
+    def residual_wrapper(self, level, target_mesh, source_mesh, right_hand_side):
+        if level.configuration.backend == 'ocl':
+
+            lambda_mesh = np.zeros((1,))
+            arrays = [
+                target_mesh,
+                source_mesh,
+                right_hand_side,
+                lambda_mesh
+            ]
+            arrays.extend(level.beta_face_values)
+            arrays.append(level.alpha)
+            flattened = [a.ravel() for a in arrays]
+
+            level.context = cl.clCreateContext(devices=[cl.clGetDeviceIDs()[-1]])
+            level.queue = cl.clCreateCommandQueue(level.context)
+            level.buffers = [buf for buf, evt in [cl.buffer_from_ndarray(level.queue, mesh) for mesh in flattened]]
+
+            self.solver.boundary_updater.apply(level, source_mesh)
+
+            buf, evt = cl.buffer_from_ndarray(level.queue, flattened[1], buf=level.buffers[1])
+            cl.clWaitForEvents(evt)
+
+            with level.timer("residual"):
+                self.residue(level, target_mesh, source_mesh, right_hand_side, np.zeros((1,)))
+
+            ary, evt = cl.buffer_to_ndarray(level.queue, level.buffers[0], out=flattened[0])
+            cl.clWaitForEvents(evt)
+
+            level.context, level.queue, level.buffers = None, None, []
+            # level.smooth_events, level.boundary_events = [], []
+        else:
+            return residual_func(self, level, target_mesh, source_mesh, right_hand_side)
+    return residual_wrapper

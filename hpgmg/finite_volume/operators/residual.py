@@ -2,8 +2,9 @@ from __future__ import print_function
 
 import numpy as np
 
-from hpgmg.finite_volume.operators.specializers.smooth_specializer import CSmoothSpecializer, OmpSmoothSpecializer
-from hpgmg.finite_volume.operators.specializers.util import specialized_func_dispatcher
+from hpgmg.finite_volume.operators.specializers.smooth_specializer import CSmoothSpecializer, OmpSmoothSpecializer, \
+    OclSmoothSpecializer
+from hpgmg.finite_volume.operators.specializers.util import specialized_func_dispatcher, manage_residual_buffers
 
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
@@ -16,6 +17,7 @@ class Residual(object):
         self.b = self.solver.b
         self.operator = self.solver.problem_operator
 
+    @manage_residual_buffers
     def run(self, level, target_mesh, source_mesh, right_hand_side):
         self.solver.boundary_updater.apply(level, source_mesh)
         with level.timer("residual"):
@@ -24,7 +26,7 @@ class Residual(object):
     @specialized_func_dispatcher({
         'c': CSmoothSpecializer,
         'omp': OmpSmoothSpecializer,
-        'ocl': CSmoothSpecializer
+        'ocl': OclSmoothSpecializer
     })
     def residue(self, level, target_mesh, source_mesh, right_hand_side, lambda_mesh):
         for index in level.interior_points():

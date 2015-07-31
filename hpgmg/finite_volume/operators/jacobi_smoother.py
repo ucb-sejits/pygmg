@@ -6,7 +6,7 @@ from hpgmg.finite_volume.operators.specializers.inline_jit import partial_jit
 from hpgmg.finite_volume.operators.specializers.smooth_specializer import CSmoothSpecializer, OmpSmoothSpecializer, \
     OclSmoothSpecializer
 from hpgmg.finite_volume.operators.specializers.util import specialized_func_dispatcher, profile, time_this, \
-    manage_buffers
+    manage_smooth_buffers
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
@@ -30,7 +30,7 @@ class JacobiSmoother(Smoother):
         self.iterations = iterations
 
     #@time_this
-    @manage_buffers
+    @manage_smooth_buffers
     def smooth(self, level, mesh_to_smooth, rhs_mesh):
         """
         :param level: the level being smoothed

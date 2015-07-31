@@ -206,7 +206,7 @@ class CSmoothSpecializer(LazySpecializedFunction):
         ])
         cfile = include_mover(cfile)
         #print("codegen")
-        #print(cfile)
+        print(cfile)
         return [cfile]
 
     def finalize(self, transform_result, program_config):
@@ -385,8 +385,14 @@ class OclSmoothSpecializer(LazySpecializedFunction):
 
         # need this because DeclarationFiller does not visit Ocl files
 
-        kernel.find(SymbolRef, name='____temp__a_x').type = ctypes.c_double()
-        kernel.find(SymbolRef, name='____temp__b').type = ctypes.c_double()
+        symbols_to_declare_double = [
+            kernel.find(SymbolRef, name='____temp__a_x'),
+            kernel.find(SymbolRef, name='____temp__b')
+        ]
+
+        for symbol in symbols_to_declare_double:
+            if symbol:
+                symbol.type = ctypes.c_double()
 
         # macros and defines
 
