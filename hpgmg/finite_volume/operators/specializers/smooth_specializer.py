@@ -490,10 +490,13 @@ class OclSmoothSpecializer(LazySpecializedFunction):
         fn = SmoothOclFunction(kernel, local_size)
         return fn.finalize(control.name, project, entry_type)
 
-def generate_indices(shape, local_work_shape, ghost_zone):
+def generate_indices(interior_shape, local_work_shape, ghost_zone):
 
-    ndim = len(shape)
-    global_work_dims = tuple(global_dim // work_dim for global_dim, work_dim in zip(shape, local_work_shape))
+    # uses global_id(0) to compute global offset (which work_group)
+    # uses local_id(0) to compute local offsets within that work_group
+
+    ndim = len(interior_shape)
+    global_work_dims = tuple(global_dim // work_dim for global_dim, work_dim in zip(interior_shape, local_work_shape))
 
     local_index_nodes = []
     global_index_nodes = []
