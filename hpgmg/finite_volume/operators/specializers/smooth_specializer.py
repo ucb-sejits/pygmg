@@ -27,7 +27,7 @@ import hpgmg
 from hpgmg.finite_volume.operators.specializers.jit import PyGMGConcreteSpecializedFunction
 
 from hpgmg.finite_volume.operators.specializers.util import to_macro_function, apply_all_layers, include_mover, \
-    LayerPrinter, time_this, compute_local_work_size
+    LayerPrinter, time_this, compute_local_work_size, flattened_to_multi_index
 from hpgmg.finite_volume.operators.transformers.level_transformers import RowMajorInteriorPoints
 from hpgmg.finite_volume.operators.transformers.semantic_transformer import SemanticFinder
 from hpgmg.finite_volume.operators.transformers.semantic_transformers.csemantics import CRangeTransformer
@@ -283,7 +283,6 @@ class OmpSmoothSpecializer(CSmoothSpecializer):
 
 
 class OclSmoothSpecializer(LazySpecializedFunction):
-    # does not inherit from CSmoothSpecializer because structurally, kernel is different
 
     class RangeTransformer(ast.NodeTransformer):
 
@@ -293,16 +292,23 @@ class OclSmoothSpecializer(LazySpecializedFunction):
             self.local_work_shape = local_work_shape
 
         def visit_RangeNode(self, node):
+            ndim = len(self.shape)
+            global_work_dims = tuple(global_dim // work_dim for
+                                     global_dim, work_dim in zip(self.shape, self.local_work_shape))
+            
             body = []
-
             body.append(Assign(SymbolRef("group_id", ctypes.c_int()),
                                FunctionCall(SymbolRef("get_group_id"), [Constant(0)])))
             body.append(Assign(SymbolRef("local_id", ctypes.c_int()),
                                FunctionCall(SymbolRef("get_local_id"), [Constant(0)])))
 
-            body.extend(generate_indices(self.shape, self.local_work_shape, self.ghost_zone))
+            global_indices = flattened_to_multi_index(SymbolRef("group_id"), global_work_dims,
+                                                      self.local_work_shape, self.ghost_zone)
+            local_indices = flattened_to_multi_index(SymbolRef("local_id"), self.local_work_shape)
+            for d in range(ndim):
+                body.append(Assign(SymbolRef("index_%d"%d, ctypes.c_int()), Add(global_indices[d], local_indices[d])))
+            
             body.extend(node.body)
-
             return MultiNode(body=body)
 
     def args_to_subconfig(self, args):
@@ -490,41 +496,6 @@ class OclSmoothSpecializer(LazySpecializedFunction):
         fn = SmoothOclFunction(kernel, local_size)
         return fn.finalize(control.name, project, entry_type)
 
-def generate_indices(interior_shape, local_work_shape, ghost_zone):
-
-    # uses global_id(0) to compute global offset (which work_group)
-    # uses local_id(0) to compute local offsets within that work_group
-
-    ndim = len(interior_shape)
-    global_work_dims = tuple(global_dim // work_dim for global_dim, work_dim in zip(interior_shape, local_work_shape))
-
-    local_index_nodes = []
-    global_index_nodes = []
-
-    global_divisors = [reduce(operator.mul, global_work_dims[i+1:], 1) for i in range(ndim)]
-    local_divisors = [reduce(operator.mul, local_work_shape[i+1:], 1) for i in range(ndim)]
-
-    for d in range(ndim):
-        if d == 0:
-            global_dividend = SymbolRef("group_id")
-            local_dividend = SymbolRef("local_id")
-        else:
-            global_dividend = Mod(SymbolRef("group_id"), Constant(global_divisors[d-1]))
-            local_dividend = Mod(SymbolRef("local_id"), Constant(local_divisors[d-1]))
-        global_index_nodes.append(Div(global_dividend, Constant(global_divisors[d])))
-        local_index_nodes.append(Div(local_dividend, Constant(local_divisors[d])))
-
-    for i in range(ndim):
-        global_index_nodes[i] = Mul(global_index_nodes[i], Constant(local_work_shape[i]))
-        local_index_nodes[i] = Add(local_index_nodes[i], Constant(ghost_zone[i]))
-
-    body = []
-
-    for i in range(ndim):
-        body.append(Assign(SymbolRef("index_{}".format(i), ctypes.c_int()),
-                           Add(global_index_nodes[i], local_index_nodes[i])))
-
-    return body
 
 def generate_control(params, shape, entire_shape, local_size):
 

@@ -10,7 +10,7 @@ from ctree import get_ast
 import ctree
 from ctree.cpp.nodes import CppDefine
 from ctree.frontend import dump
-from ctree.c.nodes import SymbolRef, MultiNode, Constant, Add, Mul, FunctionCall
+from ctree.c.nodes import SymbolRef, MultiNode, Constant, Add, Mul, FunctionCall, Div, Mod
 from ctree.transformations import PyBasicConversions
 import itertools
 import operator
@@ -341,6 +341,24 @@ def compute_local_work_size(device, shape):
         if interior_space % (local_cube_dim ** ndim) == 0:
             local_size = local_cube_dim ** ndim
     return local_size
+
+def flattened_to_multi_index(flattened_id_symbol, shape, multipliers=None, offsets=None):
+
+    # flattened_id should be a symbol ref
+    # offsets applied after multipliers
+
+    body = []
+    ndim = len(shape)
+    for i in range(ndim):
+        mod_size = reduce(operator.mul, shape[i:], 1)
+        div_size = reduce(operator.mul, shape[(i + 1):], 1)
+        stmt = Div(Mod(flattened_id_symbol, Constant(mod_size)), Constant(div_size))
+        if multipliers:
+            stmt = Mul(stmt, Constant(multipliers[i]))
+        if offsets:
+            stmt = Add(stmt, Constant(offsets[i]))
+        body.append(stmt)
+    return body
 
 def manage_smooth_buffers(smooth_func):
     def smooth_wrapper(self, level, mesh_to_smooth, rhs_mesh):
