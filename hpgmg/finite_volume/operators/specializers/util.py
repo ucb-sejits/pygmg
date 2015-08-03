@@ -381,8 +381,8 @@ def manage_smooth_buffers(smooth_func):
                 level.buffers = [buf for buf, evt in [cl.buffer_from_ndarray(level.queue, mesh, buf=buf) for mesh, buf in zip(flattened, level. buffers)]]
 
             for i in range(self.iterations):
-                working_target, working_source = working_source, working_target
-                flattened[0], flattened[1] = flattened[1], flattened[0]
+                # working_target, working_source = working_source, working_target
+                # flattened[0], flattened[1] = flattened[1], flattened[0]
                 level.buffers[0], level.buffers[1] = level.buffers[1], level.buffers[0]
 
                 level.solver.boundary_updater.apply(level, working_source)
@@ -417,16 +417,11 @@ def manage_residual_buffers(residual_func):
             flattened = [a.ravel() for a in arrays]
 
             if level.context is None:
-
                 level.context = cl.clCreateContext(devices=[cl.clGetDeviceIDs()[-1]])
                 level.queue = cl.clCreateCommandQueue(level.context)
                 level.buffers = [buf for buf, evt in [cl.buffer_from_ndarray(level.queue, mesh) for mesh in flattened]]
 
-            else:
-                level.buffers = [buf for buf, evt in [cl.buffer_from_ndarray(level.queue, mesh, buf=buf) for mesh, buf in zip(flattened, level. buffers)]]
-
             level.buffers[0], level.buffers[1] = level.buffers[1], level.buffers[0]
-
             self.solver.boundary_updater.apply(level, source_mesh)
 
             level.buffers[0], level.buffers[1] = level.buffers[1], level.buffers[0]
