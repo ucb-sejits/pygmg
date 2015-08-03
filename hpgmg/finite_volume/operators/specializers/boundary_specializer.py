@@ -207,14 +207,14 @@ class OclBoundarySpecializer(LazySpecializedFunction):
 
         def visit_RangeNode(self, node):
             body=[
-                Assign(SymbolRef("global_id", ctypes.c_int()), FunctionCall(SymbolRef("get_global_id"), [Constant(0)]))
+                Assign(SymbolRef("global_id"), FunctionCall(SymbolRef("get_global_id"), [Constant(0)]))
             ]
             ranges = node.iterator.ranges
             offsets = tuple(r[0] for r in ranges)
             shape = tuple(r[1] - r[0] for r in ranges)
             indices = flattened_to_multi_index(SymbolRef("global_id"), shape, offsets=offsets)
             for d in range(len(shape)):
-                body.append(Assign(SymbolRef("index_%d"%d,  ctypes.c_int()), indices[d]))
+                body.append(Assign(SymbolRef("index_%d"%d), indices[d]))
             body.extend(node.body)
             return MultiNode(body=body)
 
@@ -228,15 +228,35 @@ class OclBoundarySpecializer(LazySpecializedFunction):
     def transform(self, tree, program_config):
         subconfig, tuning_config = program_config
         ndim = subconfig['mesh'].ndim
-        kernel_files = []
 
         ordering = Ordering([MultiplyEncode()])
         bits_per_dim = min([math.log(i, 2) for i in subconfig['level'].space]) + 1
         encode_func = ordering.generate(ndim, bits_per_dim, ctypes.c_uint64).find(CppDefine, name="encode")
 
+        ocl_file_bodies = []
+        for dim in range(ndim):
+            body = []
+            defn = []
+            defn.append(SymbolRef("global_id", ctypes.c_int()))
+            defn.extend(SymbolRef("index_%d"%d, ctypes.c_int()) for d in range(ndim))
+            func = FunctionDecl(name="kernel_%d"%dim, params=[], defn=defn)
+            body.append(func)
+            ocl_file_bodies.append(body)
+
+        num_kernels_per_dim = [calc_num_k_dim_cubes(ndim, ndim - dim - 1) for dim in range(ndim)]  # [6, 12, 8]
+
+        boundary_map = {}
+        for dim in range(ndim):
+            for i in range(num_kernels_per_dim[dim]):
+                k_idx = sum(num_kernels_per_dim[:dim]) + i
+                boundary_map[k_idx] = dim
+
         for boundary, kernel, k_idx in zip(subconfig['self'].boundary_cases(),
                                            subconfig['self'].kernels,
                                            range(len(subconfig['self'].kernels))):
+
+            current_dim = boundary_map[k_idx]
+
             kernel_tree = get_ast(kernel)
             namespace = {'kernel': kernel}
             namespace.update(subconfig)
@@ -252,18 +272,27 @@ class OclBoundarySpecializer(LazySpecializedFunction):
                 self.RangeTransformer(),
                 ParamStripper(('level',)),
                 PyBasicConversions(),
-                OclFileWrapper(name="kernel_%d" % k_idx),
             ]
-            ocl_file = apply_all_layers(layers, kernel_tree)
-            func = ocl_file.find(FunctionDecl, name="kernel")
-            func.name = "kernel_%d" % k_idx
+            transformed_file = apply_all_layers(layers, kernel_tree)
+            func = transformed_file.find(FunctionDecl, name="kernel")
+            if not ocl_file_bodies[current_dim][0].params:
+               ocl_file_bodies[current_dim][0].params = func.params
+            ocl_file_bodies[current_dim][0].defn.extend(func.defn)
+
+        double_include = StringTemplate("""#pragma OPENCL EXTENSION cl_khr_fp64: enable""")
+
+        for body in ocl_file_bodies:
+            func = body[0]
             func.set_kernel()
             func.params[0].type = ctypes.POINTER(ctypes.c_double)()
             func.params[0].set_global()
 
-            ocl_file.body.append(encode_func)
-            ocl_file = include_mover(ocl_file)
-            kernel_files.append(ocl_file)
+        for body in ocl_file_bodies:
+            body.insert(0, double_include)
+            body.append(encode_func)
+
+        ocl_files = [OclFile(name="kernel_%d"%d, body=ocl_file_bodies[d]) for d in range(ndim)]
+        ocl_files = [include_mover(file) for file in ocl_files]
 
         ocl_include = StringTemplate("""
             #include <stdio.h>
@@ -273,11 +302,12 @@ class OclBoundarySpecializer(LazySpecializedFunction):
             #include <CL/cl.h>
             #endif
             """)
+
         c_file = CFile(name="boundary_control", body=[ocl_include, generate_control(subconfig['level'].interior_space)])
         # c_file = CFile(name="boundary_control", body=[FunctionDecl(ctypes.c_int32(), "boundary_control", [SymbolRef("x", ctypes.c_int())], [Return(Constant(0))])])
         c_file.config_target = 'opencl'
         files = [c_file]
-        files.extend(kernel_files)
+        files.extend(ocl_files)
         return files
 
     def finalize(self, transform_result, program_config):
@@ -291,36 +321,13 @@ class OclBoundarySpecializer(LazySpecializedFunction):
         fn = BoundaryOclFunction(kernels)
 
         entry_type = [ctypes.c_int32, cl.cl_command_queue]
-        num_kernels = sum(calc_num_k_dim_cubes(ndim, ndim - dim - 1) for dim in range(ndim))
-        entry_type.extend(cl.cl_kernel for _ in range(num_kernels))
+        entry_type.extend(cl.cl_kernel for _ in range(ndim))
         entry_type.append(cl.cl_mem)
         entry_type = ctypes.CFUNCTYPE(*entry_type)
 
         fn = fn.finalize("boundary_control", project, entry_type)
         return fn
 
-        # subconfig, tuner = program_config
-        # ndim = len(subconfig['level'].interior_space)
-        # project = Project(transform_result)
-        #
-        # print("NUMBER OF FILES IN PROJECT: {}".format(len(project.files)))
-        #
-        # control = project.files[0]
-        # kernels = project.files[1:]
-        # # project.files = [project.files[0]]
-        #
-        # boundary_sizes = []
-        # for dim in range(ndim):
-        #     for _ in range(calc_num_k_dim_cubes(ndim, ndim - dim - 1)):
-        #         boundary_sizes.append(reduce(operator.mul, subconfig['level'].interior_space[dim + 1:], 1))
-        #
-        # kernels = [cl.clCreateProgramWithSource(subconfig['level'].context, kernel.codegen()).build()["kernel_%d" % k_idx] for kernel, k_idx in zip(kernels, range(len(kernels)))]
-        #
-        # fn = BoundaryOclFunction(kernels, boundary_sizes)
-        #
-        # entry_type = ctypes.CFUNCTYPE(ctypes.c_int32)
-        # fn = fn.finalize(control.name, project, entry_type)
-        # return fn
 
 def calc_num_k_dim_cubes(ndim, k):
     return ((2 ** (ndim - k)) * choose(ndim, k))
@@ -331,27 +338,24 @@ def choose(n, k):
 
 def generate_control(interior_space, params=None):
     # generates c function that enqueues all boundary kernels
-    # params will be the queue, 26 kernels, and 8 buffers
+    # params will be the queue, 3 kernels, and 1 buffer
     # need to calculate global and local sizes for each and enqueue
-    
-    #setup
+
     ndim = len(interior_space)
-    num_kernels_per_dim = [calc_num_k_dim_cubes(ndim, ndim - dim - 1) for dim in range(ndim)]  # computer in decreasing order
-    num_kernels = sum(num_kernels_per_dim)
-    
+
     #parameters
     control_params = []
     control_params.append(SymbolRef("queue", cl.cl_command_queue()))
-    control_params.extend(SymbolRef("kernel_%d"%k_idx, cl.cl_kernel()) for k_idx in range(num_kernels))
+    control_params.extend(SymbolRef("kernel_%d"%k_idx, cl.cl_kernel()) for k_idx in range(ndim))
     control_params.append(SymbolRef("working_source", cl.cl_mem()))
-    
+
     #definition
     defn = [
         ArrayRef(SymbolRef("global", ctypes.c_ulong()), Constant(1)),
         ArrayRef(SymbolRef("local", ctypes.c_ulong()), Constant(1))
     ]
 
-    for k_idx in range(num_kernels):
+    for k_idx in range(ndim):
         set_arg = FunctionCall(SymbolRef("clSetKernelArg"),
                                [
                                    SymbolRef("kernel_%d"%k_idx),
@@ -361,26 +365,23 @@ def generate_control(interior_space, params=None):
                                ])
         defn.append(set_arg)
 
-    for dim in range(ndim):
-        global_size = reduce(operator.mul, interior_space[dim + 1:], 1)
+        global_size = reduce(operator.mul, interior_space[k_idx + 1:], 1)
         local_size = min(1024, global_size)
-
         defn.append(Assign((ArrayRef(SymbolRef("global"), Constant(0))), Constant(global_size)))
         defn.append(Assign((ArrayRef(SymbolRef("local"), Constant(0))), Constant(local_size)))
-        for k in range(num_kernels_per_dim[dim]):
-            k_idx = k + sum(num_kernels_per_dim[:dim])
-            enqueue_call = FunctionCall(SymbolRef("clEnqueueNDRangeKernel"), [
-                SymbolRef("queue"),
-                SymbolRef("kernel_%d"%k_idx),
-                Constant(1),
-                NULL(),
-                SymbolRef("global"),
-                SymbolRef("local"),
-                Constant(0),
-                NULL(),
-                NULL()
-            ])
-            defn.append(enqueue_call)
+        enqueue_call = FunctionCall(SymbolRef("clEnqueueNDRangeKernel"), [
+            SymbolRef("queue"),
+            SymbolRef("kernel_%d"%k_idx),
+            Constant(1),
+            NULL(),
+            SymbolRef("global"),
+            SymbolRef("local"),
+            Constant(0),
+            NULL(),
+            NULL()
+        ])
+        defn.append(enqueue_call)
+
     defn.append(Return(Constant(0)))
     func = FunctionDecl(return_type=ctypes.c_int(), name="boundary_control", params=control_params, defn=defn)
     return func
