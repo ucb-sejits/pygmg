@@ -68,6 +68,8 @@ class SimpleMultigridSolver(object):
 
         self.is_variable_coefficient = configuration.variable_coefficient
 
+        self.backend = self.configuration.backend
+
         self.boundary_is_periodic = configuration.boundary_condition == 'p'
         self.boundary_is_dirichlet = configuration.boundary_condition != 'p'
         self.boundary_updater = BoundaryUpdaterV1(solver=self)
@@ -362,7 +364,6 @@ class SimpleMultigridSolver(object):
             level.scale_mesh(level.residual, 1.0, level.right_hand_side)
 
             level.residual.dump('VECTOR_F_MINUS_AV')
-
             for cycle in range(self.number_of_v_cycles):
                 # level.residual.print('residual before v_cycle')
                 self.v_cycle(level, level.cell_values, level.residual)
@@ -549,7 +550,8 @@ class SimpleMultigridSolver(object):
         parser.add_argument('-dg', '--dump-grids', help='dump various grids for comparison with hpgmg.c',
                             action="store_true", default=False)
         parser.add_argument('-l', '--log', help='turn on logging', action="store_true", default=False)
-        parser.add_argument('-b', '--backend', help='turn on JIT', choices=('python', 'c', 'omp', 'ocl'), default='python')
+        parser.add_argument('-b', '--backend', help='turn on JIT',
+                            choices=('python', 'c', 'omp', 'ocl'), default='python')
         parser.add_argument('-v', '--verbose', help='print verbose', action="store_true", default=False)
         parser.add_argument('-bd', '--blocking_dimensions', help='number of dimensions to block in', default=0, type=int)
         parser.add_argument('-bls', '--block_size', help='size of each block', default=32, type=int)
@@ -570,19 +572,45 @@ class SimpleMultigridSolver(object):
         config = SimpleMultigridSolver.get_configuration(args=args)
         return SimpleMultigridSolver(config)
 
+    @time_this
+    @profile
+    def benchmark_hpgmg(self, start_level=0):
+        if self.backend == 'python':
+            min_solves = 1
+            number_passes = 1
+        else:
+            min_solves = 10
+            number_passes = 1
+        for pass_num in range(number_passes):
+            if pass_num == 0:
+                if self.backend == 'python':
+                    print("===== Running python, no warm-up, one pass ============================".format(min_solves))
+                else:
+                    print("===== Warming up by running {:d} solves ===============================".format(min_solves))
+            else:
+                print("===== Running {:d} solves =============================================".format(min_solves))
+
+            for solve_pass in range(min_solves):
+                self.all_levels[start_level].fill_mesh(self.all_levels[start_level].cell_values, 0.0)
+
+                self.solve(start_level=start_level)
+
+        print("===== Timing Breakdown ==============================================")
+        self.show_timing_information()
+        self.show_error_information()
+        if self.compute_richardson_error:
+            self.run_richardson_test()
+        if self.configuration.verbose:
+            print('Backend: {}'.format(self.configuration.backend))
+
     @staticmethod
     @time_this
     @profile
     def main():
         configuration = SimpleMultigridSolver.get_configuration()
         solver = SimpleMultigridSolver(configuration)
-        solver.solve()
-        solver.show_timing_information()
-        solver.show_error_information()
-        if solver.compute_richardson_error:
-            solver.run_richardson_test()
-        if configuration.verbose:
-            print('Backend: {}'.format(solver.configuration.backend))
+        solver.benchmark_hpgmg(start_level=0)
+        return
 
 if __name__ == '__main__':
     SimpleMultigridSolver.main()

@@ -9,11 +9,12 @@ __author__ = 'nzhang-dev'
 
 class CRangeTransformer(ast.NodeTransformer):
     def __init__(self, cache_hierarchy=()):
-        self.cache_hierarchy = cache_hierarchy
+        self.cache_hierarchy = tuple(cache_hierarchy)
 
     def visit_RangeNode(self, node):
         ndim = len(node.iterator.ranges)
         cache_hierarchy = self.cache_hierarchy[:ndim]
+        cache_hierarchy = (1,) * (ndim - len(cache_hierarchy)) + cache_hierarchy
         outer_loops = []
         blocked_loops = []
         assignments = []
