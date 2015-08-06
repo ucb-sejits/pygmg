@@ -95,7 +95,7 @@ class SmoothOclFunction(PyGMGConcreteSpecializedFunction):
             working_source, working_target,
             rhs_mesh, lambda_mesh
         ] + level.beta_face_values + [level.alpha]
-        meshes = [mesh.ravel() for mesh in meshes]
+        # meshes = [mesh.ravel() for mesh in meshes]
         ocl_args = [level.queue, self.kernel]
         for mesh in meshes:
             if hasattr(mesh, "buffer"):
