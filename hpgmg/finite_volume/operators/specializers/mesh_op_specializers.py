@@ -212,8 +212,8 @@ class OclFillMeshSpecializer(MeshOpSpecializer):
         kernel = OclFileWrapper(name="fill_mesh_kernel").visit(f)
         global_shape = tuple(dim + 2 * ghost for dim, ghost in zip(subconfig['self'].interior_space, subconfig['self'].ghost_zone))
         control = generate_control(global_shape)
-        print(control)
-        print(kernel)
+        # print(control)
+        # print(kernel)
         return [control, kernel]
 
     def finalize(self, transform_result, program_config):
@@ -307,6 +307,8 @@ def generate_control(global_shape):
     ndim = len(global_shape)
     global_size = reduce(operator.mul, global_shape, 1)
     local_size = min(1024, global_size)
+    while global_size % local_size != 0:
+        local_size -= 1
 
     defn = [
         Assign((ArrayRef(SymbolRef("global", ctypes.c_ulong()), Constant(1))), Array(body=[Constant(global_size)])),
