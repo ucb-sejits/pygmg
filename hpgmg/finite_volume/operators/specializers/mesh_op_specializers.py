@@ -7,10 +7,12 @@ from ctree.c.nodes import SymbolRef, Constant, PostInc, Lt, For, Assign, Functio
 from ctree.cpp.nodes import CppInclude
 from ctree.jit import LazySpecializedFunction, ConcreteSpecializedFunction
 from ctree.nodes import Project
+from ctree.templates.nodes import StringTemplate
 from ctree.transformations import PyBasicConversions
 import math
 from rebox.specializers.order import Ordering
 from rebox.specializers.rm.encode import MultiplyEncode
+from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.operators.specializers.jit import PyGMGConcreteSpecializedFunction
 from hpgmg.finite_volume.operators.specializers.smooth_specializer import apply_all_layers
 from hpgmg.finite_volume.operators.specializers.util import include_mover, flattened_to_multi_index
@@ -45,29 +47,44 @@ class MeshOpCFunction(PyGMGConcreteSpecializedFunction):
         return flattened, {}
 
 
-# class MeshOpOclFunction(PyGMGConcreteSpecializedFunction):
-#
-#     def __init__(self, kernels):
-#         self.kernels = kernels
-#
-#     @staticmethod
-#     def pyargs_to_cargs(*args, **kwargs):
-#         flattened = []
-#         for arg in args:
-#             if isinstance(arg, hpgmg.finite_volume.simple_level.SimpleLevel):
-#                 flattened.append(arg.buffers[0])
-#             elif isinstance(arg, (int, float)):
-#                 flattened.append(arg)
-#         # for kernel in self.kernels:
-#         #     flattened.append(kernel)
-#         return flattened, {}
-#
-#     def __call__(self, *args, **kwargs):
-#         result = self.pyargs_to_cargs(args, kwargs)
-#         cargs, ckwargs = result
-#         for kernel in self.kernel:
-#             cargs.append(kernel)
-#         return self._c_function(*cargs, **ckwargs)
+class MeshOpOclFunction(ConcreteSpecializedFunction):
+
+    def __init__(self, kernels):
+        self.kernels = kernels
+
+    def finalize(self, entry_point_name, project_node, entry_point_typesig):
+        self.entry_point_name = entry_point_name
+        self.entry_point_typesig = entry_point_typesig
+        self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)
+        return self
+
+    def __call__(self, *args, **kwargs):
+        arguments = []
+        queue = None
+        for arg in args:
+            if hasattr(arg, "queue"):
+                queue = arg.queue
+                arguments.append(queue)
+                arguments.extend(kernel for kernel in self.kernels)
+            elif isinstance(arg, Mesh):
+                if hasattr(arg, "buffer"):
+                    if arg.buffer is None:
+                        arg.buffer, evt = cl.buffer_from_ndarray(queue, arg)
+                    else:
+                        arg.buffer, evt = cl.buffer_from_ndarray(queue, arg, buf=arg.buffer)
+                    arguments.append(arg.buffer)
+                else:
+                    buf, evt = cl.buffer_from_ndarray(queue, arg)
+                    arguments.append(buf)
+            elif isinstance(arg, (int, float)):
+                arguments.append(arg)
+        
+        self._c_function(*arguments)
+
+        for arg in args:
+            if isinstance(arg, Mesh):
+                arg, evt = cl.buffer_to_ndarray(queue, arg.buffer, out=arg)
+
 
 
 class MeshOpSpecializer(LazySpecializedFunction):
@@ -152,75 +169,73 @@ class CFillMeshSpecializer(MeshOpSpecializer):
         )
 
 
-# class OclFillMeshSpecializer(MeshOpSpecializer):
-#
-#     class RangeTransformer(ast.NodeTransformer):
-#         def visit_RangeNode(self, node):
-#             body=[
-#                 Assign(SymbolRef("global_id", ctypes.c_int()), FunctionCall(SymbolRef("get_global_id"), [Constant(0)]))
-#             ]
-#             ranges = node.iterator.ranges
-#             offsets = tuple(r[0] for r in ranges)
-#             shape = tuple(r[1] - r[0] for r in ranges)
-#             indices = flattened_to_multi_index(SymbolRef("global_id"), shape, offsets=offsets)
-#             for d in range(len(shape)):
-#                 body.append(Assign(SymbolRef("index_%d"%d, ctypes.c_int()), indices[d]))
-#             body.extend(node.body)
-#             return MultiNode(body=body)
-#
-#     class MeshSubconfig(dict):
-#         def __hash__(self):
-#             return hash(tuple(self[key].shape for key in ('mesh',)))
-#
-#     def args_to_subconfig(self, args):
-#         return self.MeshSubconfig({
-#             key: arg for key, arg in zip(('self', 'mesh', 'value'), args)
-#         })
-#
-#     def transform(self, f, program_config):
-#         subconfig, tuner = program_config
-#         f = super(OclFillMeshSpecializer, self).transform(f, program_config)[0]
-#         func_decl = f.find(FunctionDecl)
-#         param_types = [ctypes.POINTER(ctypes.c_double)(), ctypes.c_double()]
-#         for param, t in zip(func_decl.params, param_types):
-#             param.type = t
-#             if isinstance(t, ctypes.POINTER(ctypes.c_double)):
-#                 param.set_global()
-#         func_decl.set_kernel()
-#         f = include_mover(f)
-#         # remove includes
-#         while isinstance(f.body[0], CppInclude):
-#             f.body.pop(0)
-#         kernel = OclFileWrapper(name="fill_mesh_kernel").visit(f)
-#         global_shape = tuple(dim + 2 * ghost for dim, ghost in zip(subconfig['self'].interior_space, subconfig['self'].ghost_zone))
-#         control = generate_control(global_shape)
-#         print(control)
-#         print(kernel)
-#         return [control, kernel]
-#
-#     def finalize(self, transform_result, program_config):
-#         subconfig, tuner_config = program_config
-#         tree = transform_result[0]
-#         retval = None
-#         entry_point = self.tree.body[0].name + "_control"
-#         param_types = [cl.cl_command_queue]
-#         for param in (('mesh', 'value')):
-#             if isinstance(subconfig[param], np.ndarray):
-#                 # arr = subconfig[param]
-#                 # param_types.append(np.ctypeslib.ndpointer(
-#                 #     arr.dtype, 1, arr.size
-#                 # ))
-#                 param_types.append(cl.cl_mem)
-#             elif isinstance(subconfig[param], (int, float)):
-#                 param_types.append(ctypes.c_double)
-#         param_types.append(cl.cl_kernel)
-#         level = subconfig['self']
-#         kernel = transform_result[1]
-#         kernel = cl.clCreateProgramWithSource(level.context, kernel.codegen()).build()["fill_mesh_kernel"]
-#         fn = MeshOpOclFunction([kernel])
-#         return fn.finalize(
-#             entry_point, Project(transform_result), ctypes.CFUNCTYPE(retval, *param_types)
-#         )
+class OclFillMeshSpecializer(MeshOpSpecializer):
+
+    class RangeTransformer(ast.NodeTransformer):
+        def visit_RangeNode(self, node):
+            body=[
+                Assign(SymbolRef("global_id", ctypes.c_int()), FunctionCall(SymbolRef("get_global_id"), [Constant(0)]))
+            ]
+            ranges = node.iterator.ranges
+            offsets = tuple(r[0] for r in ranges)
+            shape = tuple(r[1] - r[0] for r in ranges)
+            indices = flattened_to_multi_index(SymbolRef("global_id"), shape, offsets=offsets)
+            for d in range(len(shape)):
+                body.append(Assign(SymbolRef("index_%d"%d, ctypes.c_int()), indices[d]))
+            body.extend(node.body)
+            return MultiNode(body=body)
+
+    class MeshSubconfig(dict):
+        def __hash__(self):
+            return hash(tuple(self[key].shape for key in ('mesh',)))
+
+    def args_to_subconfig(self, args):
+        return self.MeshSubconfig({
+            key: arg for key, arg in zip(('self', 'mesh', 'value'), args)
+        })
+
+    def transform(self, f, program_config):
+        subconfig, tuner = program_config
+        f = super(OclFillMeshSpecializer, self).transform(f, program_config)[0]
+        func_decl = f.find(FunctionDecl)
+        param_types = [ctypes.POINTER(ctypes.c_double)(), ctypes.c_double()]
+        for param, t in zip(func_decl.params, param_types):
+            param.type = t
+            if isinstance(t, ctypes.POINTER(ctypes.c_double)):
+                param.set_global()
+        func_decl.set_kernel()
+        func_decl.name = "%s_kernel" % func_decl.name
+        f = include_mover(f)
+        # remove includes
+        while isinstance(f.body[0], CppInclude):
+            f.body.pop(0)
+        kernel = OclFileWrapper(name="fill_mesh_kernel").visit(f)
+        global_shape = tuple(dim + 2 * ghost for dim, ghost in zip(subconfig['self'].interior_space, subconfig['self'].ghost_zone))
+        control = generate_control(global_shape)
+        print(control)
+        print(kernel)
+        return [control, kernel]
+
+    def finalize(self, transform_result, program_config):
+        subconfig, tuner_config = program_config
+        project = Project(transform_result)
+        control = transform_result[0]
+        kernel = transform_result[1]
+        retval = ctypes.c_int
+        kernel_name = self.tree.body[0].name
+        entry_point = kernel_name + "_control" # refers to original FunctionDef
+        param_types = [cl.cl_command_queue, cl.cl_kernel]
+        for param in (('mesh', 'value')):
+            if isinstance(subconfig[param], np.ndarray):
+                param_types.append(cl.cl_mem)
+            elif isinstance(subconfig[param], (int, float)):
+                param_types.append(ctypes.c_double)
+        level = subconfig['self']
+        kernel = cl.clCreateProgramWithSource(level.context, kernel.codegen()).build()[kernel_name + "_kernel"]
+        fn = MeshOpOclFunction([kernel])
+        return fn.finalize(
+            entry_point, project, ctypes.CFUNCTYPE(retval, *param_types)
+        )
 
 
 class CGeneralizedSimpleMeshOpSpecializer(MeshOpSpecializer):
@@ -308,7 +323,7 @@ def generate_control(global_shape):
                                    SymbolRef("fill_mesh_kernel"),
                                    Constant(1),
                                    Constant(ctypes.sizeof(ctypes.c_double())),
-                                   SymbolRef("value")
+                                   Ref(SymbolRef("value"))
                                ]),
         FunctionCall(SymbolRef("clEnqueueNDRangeKernel"), [
             SymbolRef("queue"),
@@ -327,12 +342,21 @@ def generate_control(global_shape):
     control_params = []
 
     control_params.append(SymbolRef("queue", cl.cl_command_queue()))
+    control_params.append(SymbolRef("fill_mesh_kernel", cl.cl_kernel()))
     control_params.append(SymbolRef("mesh", cl.cl_mem()))
     control_params.append(SymbolRef("value", ctypes.c_double()))
-    control_params.append(SymbolRef("fill_mesh_kernel", cl.cl_kernel()))
 
     control_func = FunctionDecl(return_type=ctypes.c_int(), name="fill_mesh_control", params=control_params, defn=defn)
 
-    body = [control_func]
+    ocl_include = StringTemplate("""
+            #include <stdio.h>
+            #ifdef __APPLE__
+            #include <OpenCL/opencl.h>
+            #else
+            #include <CL/cl.h>
+            #endif
+            """)
+
+    body = [ocl_include, control_func]
 
     return CFile(name="fill_mesh_control", body=body, config_target='opencl')

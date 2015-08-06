@@ -57,13 +57,13 @@ class BoundaryOclFunction(ConcreteSpecializedFunction):  # PyGMGConcreteSpeciali
         self.entry_point_name = entry_point_name
         return self
 
-    def __call__(self, thing, level, mesh):
-
-        arguments = [level.queue]
-        arguments.extend(kernel for kernel in self.kernels)
-        arguments.append(level.buffers[0])
-
-        self._c_function(*arguments)
+    # def __call__(self, thing, level, mesh):
+    #
+    #     arguments = [level.queue]
+    #     arguments.extend(kernel for kernel in self.kernels)
+    #     arguments.append(level.buffers[0])
+    #
+    #     self._c_function(*arguments)
 
     def __call__(self, thing, level, mesh):
 
