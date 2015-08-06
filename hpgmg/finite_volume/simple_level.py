@@ -136,7 +136,7 @@ class SimpleLevel(object):
     @specialized_func_dispatcher({
         'c': CFillMeshSpecializer,
         'omp': CFillMeshSpecializer,
-        'ocl': OclFillMeshSpecializer
+        'ocl': CFillMeshSpecializer
     })
     # @manage_buffers_fill_mesh
     def fill_mesh(self, mesh, value):

@@ -8,6 +8,12 @@ import hpgmg.finite_volume.space as space
 
 
 class Mesh(np.ndarray):
+
+    def __init__(self, *args, **kwargs):
+        self.buffer = None
+        self.dirty_buffer = False
+        super(Mesh, self).__init__()
+
     def __new__(cls, *args, **kwargs):
         obj = np.ndarray(*args, **kwargs).view(cls)
         #obj.fill(0)

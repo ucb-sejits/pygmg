@@ -30,7 +30,7 @@ class JacobiSmoother(Smoother):
         self.iterations = iterations
 
     #@time_this
-    @manage_smooth_buffers
+    # @manage_smooth_buffers
     def smooth(self, level, mesh_to_smooth, rhs_mesh):
         """
         :param level: the level being smoothed

@@ -60,10 +60,12 @@ class BoundaryOclFunction(ConcreteSpecializedFunction):  # PyGMGConcreteSpeciali
 
         arguments = [level.queue]
         arguments.extend(kernel for kernel in self.kernels)
-        arguments.append(level.buffers[0])
+        if mesh.buffer is None:
+            mesh.buffer, evt = cl.buffer_from_ndarray(level.queue, mesh)
+        arguments.append(mesh.buffer)
 
         self._c_function(*arguments)
-        return
+        cl.buffer_to_ndarray(level.queue, mesh.buffer, out=mesh)
 
         # for kernel, k_idx in zip(self.kernels, range(len(self.kernels))):
         #     kernel.argtypes = (cl.cl_mem,)
