@@ -14,6 +14,7 @@ from ctree.transformations import PyBasicConversions
 import math
 from rebox.specializers.order import Ordering
 from rebox.specializers.rm.encode import MultiplyEncode
+from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.operators.specializers.jit import PyGMGConcreteSpecializedFunction
 from hpgmg.finite_volume.operators.specializers.util import apply_all_layers, include_mover, flattened_to_multi_index, \
     time_this
@@ -60,12 +61,28 @@ class BoundaryOclFunction(ConcreteSpecializedFunction):  # PyGMGConcreteSpeciali
 
         arguments = [level.queue]
         arguments.extend(kernel for kernel in self.kernels)
-        if mesh.buffer is None:
-            mesh.buffer, evt = cl.buffer_from_ndarray(level.queue, mesh)
-        arguments.append(mesh.buffer)
+        arguments.append(level.buffers[0])
 
         self._c_function(*arguments)
-        cl.buffer_to_ndarray(level.queue, mesh.buffer, out=mesh)
+
+    def __call__(self, thing, level, mesh):
+
+        arguments = [level.queue]
+        arguments.extend(kernel for kernel in self.kernels)
+        # mesh = mesh.ravel()
+        if hasattr(mesh, "buffer"):
+            if mesh.buffer is None:
+                mesh.buffer, evt = cl.buffer_from_ndarray(level.queue, mesh)
+            else:
+                mesh.buffer, evt = cl.buffer_from_ndarray(level.queue, mesh, buf=mesh.buffer)
+            arguments.append(mesh.buffer)
+            buf = mesh.buffer
+        else:
+            buf, evt = cl.buffer_from_ndarray(level.queue, mesh)
+            arguments.append(buf)
+
+        self._c_function(*arguments)
+        cl.buffer_to_ndarray(level.queue, buf, out=mesh)
 
         # for kernel, k_idx in zip(self.kernels, range(len(self.kernels))):
         #     kernel.argtypes = (cl.cl_mem,)

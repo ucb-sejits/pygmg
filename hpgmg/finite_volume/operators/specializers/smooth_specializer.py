@@ -24,6 +24,7 @@ from rebox.specializers.order import Ordering
 from rebox.specializers.rm.encode import MultiplyEncode
 import time
 import hpgmg
+from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.operators.specializers.jit import PyGMGConcreteSpecializedFunction
 
 from hpgmg.finite_volume.operators.specializers.util import to_macro_function, apply_all_layers, include_mover, \
@@ -81,6 +82,12 @@ class SmoothOclFunction(PyGMGConcreteSpecializedFunction):
         self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)
         self.entry_point_name = entry_point_name
         return self
+    #
+    # def __call__(self, thing, level, working_source, working_target, rhs_mesh, lambda_mesh):
+    #     self.kernel.argtypes = tuple(cl.cl_mem for _ in range(len(level.buffers)))
+    #     global_size = reduce(operator.mul, level.interior_space, 1)
+    #
+    #     run_evt = self.kernel(*level.buffers).on(level.queue, gsize=global_size, lsize=self.local_size)
 
     def __call__(self, thing, level, working_source, working_target, rhs_mesh, lambda_mesh):
 
@@ -88,19 +95,26 @@ class SmoothOclFunction(PyGMGConcreteSpecializedFunction):
             working_source, working_target,
             rhs_mesh, lambda_mesh
         ] + level.beta_face_values + [level.alpha]
+        meshes = [mesh.ravel() for mesh in meshes]
         ocl_args = [level.queue, self.kernel]
         for mesh in meshes:
-            if mesh.buffer is None:
-                mesh.buffer, evt = cl.buffer_from_ndarray(level.queue, mesh)
-            ocl_args.append(mesh.buffer)
+            if hasattr(mesh, "buffer"):
+                if mesh.buffer is None:
+                    mesh.buffer, evt = cl.buffer_from_ndarray(level.queue, mesh)
+                else:
+                    mesh.buffer, evt = cl.buffer_from_ndarray(level.queue, mesh, buf=mesh.buffer)
+                ocl_args.append(mesh.buffer)
+            else:
+                buf, evt = cl.buffer_from_ndarray(level.queue, mesh)
+                ocl_args.append(buf)
 
-        # self.kernel.argtypes = tuple(cl.cl_mem for _ in range(len(level.buffers)))
+        # self.kernel.argtypes = tuple(cl.cl_mem for _ in range(len(ocl_args) - 2))
         # global_size = reduce(operator.mul, level.interior_space, 1)
 
-        # run_evt = self.kernel(*level.buffers).on(level.queue, gsize=global_size, lsize=self.local_size)
+        # run_evt = self.kernel(*ocl_args[2:]).on(level.queue, gsize=global_size, lsize=self.local_size)
         self._c_function(*ocl_args)
-        cl.buffer_to_ndarray(level.queue, working_source.buffer, out=working_source)
-        cl.buffer_to_ndarray(level.queue, working_target.buffer, out=working_target)
+        cl.buffer_to_ndarray(level.queue, meshes[0].buffer, out=meshes[0])
+        cl.buffer_to_ndarray(level.queue, meshes[1].buffer, out=meshes[1])
 
 
 class CSmoothSpecializer(LazySpecializedFunction):
