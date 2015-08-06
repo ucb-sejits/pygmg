@@ -222,10 +222,10 @@ class OclFillMeshSpecializer(MeshOpSpecializer):
         control = transform_result[0]
         kernel = transform_result[1]
         retval = ctypes.c_int
-        kernel_name = self.tree.body[0].name
-        entry_point = kernel_name + "_control" # refers to original FunctionDef
+        kernel_name = self.tree.body[0].name # refers to original FunctionDef
+        entry_point = kernel_name + "_control"
         param_types = [cl.cl_command_queue, cl.cl_kernel]
-        for param in (('mesh', 'value')):
+        for param, value in subconfig.items():
             if isinstance(subconfig[param], np.ndarray):
                 param_types.append(cl.cl_mem)
             elif isinstance(subconfig[param], (int, float)):
