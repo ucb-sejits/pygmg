@@ -456,3 +456,13 @@ def manage_residual_buffers(residual_func):
         else:
             return residual_func(self, level, target_mesh, source_mesh, right_hand_side)
     return residual_wrapper
+
+def manage_buffers_fill_mesh(fill_mesh_func):
+    def fill_mesh_wrapper(self, mesh, value):
+        if self.configuration.backend == 'ocl':
+            self.buffers[0], evt = cl.buffer_from_ndarray(self.queue, mesh)
+            fill_mesh_func(self, mesh, self.buffers[0])
+            mesh, evt = cl.buffer_to_ndarray(self.queue, self.buffers[0], out=mesh)
+            # self.buffers = []
+        else:
+            fill_mesh_func(self, mesh, value)

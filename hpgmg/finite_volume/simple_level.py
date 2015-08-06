@@ -7,14 +7,17 @@ import itertools
 from stencil_code.halo_enumerator import HaloEnumerator
 from hpgmg.finite_volume.iterator import RangeIterator
 from hpgmg.finite_volume.operators.specializers.mesh_op_specializers import MeshOpSpecializer, CFillMeshSpecializer, \
-    CGeneralizedSimpleMeshOpSpecializer
-from hpgmg.finite_volume.operators.specializers.util import time_this, specialized_func_dispatcher
+    CGeneralizedSimpleMeshOpSpecializer, OclFillMeshSpecializer
+from hpgmg.finite_volume.operators.specializers.util import time_this, specialized_func_dispatcher, \
+    manage_buffers_fill_mesh
 from hpgmg.finite_volume.timer import EventTimer
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 from hpgmg.finite_volume.space import Vector, Space, Coord
 from hpgmg.finite_volume.mesh import Mesh
+
+import pycl as cl
 
 
 class SimpleLevel(object):
@@ -84,8 +87,8 @@ class SimpleLevel(object):
         self.timer = EventTimer(self)
 
         self.buffers = []
-        self.queue = None
-        self.context = None
+        self.context = cl.clCreateContext(devices=[cl.clGetDeviceIDs()[-1]])
+        self.queue = cl.clCreateCommandQueue(self.context)
         # self.smooth_events = []
         # self.boundary_events = []
 
@@ -133,8 +136,9 @@ class SimpleLevel(object):
     @specialized_func_dispatcher({
         'c': CFillMeshSpecializer,
         'omp': CFillMeshSpecializer,
-        'ocl': CFillMeshSpecializer
+        'ocl': OclFillMeshSpecializer
     })
+    # @manage_buffers_fill_mesh
     def fill_mesh(self, mesh, value):
         for index in self.indices():
             mesh[index] = value  # if self.valid[index] > 0.0 else 0.0
