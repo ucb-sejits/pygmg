@@ -7,7 +7,7 @@ import itertools
 from stencil_code.halo_enumerator import HaloEnumerator
 from hpgmg.finite_volume.iterator import RangeIterator
 from hpgmg.finite_volume.operators.specializers.mesh_op_specializers import MeshOpSpecializer, CFillMeshSpecializer, \
-    CGeneralizedSimpleMeshOpSpecializer, OclFillMeshSpecializer
+    CGeneralizedSimpleMeshOpSpecializer, OclFillMeshSpecializer, OclGeneralizedSimpleMeshOpSpecializer
 from hpgmg.finite_volume.operators.specializers.util import time_this, specialized_func_dispatcher, \
     manage_buffers_fill_mesh
 from hpgmg.finite_volume.timer import EventTimer
@@ -147,7 +147,7 @@ class SimpleLevel(object):
     @specialized_func_dispatcher({
         'c': CGeneralizedSimpleMeshOpSpecializer,
         'omp': CGeneralizedSimpleMeshOpSpecializer,
-        'ocl': CGeneralizedSimpleMeshOpSpecializer
+        'ocl': OclGeneralizedSimpleMeshOpSpecializer
     })
     def add_meshes(self, target_mesh, scale_a, mesh_a, scale_b, mesh_b):
         for index in self.interior_points():
@@ -157,7 +157,7 @@ class SimpleLevel(object):
     @specialized_func_dispatcher({
         'c': CGeneralizedSimpleMeshOpSpecializer,
         'omp': CGeneralizedSimpleMeshOpSpecializer,
-        'ocl': CGeneralizedSimpleMeshOpSpecializer
+        'ocl': OclGeneralizedSimpleMeshOpSpecializer
     })
     def multiply_meshes(self, target_mesh, scale_factor, mesh_a, mesh_b):
         for index in self.interior_points():
@@ -167,7 +167,7 @@ class SimpleLevel(object):
     @specialized_func_dispatcher({
         'c': CGeneralizedSimpleMeshOpSpecializer,
         'omp': CGeneralizedSimpleMeshOpSpecializer,
-        'ocl': CGeneralizedSimpleMeshOpSpecializer
+        'ocl': OclGeneralizedSimpleMeshOpSpecializer
     })
     def invert_mesh(self, target_mesh, scale_factor, mesh_to_invert):
         for index in self.interior_points():
@@ -177,7 +177,7 @@ class SimpleLevel(object):
     @specialized_func_dispatcher({
         'c': CGeneralizedSimpleMeshOpSpecializer,
         'omp': CGeneralizedSimpleMeshOpSpecializer,
-        'ocl': CGeneralizedSimpleMeshOpSpecializer
+        'ocl': OclGeneralizedSimpleMeshOpSpecializer
     })
     def copy_mesh(self, target_mesh, source_mesh):
         for index in self.interior_points():
@@ -187,7 +187,7 @@ class SimpleLevel(object):
     @specialized_func_dispatcher({
         'c': CGeneralizedSimpleMeshOpSpecializer,
         'omp': CGeneralizedSimpleMeshOpSpecializer,
-        'ocl': CGeneralizedSimpleMeshOpSpecializer
+        'ocl': OclGeneralizedSimpleMeshOpSpecializer
     })
     def scale_mesh(self, target_mesh, scale_factor, source_mesh):
         for index in self.interior_points():
@@ -197,7 +197,7 @@ class SimpleLevel(object):
     @specialized_func_dispatcher({
         'c': CGeneralizedSimpleMeshOpSpecializer,
         'omp': CGeneralizedSimpleMeshOpSpecializer,
-        'ocl': CGeneralizedSimpleMeshOpSpecializer
+        'ocl': OclGeneralizedSimpleMeshOpSpecializer
     })
     def shift_mesh(self, target_mesh, shift_value, source_mesh):
         for index in self.interior_points():
@@ -219,7 +219,8 @@ class SimpleLevel(object):
     @specialized_func_dispatcher({
         'c': CGeneralizedSimpleMeshOpSpecializer,
         'omp': CGeneralizedSimpleMeshOpSpecializer,
-        'ocl': CGeneralizedSimpleMeshOpSpecializer
+        'ocl': CGeneralizedSimpleMeshOpSpecializer,
+        # 'ocl': OclNormMeshSpecializer
     })
     def norm_mesh(self, mesh):
         max_norm = 0.0

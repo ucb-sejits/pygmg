@@ -8,15 +8,19 @@ import time
 
 from ctree import get_ast
 import ctree
+from ctree.c.macros import NULL
 from ctree.cpp.nodes import CppDefine
 from ctree.frontend import dump
-from ctree.c.nodes import SymbolRef, MultiNode, Constant, Add, Mul, FunctionCall, Div, Mod
+from ctree.c.nodes import SymbolRef, MultiNode, Constant, Add, Mul, FunctionCall, Div, Mod, Ref, FunctionDecl, ArrayDef, \
+    Assign, Return, Array, CFile
+from ctree.templates.nodes import StringTemplate
 from ctree.transformations import PyBasicConversions
 import itertools
 import operator
 import sympy
 import pycl as cl
 import numpy as np
+import ctypes
 
 from hpgmg import finite_volume
 from hpgmg.finite_volume.operators.transformers.generator_transformers import GeneratorTransformer, \
@@ -466,3 +470,62 @@ def manage_buffers_fill_mesh(fill_mesh_func):
             # self.buffers = []
         else:
             fill_mesh_func(self, mesh, value)
+
+def new_generate_control(name, global_size, local_size, kernel_params, kernels, other=None):
+    # assumes that all kernels take the same arguments and that they all use the same global and local size!
+    defn = []
+    defn.append(ArrayDef(SymbolRef("global", ctypes.c_ulong()), 1, Array(body=[Constant(global_size)])))
+    defn.append(ArrayDef(SymbolRef("local", ctypes.c_ulong()), 1, Array(body=[Constant(local_size)])))
+    defn.append(Assign(SymbolRef("error_code", ctypes.c_int()), Constant(0)))
+    for kernel in kernels:
+        kernel_name = kernel.find(FunctionDecl, kernel=True).name
+        for param, num in zip(kernel_params, range(len(kernel_params))):
+            if isinstance(param, ctypes.POINTER(ctypes.c_double)):
+                set_arg = FunctionCall(SymbolRef("clSetKernelArg"),
+                                     [SymbolRef(kernel_name),
+                                      Constant(num),
+                                      FunctionCall(SymbolRef("sizeof"), [SymbolRef("cl_mem")]),
+                                      Ref(SymbolRef(param.name))])
+            else:
+                set_arg = FunctionCall(SymbolRef("clSetKernelArg"),
+                                     [SymbolRef(kernel_name),
+                                      Constant(num),
+                                      Constant(ctypes.sizeof(param.type)),
+                                      Ref(SymbolRef(param.name))])
+            defn.append(set_arg)
+        enqueue_call = FunctionCall(SymbolRef("clEnqueueNDRangeKernel"), [
+            SymbolRef("queue"),
+            SymbolRef(kernel_name),
+            Constant(1),
+            NULL(),
+            SymbolRef("global"),
+            SymbolRef("local"),
+            Constant(0),
+            NULL(),
+            NULL()
+        ])
+        defn.append(enqueue_call)
+    defn.append(Return(SymbolRef("error_code")))
+    params=[]
+    params.append(SymbolRef("queue", cl.cl_command_queue()))
+    for kernel in kernels:
+        params.append(SymbolRef(kernel.find(FunctionDecl, kernel=True).name, cl.cl_kernel()))
+    for param in kernel_params:
+        if isinstance(param.type, ctypes.POINTER(ctypes.c_double)):
+            params.append(SymbolRef(param.name, cl.cl_mem()))
+        else:
+            params.append(param)
+    func = FunctionDecl(ctypes.c_int(), name, params, defn)
+    ocl_include = StringTemplate("""
+            #include <stdio.h>
+            #ifdef __APPLE__
+            #include <OpenCL/opencl.h>
+            #else
+            #include <CL/cl.h>
+            #endif
+            """)
+    body = [ocl_include, func]
+    if other:
+        body.extend(other)
+    file = CFile(name=name, body=body, config_target='opencl')
+    return file
