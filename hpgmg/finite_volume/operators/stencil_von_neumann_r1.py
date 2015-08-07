@@ -3,11 +3,12 @@ from __future__ import print_function
 from stencil_code.neighborhood import Neighborhood
 
 from hpgmg.finite_volume.operators.base_operator import BaseOperator
+from hpgmg.finite_volume.operators.kernels.von_neumann import VariableCoefficientVonNeumannStencil, \
+    ConstantCoefficientVonNeumannStencil
 from hpgmg.finite_volume.operators.restriction import Restriction
 from hpgmg.finite_volume.operators.specializers.rebuild_specializer import CRebuildSpecializer
 from hpgmg.finite_volume.operators.specializers.util import specialized_func_dispatcher, profile
 from hpgmg.finite_volume.space import Coord
-
 import numpy as np
 
 
@@ -38,15 +39,22 @@ class StencilVonNeumannR1(BaseOperator):
         ]
         self.num_neighbors = len(self.neighborhood_offsets)
 
+        self.kernel_class = None
+
         if solver.is_variable_coefficient:
+            #self.kernel_class = VariableCoefficientVonNeumannStencil
             if solver.is_helmholtz:
                 self.apply_op = self.apply_op_variable_coefficient_boundary_conditions_helmholtz
             else:
                 self.apply_op = self.apply_op_variable_coefficient_boundary_conditions_poisson
         else:
             self.apply_op = self.apply_op_constant_coefficient_boundary_conditions
+            #self.kernel_class = ConstantCoefficientVonNeumannStencil
+        #self.kernel = None
+        self.set_scale(1)
 
     def set_scale(self, level_h):
+        #print("Set scale: ", level_h)
         self.h2inv = 1.0 / (level_h ** 2)
 
     def apply_op_variable_coefficient_boundary_conditions_helmholtz(self, mesh, index, level):
@@ -84,6 +92,7 @@ class StencilVonNeumannR1(BaseOperator):
                 for dim in range(self.dimensions)
             )
         )
+
 
     def apply_op_constant_coefficient_boundary_conditions(self, mesh, index, level):
         return self.a * mesh[index] - self.b * self.h2inv * (

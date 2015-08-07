@@ -8,6 +8,7 @@ import os
 import sys
 import logging
 import time
+from stencil.stencil_compiler import CCompiler
 import sympy
 from hpgmg import finite_volume
 from hpgmg.finite_volume.mesh import Mesh
@@ -43,6 +44,7 @@ class SimpleMultigridSolver(object):
     """
     @profile
     def __init__(self, configuration):
+        self.compiler = CCompiler
         self.dump_grids = configuration.dump_grids
         if self.dump_grids:
             Mesh.dump_mesh_enabled = True

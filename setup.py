@@ -22,6 +22,7 @@ setup(
         'sympy',
         'ctree',
         'stencil_code',
-        'rebox'
+        'rebox',
+        'stencil'
     ]
 )

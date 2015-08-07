@@ -3,3 +3,4 @@ sympy
 -e git+git://github.com/ucb-sejits/ctree@Rebox#egg=ctree
 -e git+git://github.com/ucb-sejits/Rebox@development#egg=Rebox
 -e git+git://github.com/ucb-sejits/stencil_code@development#egg=stencil_code
+-e git+git://github.com/ucb-sejits/stencil
