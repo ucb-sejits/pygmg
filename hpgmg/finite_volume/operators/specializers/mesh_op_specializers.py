@@ -3,7 +3,7 @@ from collections import OrderedDict
 import ctypes
 from ctree.c.macros import NULL
 from ctree.c.nodes import SymbolRef, Constant, PostInc, Lt, For, Assign, FunctionDecl, CFile, Return, FunctionCall, \
-    MultiNode, ArrayRef, Array, Ref, Mul, Add, If, Gt
+    MultiNode, ArrayRef, Array, Ref, Mul, Add, If, Gt, AddAssign
 from ctree.cpp.nodes import CppInclude
 from ctree.jit import LazySpecializedFunction, ConcreteSpecializedFunction
 from ctree.nodes import Project
@@ -405,7 +405,7 @@ class OclGeneralizedSimpleMeshOpSpecializer(MeshOpSpecializer):
         )
 
 
-class OclNormMeshSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
+class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
 
     class RangeTransformer(ast.NodeTransformer):
         def visit_RangeNode(self, node):
@@ -449,10 +449,6 @@ class OclNormMeshSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
         local_size = min(cl.clGetDeviceIDs()[-1].max_work_group_size, interior_size)
 
         kernel_funcs = []
-        global_sizes = []
-        local_sizes = []
-        kernel_params = []
-        encode_func = None
 
         f = super(OclGeneralizedSimpleMeshOpSpecializer, self).transform(f, program_config)[0]
         f = include_mover(f)
@@ -467,12 +463,12 @@ class OclNormMeshSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
         first_reducer = f.find(FunctionDecl)
         # need to change return statement to assign statement
         first_reducer = DeclarationFiller().visit(first_reducer)
+        acc_name = get_reduction_var_name(first_reducer.name)
 
         # remove return statement and add assignment statement:
-        first_reducer.defn.pop()
-        first_reducer.defn.append(Assign(ArrayRef(SymbolRef("max_so_far"),
+        first_reducer.defn[-1] = Assign(ArrayRef(SymbolRef("temp"),
                                                   FunctionCall(SymbolRef("get_global_id"), [Constant(0)])),
-                                         SymbolRef("max_norm")))
+                                         SymbolRef(acc_name))
 
         # params for first_reducer
         params = []
@@ -486,39 +482,25 @@ class OclNormMeshSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
                 # param.set_restrict()
                 param.set_global()
             params.append(param)
-        params.append(SymbolRef("max_so_far", ctypes.POINTER(ctypes.c_double)(), _global=True))
+        params.append(SymbolRef("temp", ctypes.POINTER(ctypes.c_double)(), _global=True))
         # params[-1].set_restrict()
 
         first_reducer.params = params
         kernel_funcs.append(first_reducer)
-        global_sizes.append(interior_size)
-        local_sizes.append(local_size)
-        kernel_params.append(first_reducer.params)
 
-        ### make the second reducer
-        second_reducer_defn = [
-            Assign(SymbolRef("max_norm", ctypes.c_double()), Constant(0.0)),
-            For(init=Assign(SymbolRef("i", ctypes.c_int()), Constant(0)),
-                test=Lt(SymbolRef("i"), Constant(local_size)),
-                incr=PostInc(SymbolRef("i")),
-                body=[If(cond=Gt(ArrayRef(SymbolRef("max_so_far"), SymbolRef("i")), SymbolRef("max_norm")),
-                         then=Assign(SymbolRef("max_norm"), ArrayRef(SymbolRef("max_so_far"), SymbolRef("i")))),
-                      Assign(ArrayRef(SymbolRef("final"), Constant(0)), SymbolRef("max_norm"))])
-        ]
+        # make the second reducer
+        second_reducer_defn = generate_second_reducer_func(first_reducer.name, local_size)
 
         second_reducer_params = [
-            SymbolRef("max_so_far", ctypes.POINTER(ctypes.c_double)()),
-            SymbolRef("final", ctypes.POINTER(ctypes.c_double)())
+            SymbolRef("temp", ctypes.POINTER(ctypes.c_double)(), _global=True),
+            SymbolRef("final", ctypes.POINTER(ctypes.c_double)(), _global=True)
         ]
         for param in second_reducer_params:
             param.set_global()
         #     param.set_restrict()
 
-        second_reducer = FunctionDecl(name="max_norm_2", params=second_reducer_params, defn=second_reducer_defn)
+        second_reducer = FunctionDecl(name="%s_2"%first_reducer.name, params=second_reducer_params, defn=second_reducer_defn)
         kernel_funcs.append(second_reducer)
-        global_sizes.append(local_size)
-        local_sizes.append(1)
-        kernel_params.append(second_reducer_params)
         kernel_files = []
         double_include = StringTemplate("""#pragma OPENCL EXTENSION cl_khr_fp64: enable""")
 
@@ -527,19 +509,17 @@ class OclNormMeshSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
             for call in kernel.find_all(FunctionCall):
                 if call.func.name == 'abs':
                     call.func.name = 'fabs'
-                    # f.body.append(CppInclude("math.h"))
             kernel_files.append(OclFile(name=kernel.name, body=[double_include, kernel]))
+        kernel_files[0].body.insert(0, encode_func)
 
-
-        if len(kernel_files) > 1:
-            kernel_files[0].body.insert(0, encode_func)
-
-        control_file=generate_norm_mesh_control("norm_mesh", global_sizes, local_sizes, kernel_params, kernel_files)
+        control_file=generate_norm_mesh_control(first_reducer.name,
+                                                [interior_size, local_size],
+                                                [local_size, 1],
+                                                first_reducer.params[:-1],
+                                                kernel_files)
 
         files = [control_file]
         files.extend(kernel_files)
-        # for file in files:
-        #     print(file)
         return files
 
     def finalize(self, transform_result, program_config):
@@ -562,7 +542,7 @@ class OclNormMeshSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
                 param_types.append(cl.cl_mem)
             elif isinstance(subconfig[param], (int, float)):
                 param_types.append(ctypes.c_double)
-        param_types.append(cl.cl_mem)  # max_so_far
+        param_types.append(cl.cl_mem)  # temp
         param_types.append(cl.cl_mem)  # final
 
         level = subconfig['self']
@@ -574,8 +554,15 @@ class OclNormMeshSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
 
 
 
-def generate_norm_mesh_control(name, global_sizes, local_sizes, kernel_params, kernels):
+def generate_norm_mesh_control(name, global_sizes, local_sizes, original_params, kernels):
     # kernels are expected to be ocl files
+    first_reducer_params = original_params[:]
+    first_reducer_params.append(SymbolRef("temp", ctypes.POINTER(ctypes.c_double)()))
+    second_reducer_params = [
+        SymbolRef("temp", ctypes.POINTER(ctypes.c_double)()),
+        SymbolRef("final", ctypes.POINTER(ctypes.c_double)())
+    ]
+    kernel_params = [first_reducer_params, second_reducer_params]
     defn = []
     defn.append(ArrayRef(SymbolRef("global", ctypes.c_ulong()), Constant(1)))
     defn.append(ArrayRef(SymbolRef("local", ctypes.c_ulong()), Constant(1)))
@@ -632,8 +619,13 @@ def generate_norm_mesh_control(name, global_sizes, local_sizes, kernel_params, k
     for kernel in kernels:
         params.append(SymbolRef(kernel.find(FunctionDecl, kernel=True).name, cl.cl_kernel()))
 
-    params.append(SymbolRef("mesh", cl.cl_mem()))
-    params.append(SymbolRef("max_so_far", cl.cl_mem()))
+    # params.append(SymbolRef("mesh", cl.cl_mem()))
+    for param in original_params:
+        if isinstance(param.type, ctypes.POINTER(ctypes.c_double)):
+            params.append(SymbolRef(param.name, cl.cl_mem()))
+        else:
+            params.append(param)
+    params.append(SymbolRef("temp", cl.cl_mem()))
     params.append(SymbolRef("final", cl.cl_mem()))
 
     control_func = FunctionDecl(return_type=ctypes.c_double(), name="%s_control"%name, params=params, defn=defn)
@@ -646,3 +638,29 @@ def generate_norm_mesh_control(name, global_sizes, local_sizes, kernel_params, k
             #endif
             """)
     return CFile("%s_control"%name, body=[ocl_include, control_func], config_target="opencl")
+
+def get_reduction_var_name(func_name):
+    if func_name == "norm_mesh":
+        return "max_norm"
+    if func_name == "dot_mesh":
+        return "accumulator"
+
+def generate_second_reducer_func(func_name, local_size):
+    loop_body = []
+    acc_name = get_reduction_var_name(func_name)
+    if func_name == "norm_mesh":
+        loop_body.append(If(cond=Gt(ArrayRef(SymbolRef("temp"), SymbolRef("i")), SymbolRef(acc_name)),
+                   then=Assign(SymbolRef(acc_name), ArrayRef(SymbolRef("temp"), SymbolRef("i")))))
+    elif func_name == "dot_mesh":
+        loop_body.append(AddAssign(SymbolRef(acc_name), ArrayRef(SymbolRef("temp"), SymbolRef("i"))))
+
+    defn = []
+    defn.append(Assign(SymbolRef(acc_name, ctypes.c_double()), Constant(0.0)))
+    for_loop = For(init=Assign(SymbolRef("i", ctypes.c_int()), Constant(0)),
+                   test=Lt(SymbolRef("i"), Constant(local_size)),
+                   incr=PostInc(SymbolRef("i")),
+                   body=loop_body)
+    defn.append(for_loop)
+    defn.append(Assign(ArrayRef(SymbolRef("final"), Constant(0)), SymbolRef(acc_name)))
+
+    return defn
