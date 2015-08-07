@@ -3,7 +3,7 @@ from collections import OrderedDict
 import ctypes
 from ctree.c.macros import NULL
 from ctree.c.nodes import SymbolRef, Constant, PostInc, Lt, For, Assign, FunctionDecl, CFile, Return, FunctionCall, \
-    MultiNode, ArrayRef, Array, Ref, Mul, Add, If, Gt, AddAssign
+    MultiNode, ArrayRef, Array, Ref, Mul, Add, If, Gt, AddAssign, Div
 from ctree.cpp.nodes import CppInclude
 from ctree.jit import LazySpecializedFunction, ConcreteSpecializedFunction
 from ctree.nodes import Project
@@ -489,7 +489,7 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
         kernel_funcs.append(first_reducer)
 
         # make the second reducer
-        second_reducer_defn = generate_second_reducer_func(first_reducer.name, local_size)
+        second_reducer_defn = generate_second_reducer_func(first_reducer.name, interior_size, local_size)
 
         second_reducer_params = [
             SymbolRef("temp", ctypes.POINTER(ctypes.c_double)(), _global=True),
@@ -512,7 +512,7 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
             kernel_files.append(OclFile(name=kernel.name, body=[double_include, kernel]))
         kernel_files[0].body.insert(0, encode_func)
 
-        control_file=generate_norm_mesh_control(first_reducer.name,
+        control_file=generate_reduce_mesh_control(first_reducer.name,
                                                 [interior_size, local_size],
                                                 [local_size, 1],
                                                 first_reducer.params[:-1],
@@ -520,6 +520,8 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
 
         files = [control_file]
         files.extend(kernel_files)
+        # for file in files:
+        #     print(file)
         return files
 
     def finalize(self, transform_result, program_config):
@@ -554,7 +556,7 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
 
 
 
-def generate_norm_mesh_control(name, global_sizes, local_sizes, original_params, kernels):
+def generate_reduce_mesh_control(name, global_sizes, local_sizes, original_params, kernels):
     # kernels are expected to be ocl files
     first_reducer_params = original_params[:]
     first_reducer_params.append(SymbolRef("temp", ctypes.POINTER(ctypes.c_double)()))
@@ -642,17 +644,24 @@ def generate_norm_mesh_control(name, global_sizes, local_sizes, original_params,
 def get_reduction_var_name(func_name):
     if func_name == "norm_mesh":
         return "max_norm"
-    if func_name == "dot_mesh":
+    if func_name == "dot_mesh" or func_name == "mean_mesh":
         return "accumulator"
 
-def generate_second_reducer_func(func_name, local_size):
+def generate_second_reducer_func(func_name, interior_size, local_size):
     loop_body = []
+    final_assignment = None
     acc_name = get_reduction_var_name(func_name)
     if func_name == "norm_mesh":
         loop_body.append(If(cond=Gt(ArrayRef(SymbolRef("temp"), SymbolRef("i")), SymbolRef(acc_name)),
                    then=Assign(SymbolRef(acc_name), ArrayRef(SymbolRef("temp"), SymbolRef("i")))))
+        final_assignment = Assign(ArrayRef(SymbolRef("final"), Constant(0)), SymbolRef(acc_name))
     elif func_name == "dot_mesh":
         loop_body.append(AddAssign(SymbolRef(acc_name), ArrayRef(SymbolRef("temp"), SymbolRef("i"))))
+        final_assignment = Assign(ArrayRef(SymbolRef("final"), Constant(0)), SymbolRef(acc_name))
+    elif func_name == "mean_mesh":
+        loop_body.append(AddAssign(SymbolRef(acc_name), ArrayRef(SymbolRef("temp"), SymbolRef("i"))))
+        final_assignment = Assign(ArrayRef(SymbolRef("final"), Constant(0)),
+                                  Div(SymbolRef(acc_name), Constant(interior_size)))
 
     defn = []
     defn.append(Assign(SymbolRef(acc_name, ctypes.c_double()), Constant(0.0)))
@@ -661,6 +670,6 @@ def generate_second_reducer_func(func_name, local_size):
                    incr=PostInc(SymbolRef("i")),
                    body=loop_body)
     defn.append(for_loop)
-    defn.append(Assign(ArrayRef(SymbolRef("final"), Constant(0)), SymbolRef(acc_name)))
+    defn.append(final_assignment)
 
     return defn

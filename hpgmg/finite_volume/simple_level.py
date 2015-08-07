@@ -244,7 +244,8 @@ class SimpleLevel(object):
     @specialized_func_dispatcher({
         'c': CGeneralizedSimpleMeshOpSpecializer,
         'omp': CGeneralizedSimpleMeshOpSpecializer,
-        'ocl': CGeneralizedSimpleMeshOpSpecializer
+        # 'ocl': CGeneralizedSimpleMeshOpSpecializer
+        'ocl': OclMeshReduceOpSpecializer
     })
     def mean_mesh(self, mesh):
         """
