@@ -7,7 +7,8 @@ import itertools
 from stencil_code.halo_enumerator import HaloEnumerator
 from hpgmg.finite_volume.iterator import RangeIterator
 from hpgmg.finite_volume.operators.specializers.mesh_op_specializers import MeshOpSpecializer, CFillMeshSpecializer, \
-    CGeneralizedSimpleMeshOpSpecializer, OclFillMeshSpecializer, OclGeneralizedSimpleMeshOpSpecializer
+    CGeneralizedSimpleMeshOpSpecializer, OclFillMeshSpecializer, OclGeneralizedSimpleMeshOpSpecializer, \
+    OclNormMeshSpecializer
 from hpgmg.finite_volume.operators.specializers.util import time_this, specialized_func_dispatcher, \
     manage_buffers_fill_mesh
 from hpgmg.finite_volume.timer import EventTimer
@@ -219,8 +220,7 @@ class SimpleLevel(object):
     @specialized_func_dispatcher({
         'c': CGeneralizedSimpleMeshOpSpecializer,
         'omp': CGeneralizedSimpleMeshOpSpecializer,
-        'ocl': CGeneralizedSimpleMeshOpSpecializer,
-        # 'ocl': OclNormMeshSpecializer
+        'ocl': OclNormMeshSpecializer
     })
     def norm_mesh(self, mesh):
         max_norm = 0.0

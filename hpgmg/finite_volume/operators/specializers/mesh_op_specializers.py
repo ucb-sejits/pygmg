@@ -405,239 +405,244 @@ class OclGeneralizedSimpleMeshOpSpecializer(MeshOpSpecializer):
         )
 
 
-# class OclNormMeshSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
-#
-#     class RangeTransformer(ast.NodeTransformer):
-#         def visit_RangeNode(self, node):
-#
-#             ranges = node.iterator.ranges
-#             offsets = tuple(r[0] for r in ranges)
-#             shape = tuple(r[1] - r[0] for r in ranges)
-#             ndim = len(shape)
-#             global_size = reduce(operator.mul, shape, 1)  # this is an interior space
-#             if global_size > cl.clGetDeviceIDs()[-1].max_work_group_size:
-#                 stride = global_size / cl.clGetDeviceIDs()[-1].max_work_group_size
-#             else:
-#                 stride = 1
-#
-#             body = []
-#             global_id = FunctionCall(SymbolRef("get_global_id"), [Constant(0)])
-#             body.append(Assign(SymbolRef("global_offset", ctypes.c_int()), Mul(global_id, Constant(stride))))
-#             body.append(SymbolRef("____temp__max_norm", ctypes.c_double()))
-#
-#             body.extend(SymbolRef("index_%d"%d, ctypes.c_int()) for d in range(ndim))
-#
-#             indices = flattened_to_multi_index(Add(SymbolRef("global_offset"), SymbolRef("local_offset")),
-#                                                shape, offsets=offsets)
-#
-#             loop_body = []
-#             loop_body.extend(Assign(SymbolRef("index_%d"%d), indices[d]) for d in range(ndim))
-#             loop_body.extend(node.body)
-#
-#             for_loop = For(init=Assign(SymbolRef("local_offset", ctypes.c_int()), Constant(0)),
-#                            test=Lt(SymbolRef("local_offset"), Constant(stride)),
-#                            incr=PostInc(SymbolRef("local_offset")),
-#                            body=loop_body)
-#
-#             body.append(for_loop)
-#             return MultiNode(body=body)
-#
-#     def transform(self, f, program_config):
-#         subconfig, tuner = program_config
-#         interior_space = subconfig['self'].interior_space
-#         interior_size = reduce(operator.mul, interior_space, 1)
-#         local_size = min(cl.clGetDeviceIDs()[-1].max_work_group_size, interior_size)
-#
-#         kernel_funcs = []
-#         global_sizes = []
-#         local_sizes = []
-#         kernel_params = []
-#         encode_func = None
-#
-#         f = super(OclGeneralizedSimpleMeshOpSpecializer, self).transform(f, program_config)[0]
-#         f = include_mover(f)
-#         # remove includes
-#         while isinstance(f.body[0], CppInclude):
-#             f.body.pop(0)
-#         encode_func = f.body[0]
-#
-#         if local_size != interior_size:
-#             first_reducer = f.find(FunctionDecl)
-#             # need to change return statement to assign statement
-#             first_reducer = DeclarationFiller().visit(first_reducer)
-#             # remove return statement:
-#             first_reducer.defn.pop()
-#             first_reducer.defn.append(Assign(ArrayRef(SymbolRef("max_so_far"),
-#                                                       FunctionCall(SymbolRef("get_global_id"), [Constant(0)])),
-#                                              SymbolRef("max_norm")))
-#             params = []
-#             for param in first_reducer.params:
-#                 if not isinstance(subconfig[param.name], (int, float, np.ndarray)):
-#                     continue
-#                 if isinstance(subconfig[param.name], (int, float)):
-#                     param.type = ctypes.c_double()
-#                 else:
-#                     param.type = ctypes.POINTER(ctypes.c_double)()
-#                     # param.set_restrict()
-#                     param.set_global()
-#                 params.append(param)
-#             params.append(SymbolRef("max_so_far", ctypes.POINTER(ctypes.c_double)(), _global=True))
-#             # params[-1].set_restrict()
-#             first_reducer.params = params
-#             kernel_funcs.append(first_reducer)
-#             global_sizes.append(interior_size)
-#             local_sizes.append(local_size)
-#             kernel_params.append(first_reducer.params)
-#
-#         ### make the second reducer that looks like
-#         second_reducer_defn = [
-#             Assign(SymbolRef("max_norm", ctypes.c_double()), Constant(0.0)),
-#             For(init=Assign(SymbolRef("i", ctypes.c_int()), Constant(0)),
-#                 test=Lt(SymbolRef("i"), Constant(local_size)),
-#                 incr=PostInc(SymbolRef("i")),
-#                 body=[If(cond=Gt(ArrayRef(SymbolRef("max_so_far"), SymbolRef("i")), SymbolRef("max_norm")),
-#                          then=Assign(SymbolRef("max_norm"), ArrayRef(SymbolRef("max_so_far"), SymbolRef("i")))),
-#                       Assign(ArrayRef(SymbolRef("final"), Constant(0)), SymbolRef("max_norm"))])
-#         ]
-#
-#         second_reducer_params = [
-#             SymbolRef("max_so_far", ctypes.POINTER(ctypes.c_double)()),
-#             SymbolRef("final", ctypes.POINTER(ctypes.c_double)())
-#         ]
-#         for param in second_reducer_params:
-#             param.set_global()
-#         #     param.set_restrict()
-#
-#         second_reducer = FunctionDecl(name="max_norm_2", params=second_reducer_params, defn=second_reducer_defn)
-#         kernel_funcs.append(second_reducer)
-#         global_sizes.append(local_size)
-#         local_sizes.append(1)
-#         kernel_params.append(second_reducer_params)
-#         kernel_files = []
-#         double_include = StringTemplate("""#pragma OPENCL EXTENSION cl_khr_fp64: enable""")
-#
-#         for kernel in kernel_funcs:
-#             kernel.set_kernel()
-#             for call in kernel.find_all(FunctionCall):
-#                 if call.func.name == 'abs':
-#                     call.func.name = 'fabs'
-#                     # f.body.append(CppInclude("math.h"))
-#             kernel_files.append(OclFile(name=kernel.name, body=[double_include, kernel]))
-#
-#
-#         if len(kernel_files) > 1:
-#             kernel_files[0].body.insert(0, encode_func)
-#
-#         control_file=generate_norm_mesh_control("norm_mesh", global_sizes, local_sizes, kernel_params, kernel_files)
-#
-#         files = [control_file]
-#         files.extend(kernel_files)
-#         # for file in files:
-#         #     print(file)
-#         return files
-#
-#     def finalize(self, transform_result, program_config):
-#         for file in transform_result:
-#             print(file)
-#         subconfig, tuner_config = program_config
-#         interior_space = subconfig['self'].interior_space
-#         interior_size = reduce(operator.mul, interior_space, 1)
-#         local_size = min(cl.clGetDeviceIDs()[-1].max_work_group_size, interior_size)
-#
-#         project = Project(transform_result)
-#         control = transform_result[0]
-#         kernels = transform_result[1:]
-#         retval = ctypes.c_double
-#         kernel_name = self.tree.body[0].name  # refers to original FunctionDef
-#         entry_point = kernel_name + "_control"
-#
-#         param_types = [cl.cl_command_queue, cl.cl_kernel]
-#         for param, value in subconfig.items():
-#             if isinstance(subconfig[param], np.ndarray):
-#                 param_types.append(cl.cl_mem)
-#             elif isinstance(subconfig[param], (int, float)):
-#                 param_types.append(ctypes.c_double)
-#         param_types.append(cl.cl_mem)  # max_so_far
-#         param_types.append(cl.cl_mem)  # final
-#
-#         level = subconfig['self']
-#         kernels = [cl.clCreateProgramWithSource(level.context, kernel.codegen()).build()[kernel.name] for kernel in kernels]
-#         fn = MeshOpOclFunction(kernels, [np.ndarray((local_size,)), np.ndarray((1,))])
-#         return fn.finalize(
-#             entry_point, project, ctypes.CFUNCTYPE(retval, *param_types)
-#         )
-#
-#
-#
-# def generate_norm_mesh_control(name, global_sizes, local_sizes, kernel_params, kernels):
-#     # kernels are expected to be ocl files
-#     defn = []
-#     defn.append(ArrayRef(SymbolRef("global", ctypes.c_ulong()), Constant(1)))
-#     defn.append(ArrayRef(SymbolRef("local", ctypes.c_ulong()), Constant(1)))
-#     defn.append(Assign(SymbolRef("error_code", ctypes.c_int()), Constant(0)))
-#     for gsize, lsize, param_set, kernel in zip(global_sizes, local_sizes, kernel_params, kernels):
-#         defn.append(Assign(ArrayRef(SymbolRef("global"), Constant(0)), Constant(gsize)))
-#         defn.append(Assign(ArrayRef(SymbolRef("local"), Constant(0)), Constant(lsize)))
-#         kernel_name = kernel.find(FunctionDecl, kernel=True).name
-#         for param, num in zip(param_set, range(len(param_set))):
-#             if isinstance(param, ctypes.POINTER(ctypes.c_double)):
-#                 set_arg = FunctionCall(SymbolRef("clSetKernelArg"),
-#                                      [SymbolRef(kernel_name),
-#                                       Constant(num),
-#                                       FunctionCall(SymbolRef("sizeof"), [SymbolRef("cl_mem")]),
-#                                       Ref(SymbolRef(param.name))])
-#             else:
-#                 set_arg = FunctionCall(SymbolRef("clSetKernelArg"),
-#                                      [SymbolRef(kernel_name),
-#                                       Constant(num),
-#                                       Constant(ctypes.sizeof(param.type)),
-#                                       Ref(SymbolRef(param.name))])
-#             defn.append(set_arg)
-#         enqueue_call = FunctionCall(SymbolRef("clEnqueueNDRangeKernel"), [
-#             SymbolRef("queue"),
-#             SymbolRef(kernel_name),
-#             Constant(1),
-#             NULL(),
-#             SymbolRef("global"),
-#             SymbolRef("local"),
-#             Constant(0),
-#             NULL(),
-#             NULL()
-#         ])
-#         defn.append(enqueue_call)
-#         defn.append(FunctionCall(SymbolRef("clFinish"), [SymbolRef("queue")]))
-#     defn.append(ArrayRef(SymbolRef("return_value", ctypes.c_double()), Constant(1)))
-#     defn.append(FunctionCall(SymbolRef("clEnqueueReadBuffer"),
-#                              [
-#                                  SymbolRef("queue"),
-#                                  SymbolRef("final"),
-#                                  SymbolRef("CL_TRUE"),
-#                                  Constant(0),
-#                                  Constant(8),
-#                                  Ref(SymbolRef("return_value")),
-#                                  Constant(0),
-#                                  NULL(),
-#                                  NULL()
-#                              ]))
-#
-#
-#     defn.append(Return(ArrayRef(SymbolRef("return_value"), Constant(0))))
-#     params=[]
-#     params.append(SymbolRef("queue", cl.cl_command_queue()))
-#     for kernel in kernels:
-#         params.append(SymbolRef(kernel.find(FunctionDecl, kernel=True).name, cl.cl_kernel()))
-#
-#     params.append(SymbolRef("mesh", cl.cl_mem()))
-#     params.append(SymbolRef("max_so_far", cl.cl_mem()))
-#     params.append(SymbolRef("final", cl.cl_mem()))
-#
-#     control_func = FunctionDecl(return_type=ctypes.c_double(), name="%s_control"%name, params=params, defn=defn)
-#     ocl_include = StringTemplate("""
-#             #include <stdio.h>
-#             #ifdef __APPLE__
-#             #include <OpenCL/opencl.h>
-#             #else
-#             #include <CL/cl.h>
-#             #endif
-#             """)
-#     return CFile("%s_control"%name, body=[ocl_include, control_func], config_target="opencl")
+class OclNormMeshSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
+
+    class RangeTransformer(ast.NodeTransformer):
+        def visit_RangeNode(self, node):
+
+            ranges = node.iterator.ranges
+            offsets = tuple(r[0] for r in ranges)
+            shape = tuple(r[1] - r[0] for r in ranges)
+            ndim = len(shape)
+            global_size = reduce(operator.mul, shape, 1)  # this is an interior space
+            if global_size > cl.clGetDeviceIDs()[-1].max_work_group_size:
+                stride = global_size / cl.clGetDeviceIDs()[-1].max_work_group_size
+            else:
+                stride = 1
+
+            body = []
+            global_id = FunctionCall(SymbolRef("get_global_id"), [Constant(0)])
+            body.append(Assign(SymbolRef("global_offset", ctypes.c_int()), Mul(global_id, Constant(stride))))
+            body.append(SymbolRef("____temp__max_norm", ctypes.c_double()))
+
+            body.extend(SymbolRef("index_%d"%d, ctypes.c_int()) for d in range(ndim))
+
+            indices = flattened_to_multi_index(Add(SymbolRef("global_offset"), SymbolRef("local_offset")),
+                                               shape, offsets=offsets)
+
+            loop_body = []
+            loop_body.extend(Assign(SymbolRef("index_%d"%d), indices[d]) for d in range(ndim))
+            loop_body.extend(node.body)
+
+            for_loop = For(init=Assign(SymbolRef("local_offset", ctypes.c_int()), Constant(0)),
+                           test=Lt(SymbolRef("local_offset"), Constant(stride)),
+                           incr=PostInc(SymbolRef("local_offset")),
+                           body=loop_body)
+
+            body.append(for_loop)
+            return MultiNode(body=body)
+
+    def transform(self, f, program_config):
+        subconfig, tuner = program_config
+        interior_space = subconfig['self'].interior_space
+        interior_size = reduce(operator.mul, interior_space, 1)
+        local_size = min(cl.clGetDeviceIDs()[-1].max_work_group_size, interior_size)
+
+        kernel_funcs = []
+        global_sizes = []
+        local_sizes = []
+        kernel_params = []
+        encode_func = None
+
+        f = super(OclGeneralizedSimpleMeshOpSpecializer, self).transform(f, program_config)[0]
+        f = include_mover(f)
+        # remove includes
+        while isinstance(f.body[0], CppInclude):
+            f.body.pop(0)
+        encode_func = f.body[0]
+
+        #always launching two kernels no matter what, for now at least
+        # if local_size != interior_size:
+
+        first_reducer = f.find(FunctionDecl)
+        # need to change return statement to assign statement
+        first_reducer = DeclarationFiller().visit(first_reducer)
+
+        # remove return statement and add assignment statement:
+        first_reducer.defn.pop()
+        first_reducer.defn.append(Assign(ArrayRef(SymbolRef("max_so_far"),
+                                                  FunctionCall(SymbolRef("get_global_id"), [Constant(0)])),
+                                         SymbolRef("max_norm")))
+
+        # params for first_reducer
+        params = []
+        for param in first_reducer.params:
+            if not isinstance(subconfig[param.name], (int, float, np.ndarray)):
+                continue
+            if isinstance(subconfig[param.name], (int, float)):
+                param.type = ctypes.c_double()
+            else:
+                param.type = ctypes.POINTER(ctypes.c_double)()
+                # param.set_restrict()
+                param.set_global()
+            params.append(param)
+        params.append(SymbolRef("max_so_far", ctypes.POINTER(ctypes.c_double)(), _global=True))
+        # params[-1].set_restrict()
+
+        first_reducer.params = params
+        kernel_funcs.append(first_reducer)
+        global_sizes.append(interior_size)
+        local_sizes.append(local_size)
+        kernel_params.append(first_reducer.params)
+
+        ### make the second reducer
+        second_reducer_defn = [
+            Assign(SymbolRef("max_norm", ctypes.c_double()), Constant(0.0)),
+            For(init=Assign(SymbolRef("i", ctypes.c_int()), Constant(0)),
+                test=Lt(SymbolRef("i"), Constant(local_size)),
+                incr=PostInc(SymbolRef("i")),
+                body=[If(cond=Gt(ArrayRef(SymbolRef("max_so_far"), SymbolRef("i")), SymbolRef("max_norm")),
+                         then=Assign(SymbolRef("max_norm"), ArrayRef(SymbolRef("max_so_far"), SymbolRef("i")))),
+                      Assign(ArrayRef(SymbolRef("final"), Constant(0)), SymbolRef("max_norm"))])
+        ]
+
+        second_reducer_params = [
+            SymbolRef("max_so_far", ctypes.POINTER(ctypes.c_double)()),
+            SymbolRef("final", ctypes.POINTER(ctypes.c_double)())
+        ]
+        for param in second_reducer_params:
+            param.set_global()
+        #     param.set_restrict()
+
+        second_reducer = FunctionDecl(name="max_norm_2", params=second_reducer_params, defn=second_reducer_defn)
+        kernel_funcs.append(second_reducer)
+        global_sizes.append(local_size)
+        local_sizes.append(1)
+        kernel_params.append(second_reducer_params)
+        kernel_files = []
+        double_include = StringTemplate("""#pragma OPENCL EXTENSION cl_khr_fp64: enable""")
+
+        for kernel in kernel_funcs:
+            kernel.set_kernel()
+            for call in kernel.find_all(FunctionCall):
+                if call.func.name == 'abs':
+                    call.func.name = 'fabs'
+                    # f.body.append(CppInclude("math.h"))
+            kernel_files.append(OclFile(name=kernel.name, body=[double_include, kernel]))
+
+
+        if len(kernel_files) > 1:
+            kernel_files[0].body.insert(0, encode_func)
+
+        control_file=generate_norm_mesh_control("norm_mesh", global_sizes, local_sizes, kernel_params, kernel_files)
+
+        files = [control_file]
+        files.extend(kernel_files)
+        # for file in files:
+        #     print(file)
+        return files
+
+    def finalize(self, transform_result, program_config):
+        subconfig, tuner_config = program_config
+        interior_space = subconfig['self'].interior_space
+        interior_size = reduce(operator.mul, interior_space, 1)
+        local_size = min(cl.clGetDeviceIDs()[-1].max_work_group_size, interior_size)
+
+        project = Project(transform_result)
+        control = transform_result[0]
+        kernels = transform_result[1:]
+        retval = ctypes.c_double
+        kernel_name = self.tree.body[0].name  # refers to original FunctionDef
+        entry_point = kernel_name + "_control"
+
+        param_types = [cl.cl_command_queue]
+        param_types.extend(cl.cl_kernel for _ in range(len(kernels)))
+        for param, value in subconfig.items():
+            if isinstance(subconfig[param], np.ndarray):
+                param_types.append(cl.cl_mem)
+            elif isinstance(subconfig[param], (int, float)):
+                param_types.append(ctypes.c_double)
+        param_types.append(cl.cl_mem)  # max_so_far
+        param_types.append(cl.cl_mem)  # final
+
+        level = subconfig['self']
+        kernels = [cl.clCreateProgramWithSource(level.context, kernel.codegen()).build()[kernel.name] for kernel in kernels]
+        fn = MeshOpOclFunction(kernels, [np.ndarray((local_size,)), np.ndarray((1,))])
+        return fn.finalize(
+            entry_point, project, ctypes.CFUNCTYPE(retval, *param_types)
+        )
+
+
+
+def generate_norm_mesh_control(name, global_sizes, local_sizes, kernel_params, kernels):
+    # kernels are expected to be ocl files
+    defn = []
+    defn.append(ArrayRef(SymbolRef("global", ctypes.c_ulong()), Constant(1)))
+    defn.append(ArrayRef(SymbolRef("local", ctypes.c_ulong()), Constant(1)))
+    defn.append(Assign(SymbolRef("error_code", ctypes.c_int()), Constant(0)))
+    for gsize, lsize, param_set, kernel in zip(global_sizes, local_sizes, kernel_params, kernels):
+        defn.append(Assign(ArrayRef(SymbolRef("global"), Constant(0)), Constant(gsize)))
+        defn.append(Assign(ArrayRef(SymbolRef("local"), Constant(0)), Constant(lsize)))
+        kernel_name = kernel.find(FunctionDecl, kernel=True).name
+        for param, num in zip(param_set, range(len(param_set))):
+            if isinstance(param, ctypes.POINTER(ctypes.c_double)):
+                set_arg = FunctionCall(SymbolRef("clSetKernelArg"),
+                                     [SymbolRef(kernel_name),
+                                      Constant(num),
+                                      FunctionCall(SymbolRef("sizeof"), [SymbolRef("cl_mem")]),
+                                      Ref(SymbolRef(param.name))])
+            else:
+                set_arg = FunctionCall(SymbolRef("clSetKernelArg"),
+                                     [SymbolRef(kernel_name),
+                                      Constant(num),
+                                      Constant(ctypes.sizeof(param.type)),
+                                      Ref(SymbolRef(param.name))])
+            defn.append(set_arg)
+        enqueue_call = FunctionCall(SymbolRef("clEnqueueNDRangeKernel"), [
+            SymbolRef("queue"),
+            SymbolRef(kernel_name),
+            Constant(1),
+            NULL(),
+            SymbolRef("global"),
+            SymbolRef("local"),
+            Constant(0),
+            NULL(),
+            NULL()
+        ])
+        defn.append(enqueue_call)
+        defn.append(FunctionCall(SymbolRef("clFinish"), [SymbolRef("queue")]))
+    defn.append(ArrayRef(SymbolRef("return_value", ctypes.c_double()), Constant(1)))
+    defn.append(FunctionCall(SymbolRef("clEnqueueReadBuffer"),
+                             [
+                                 SymbolRef("queue"),
+                                 SymbolRef("final"),
+                                 SymbolRef("CL_TRUE"),
+                                 Constant(0),
+                                 Constant(8),
+                                 Ref(SymbolRef("return_value")),
+                                 Constant(0),
+                                 NULL(),
+                                 NULL()
+                             ]))
+
+
+    defn.append(Return(ArrayRef(SymbolRef("return_value"), Constant(0))))
+    params=[]
+    params.append(SymbolRef("queue", cl.cl_command_queue()))
+    for kernel in kernels:
+        params.append(SymbolRef(kernel.find(FunctionDecl, kernel=True).name, cl.cl_kernel()))
+
+    params.append(SymbolRef("mesh", cl.cl_mem()))
+    params.append(SymbolRef("max_so_far", cl.cl_mem()))
+    params.append(SymbolRef("final", cl.cl_mem()))
+
+    control_func = FunctionDecl(return_type=ctypes.c_double(), name="%s_control"%name, params=params, defn=defn)
+    ocl_include = StringTemplate("""
+            #include <stdio.h>
+            #ifdef __APPLE__
+            #include <OpenCL/opencl.h>
+            #else
+            #include <CL/cl.h>
+            #endif
+            """)
+    return CFile("%s_control"%name, body=[ocl_include, control_func], config_target="opencl")
