@@ -62,7 +62,7 @@ class Restriction(object):
     @specialized_func_dispatcher({
         'c': CRestrictSpecializer,
         'omp': CRestrictSpecializer,
-        'ocl': CRestrictSpecializer
+        # 'ocl': CRestrictSpecializer
     }) #buggy
     def restrict(self, level, target, source, restriction_type):
         #assert(isinstance(level, SimpleLevel))
