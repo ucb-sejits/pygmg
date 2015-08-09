@@ -12,7 +12,7 @@ import sympy
 from hpgmg import finite_volume
 from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.operators.chebyshev_smoother import ChebyshevSmoother
-from hpgmg.finite_volume.operators.specializers.initialize_mesh_specializer import CInitializeMesh, OclInitializeMesh
+from hpgmg.finite_volume.operators.specializers.initialize_mesh_specializer import CInitializeMesh
 from hpgmg.finite_volume.operators.specializers.util import profile, time_this, specialized_func_dispatcher
 
 from hpgmg.finite_volume.operators.stencil_von_neumann_r1 import StencilVonNeumannR1
