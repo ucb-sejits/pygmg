@@ -52,7 +52,8 @@ class BoundaryUpdaterV1(object):
     @specialized_func_dispatcher({
         'c': CBoundarySpecializer,
         'omp': OmpBoundarySpecializer,
-        'ocl': OclBoundarySpecializer
+        # 'ocl': OclBoundarySpecializer
+        'ocl': CBoundarySpecializer
     })
     def apply(self, level, mesh):
         for kernel in self.kernels:
