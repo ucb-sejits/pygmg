@@ -7,11 +7,13 @@ from ctree.nodes import Project
 from ctree.ocl.nodes import OclFile
 from ctree.transformations import PyBasicConversions
 import math
+from ctree.transforms.declaration_filler import DeclarationFiller
 from rebox.specializers.order import Ordering
 from rebox.specializers.rm.encode import MultiplyEncode
-from hpgmg.finite_volume.operators.specializers.jit import PyGMGConcreteSpecializedFunction
+from hpgmg.finite_volume.operators.specializers.jit import PyGMGConcreteSpecializedFunction, KernelRunManager, \
+    PyGMGOclConcreteSpecializedFunction
 from hpgmg.finite_volume.operators.specializers.util import apply_all_layers, to_macro_function, sympy_to_c, \
-    include_mover, flattened_to_multi_index, new_generate_control
+    include_mover, flattened_to_multi_index, new_generate_control, compute_largest_local_work_size
 from hpgmg.finite_volume.operators.transformers.semantic_transformer import SemanticFinder
 
 from ctree.frontend import dump, get_ast
@@ -21,6 +23,8 @@ from hpgmg.finite_volume.operators.transformers.utility_transformers import Para
     IndexOpTransformer, AttributeRenamer, CallReplacer, IndexDirectTransformer, IndexTransformer, OclFileWrapper
 
 import numpy as np
+import operator
+import pycl as cl
 
 __author__ = 'nzhang-dev'
 
@@ -37,6 +41,46 @@ class InitializeCFunction(PyGMGConcreteSpecializedFunction):
 
     # def __call__(self, thing, level, mesh, exp, coord_transform):
     #     return self._c_function(mesh.ravel())
+
+
+class InitializeOclFunction(PyGMGOclConcreteSpecializedFunction):
+
+    def set_kernel_args(self, args, kwargs):
+        thing, level, mesh, exp, coord_transform = args
+        kernel = self.kernels[0]
+
+        if mesh.dirty:
+            buffer = None if mesh.buffer is None else mesh.buffer.buffer
+            buf, evt = cl.buffer_from_ndarray(self.queue, mesh, buf=buffer)
+            mesh.buffer = buf
+            mesh.buffer.evt = evt
+            mesh.dirty = False
+
+        elif mesh.buffer is None:
+            size = mesh.size * ctypes.sizeof(ctypes.c_double)
+            mesh.buffer = cl.clCreateBuffer(self.context, size)
+
+
+        kernel.args = [mesh.buffer]
+
+    def __call__(self, *args, **kwargs):
+        self.set_kernel_args(args, kwargs)
+        kernel = self.kernels[0]
+        kernel_args = []
+        previous_events = []
+        for arg in kernel.args:
+            kernel_args.append(arg.buffer)
+            if arg.evt is not None:
+                previous_events.append(arg.evt)
+
+        cl.clWaitForEvents(*previous_events)
+        run_evt = kernel.kernel(*kernel_args).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
+        run_evt.wait()
+
+        ary, evt = cl.buffer_to_ndarray(self.queue, kernel.args[0].buffer, args[2])
+        kernel.args[0].evt = evt
+        kernel.args[0].dirty = False
+        kernel.args[0].evt.wait()
 
 
 class CInitializeMesh(LazySpecializedFunction):
@@ -94,7 +138,7 @@ class CInitializeMesh(LazySpecializedFunction):
             CallReplacer({
                 'func': expr
             }),
-            CRangeTransformer(), #if subconfig['self'].configuration.backend != "ocl" else self.RangeTransformer(),
+            CRangeTransformer() if subconfig['self'].configuration.backend != "ocl" else self.RangeTransformer(),
             IndexTransformer(('coord',)),
             IndexDirectTransformer(ndim=ndim, encode_func_names={'coord': 'encode'}),
             PyBasicConversions(),
@@ -116,7 +160,7 @@ class CInitializeMesh(LazySpecializedFunction):
         ])
 
         cfile = include_mover(cfile)
-        #print(cfile)
+        print(cfile)
         return [cfile]
 
     def finalize(self, transform_result, program_config):
@@ -137,10 +181,9 @@ class OclInitializeMesh(CInitializeMesh):
     class RangeTransformer(ast.NodeTransformer):
         def visit_RangeNode(self, node):
             body=[
-                Assign(SymbolRef("global_id", ctypes.c_int()), FunctionCall(SymbolRef("get_global_id"), [Constant(0)]))
+                Assign(SymbolRef("global_id", ctypes.c_ulong()), FunctionCall(SymbolRef("get_global_id"), [Constant(0)]))
             ]
             ranges = node.iterator.ranges
-            # offsets = tuple(r[0] for r in ranges)
             shape = tuple(r[1] - r[0] for r in ranges)
             indices = flattened_to_multi_index(SymbolRef("global_id"), shape)
             for d in range(len(shape)):
@@ -149,18 +192,40 @@ class OclInitializeMesh(CInitializeMesh):
             return MultiNode(body=body)
 
     def transform(self, tree, program_config):
+        subconfig, tuner = program_config
+        level = subconfig['level']
+        global_size = reduce(operator.mul, level.space, 1)
+        local_size = compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], global_size)
+
         file = super(OclInitializeMesh, self).transform(tree, program_config)[0]
-        # global_size =
-        # local_size =
+        kernel = file.find(FunctionDecl)
+
         while isinstance(file.body[0], CppInclude):
             file.body.pop(0)
-        kernel_file = OclFileWrapper().visit(file)
-        kernel_func = kernel_file.find(FunctionDecl, kernel=True)
-        kernel_name = kernel_func.name
-        kernel_func.name = "%s_kernel" % kernel_name
-        kernel_func.set_kernel()
-        for param in kernel_func.params:
-            if isinstance(param, ctypes.POINTER(ctypes.c_double)):
-                param.set_global()
-        control = new_generate_control(kernel_name, 1, 1, kernel_func.params, [kernel_file])
-        return []
+        ocl_file = OclFileWrapper("%s_kernel" % kernel.name).visit(file)
+        ocl_file = DeclarationFiller().visit(ocl_file)
+        kernel.set_kernel()
+        for param in kernel.params:
+            param.set_global()
+        control = new_generate_control("%s_control" % kernel.name, global_size, local_size, kernel.params, [ocl_file])
+        kernel.name = "%s_kernel" % kernel.name
+        return [control, ocl_file]
+
+    def finalize(self, transform_result, program_config):
+        subconfig, tuner = program_config
+        level = subconfig['level']
+        project = Project(transform_result)
+        kernel = transform_result[1]
+        control = transform_result[0]
+        name = kernel.name
+        kernel = cl.clCreateProgramWithSource(level.context, kernel.codegen()).build()[name]
+        kernel.argtypes = (cl.cl_mem,)
+        global_size = reduce(operator.mul, level.space, 1)
+        local_size = compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], global_size)
+        kernel = KernelRunManager(kernel, global_size, local_size)
+
+        typesig = [ctypes.c_int, cl.cl_command_queue, cl.cl_kernel, cl.cl_mem]
+        fn = InitializeOclFunction()
+        fn.finalize(control.name, project, ctypes.CFUNCTYPE(*typesig),
+                    level.context, level.queue, [kernel])
+        return fn
