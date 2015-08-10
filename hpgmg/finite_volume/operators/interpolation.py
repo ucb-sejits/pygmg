@@ -1,6 +1,7 @@
 from __future__ import print_function
 from abc import ABCMeta, abstractmethod
-from hpgmg.finite_volume.operators.specializers.interpolate_specializer import CInterpolateSpecializer
+from hpgmg.finite_volume.operators.specializers.interpolate_specializer import CInterpolateSpecializer, \
+    OclInterpolateSpecializer
 from hpgmg.finite_volume.operators.specializers.util import time_this, specialized_func_dispatcher
 
 from hpgmg.finite_volume.space import Space, Coord
@@ -30,6 +31,7 @@ class InterpolatorPC(Interpolator):
     @specialized_func_dispatcher({
         'c': CInterpolateSpecializer,
         'omp': CInterpolateSpecializer,
+        'ocl': OclInterpolateSpecializer
         # 'ocl': CInterpolateSpecializer
     })
     def interpolate(self, target_level, target_mesh, source_mesh):

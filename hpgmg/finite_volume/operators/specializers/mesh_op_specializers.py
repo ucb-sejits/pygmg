@@ -19,7 +19,7 @@ from hpgmg.finite_volume.operators.specializers.jit import PyGMGConcreteSpeciali
     PyGMGOclConcreteSpecializedFunction
 from hpgmg.finite_volume.operators.specializers.smooth_specializer import apply_all_layers
 from hpgmg.finite_volume.operators.specializers.util import include_mover, flattened_to_multi_index, \
-    new_generate_control
+    new_generate_control, compute_largest_local_work_size
 from hpgmg.finite_volume.operators.transformers.semantic_transformer import SemanticFinder
 from hpgmg.finite_volume.operators.transformers.semantic_transformers.csemantics import CRangeTransformer
 from hpgmg.finite_volume.operators.transformers.transformer_util import nest_loops
@@ -358,7 +358,7 @@ class OclFillMeshSpecializer(MeshOpSpecializer):
         global_shape = tuple(dim + 2 * ghost for dim, ghost in zip(subconfig['self'].interior_space, subconfig['self'].ghost_zone))
         # control = generate_control(global_shape)
         global_size = reduce(operator.mul, global_shape, 1)
-        local_size = min(1024, global_size)
+        local_size = compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], global_size)
         while global_size % local_size != 0:
             local_size -= 1
         control = new_generate_control("%s_control" % func_name, global_size, local_size, func_decl.params, [func_decl])
@@ -375,7 +375,7 @@ class OclFillMeshSpecializer(MeshOpSpecializer):
 
         global_shape = tuple(dim + 2 * ghost for dim, ghost in zip(level.interior_space, level.ghost_zone))
         global_size = reduce(operator.mul, global_shape, 1)
-        local_size = min(1024, global_size)
+        local_size = compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], global_size)
         while global_size % local_size != 0:
             local_size -= 1
 
@@ -525,7 +525,7 @@ class OclGeneralizedSimpleMeshOpSpecializer(MeshOpSpecializer):
         kernel = OclFileWrapper(name=func_decl.name).visit(f)
         global_shape = tuple(dim + 2 * ghost for dim, ghost in zip(subconfig['self'].interior_space, subconfig['self'].ghost_zone))
         global_size = reduce(operator.mul, global_shape, 1)
-        local_size = min(1024, global_size)
+        local_size = compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], global_size)
         while global_size % local_size != 0:
             local_size -= 1
         control = new_generate_control("%s_control" % func_name, global_size, local_size, func_decl.params, [func_decl])
@@ -541,7 +541,7 @@ class OclGeneralizedSimpleMeshOpSpecializer(MeshOpSpecializer):
         kernel = transform_result[1]
 
         global_size = reduce(operator.mul, level.interior_space, 1)
-        local_size = min(1024, global_size)
+        local_size = compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], global_size)
         while global_size % local_size != 0:
             local_size -= 1
 

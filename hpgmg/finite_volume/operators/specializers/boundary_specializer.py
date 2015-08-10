@@ -18,7 +18,7 @@ from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.operators.specializers.jit import PyGMGConcreteSpecializedFunction, KernelRunManager, \
     PyGMGOclConcreteSpecializedFunction
 from hpgmg.finite_volume.operators.specializers.util import apply_all_layers, include_mover, flattened_to_multi_index, \
-    time_this
+    time_this, compute_largest_local_work_size
 from hpgmg.finite_volume.operators.transformers.semantic_transformer import SemanticFinder
 from hpgmg.finite_volume.operators.transformers.semantic_transformers.csemantics import CRangeTransformer
 from hpgmg.finite_volume.operators.transformers.transformer_util import nest_loops
@@ -379,7 +379,7 @@ class OclBoundarySpecializer(LazySpecializedFunction):
         kernels = project.files[1:]
 
         global_sizes = [reduce(operator.mul, interior_space[dim+1:], 1) for dim in range(ndim)]
-        local_sizes = [min(1024, gsize) for gsize in global_sizes]
+        local_sizes = [compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], gsize) for gsize in global_sizes]
 
         entry_type = [ctypes.c_int32, cl.cl_command_queue]
         entry_type.extend(cl.cl_kernel for _ in range(ndim))
@@ -434,7 +434,7 @@ def generate_control(interior_space, params=None):
         defn.append(set_arg)
 
         global_size = reduce(operator.mul, interior_space[k_idx + 1:], 1)
-        local_size = min(1024, global_size)
+        local_size = compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], global_size)
         defn.append(Assign((ArrayRef(SymbolRef("global"), Constant(0))), Constant(global_size)))
         defn.append(Assign((ArrayRef(SymbolRef("local"), Constant(0))), Constant(local_size)))
         enqueue_call = FunctionCall(SymbolRef("clEnqueueNDRangeKernel"), [
