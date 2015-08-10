@@ -15,7 +15,8 @@ import math
 from rebox.specializers.order import Ordering
 from rebox.specializers.rm.encode import MultiplyEncode
 from hpgmg.finite_volume.mesh import Mesh
-from hpgmg.finite_volume.operators.specializers.jit import PyGMGConcreteSpecializedFunction
+from hpgmg.finite_volume.operators.specializers.jit import PyGMGConcreteSpecializedFunction, KernelRunManager, \
+    PyGMGOclConcreteSpecializedFunction
 from hpgmg.finite_volume.operators.specializers.util import apply_all_layers, include_mover, flattened_to_multi_index, \
     time_this
 from hpgmg.finite_volume.operators.transformers.semantic_transformer import SemanticFinder
@@ -45,55 +46,95 @@ class BoundaryCFunction(PyGMGConcreteSpecializedFunction):
         self._c_function(mesh.ravel())
 
 
-class BoundaryOclFunction(ConcreteSpecializedFunction):  # PyGMGConcreteSpecializedFunction???
+class BoundaryOclFunction(PyGMGOclConcreteSpecializedFunction):
 
-    def __init__(self, kernels, boundary_sizes=None):
-        self.kernels = kernels
-        self.boundary_sizes = boundary_sizes
-        self._c_function = lambda: 0
+    def set_kernel_args(self, args, kwargs):
+        thing, level, mesh = args
 
-    def finalize(self, entry_point_name, project_node, entry_point_typesig):
-        self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)
-        self.entry_point_name = entry_point_name
-        return self
+        if mesh.dirty:
+            buffer = None if mesh.buffer is None else mesh.buffer.buffer
+            buf, evt = cl.buffer_from_ndarray(self.queue, mesh, buf=buffer)
+            mesh.buffer = buf
+            mesh.buffer.evt = evt
+            mesh.dirty = False
 
-    # def __call__(self, thing, level, mesh):
-    #
-    #     arguments = [level.queue]
-    #     arguments.extend(kernel for kernel in self.kernels)
-    #     arguments.append(level.buffers[0])
-    #
-    #     self._c_function(*arguments)
+        elif mesh.buffer is None:
+            size = mesh.size * ctypes.sizeof(ctypes.c_double)
+            mesh.buffer = cl.clCreateBuffer(self.context, size)
 
-    def __call__(self, thing, level, mesh):
+        for kernel in self.kernels:
+            kernel.args = [mesh.buffer]
+            # kernel.kernel.argtypes = (cl.cl_mem,)
 
-        arguments = [level.queue]
-        arguments.extend(kernel for kernel in self.kernels)
-        # mesh = mesh.ravel()
-        if hasattr(mesh, "buffer"):
-            if mesh.buffer is None:
-                mesh.buffer, evt = cl.buffer_from_ndarray(level.queue, mesh)
-            else:
-                mesh.buffer, evt = cl.buffer_from_ndarray(level.queue, mesh, buf=mesh.buffer)
-            arguments.append(mesh.buffer)
-            buf = mesh.buffer
-        else:
-            buf, evt = cl.buffer_from_ndarray(level.queue, mesh)
-            arguments.append(buf)
+    def __call__(self, *args, **kwargs):
+        self.set_kernel_args(args, kwargs)
 
-        self._c_function(*arguments)
-        cl.buffer_to_ndarray(level.queue, buf, out=mesh)
+        for kernel in self.kernels:
+            buffer = kernel.args[0]  # there is only one buffer being used
+            if buffer.evt:
+                buffer.evt.wait()
 
-        # for kernel, k_idx in zip(self.kernels, range(len(self.kernels))):
-        #     kernel.argtypes = (cl.cl_mem,)
-        #     global_size = self.boundary_sizes[k_idx]
-        #     if global_size < 1024:
-        #         local_size = global_size
-        #     else:
-        #         local_size = 1024 # not safe but assuming multiples of two
-        #     run_evt = kernel(level.buffers[0]).on(level.queue, gsize=(global_size,), lsize=(local_size,))
-        #     # run_evt.wait()
-        #     # level.boundary_events.append(run_evt)
+            run_evt = kernel.kernel(buffer.buffer).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
+            buffer.evt = run_evt
+            buffer.dirty = True
+
+        last_kernel = self.kernels[-1]
+        last_kernel.args[0].evt.wait()
+        ary, evt = cl.buffer_to_ndarray(self.queue, last_kernel.args[0].buffer, args[2])
+        last_kernel.args[0].evt = evt
+        last_kernel.args[0].dirty = False
+        last_kernel.args[0].evt.wait()
+
+
+# class BoundaryOclFunction(ConcreteSpecializedFunction):  # PyGMGConcreteSpecializedFunction???
+#
+#     def __init__(self, kernels, boundary_sizes=None):
+#         self.kernels = kernels
+#         self.boundary_sizes = boundary_sizes
+#         self._c_function = lambda: 0
+#
+#     def finalize(self, entry_point_name, project_node, entry_point_typesig):
+#         self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)
+#         self.entry_point_name = entry_point_name
+#         return self
+#
+#     # def __call__(self, thing, level, mesh):
+#     #
+#     #     arguments = [level.queue]
+#     #     arguments.extend(kernel for kernel in self.kernels)
+#     #     arguments.append(level.buffers[0])
+#     #
+#     #     self._c_function(*arguments)
+#
+#     def __call__(self, thing, level, mesh):
+#
+#         arguments = [level.queue]
+#         arguments.extend(kernel for kernel in self.kernels)
+#         # mesh = mesh.ravel()
+#         if hasattr(mesh, "buffer"):
+#             if mesh.buffer is None:
+#                 mesh.buffer, evt = cl.buffer_from_ndarray(level.queue, mesh)
+#             else:
+#                 mesh.buffer, evt = cl.buffer_from_ndarray(level.queue, mesh, buf=mesh.buffer)
+#             arguments.append(mesh.buffer)
+#             buf = mesh.buffer
+#         else:
+#             buf, evt = cl.buffer_from_ndarray(level.queue, mesh)
+#             arguments.append(buf)
+#
+#         self._c_function(*arguments)
+#         cl.buffer_to_ndarray(level.queue, buf, out=mesh)
+#
+#         # for kernel, k_idx in zip(self.kernels, range(len(self.kernels))):
+#         #     kernel.argtypes = (cl.cl_mem,)
+#         #     global_size = self.boundary_sizes[k_idx]
+#         #     if global_size < 1024:
+#         #         local_size = global_size
+#         #     else:
+#         #         local_size = 1024 # not safe but assuming multiples of two
+#         #     run_evt = kernel(level.buffers[0]).on(level.queue, gsize=(global_size,), lsize=(local_size,))
+#         #     # run_evt.wait()
+#         #     # level.boundary_events.append(run_evt)
 
 
 class CBoundarySpecializer(LazySpecializedFunction):
@@ -331,20 +372,28 @@ class OclBoundarySpecializer(LazySpecializedFunction):
 
     def finalize(self, transform_result, program_config):
         subconfig, tuner = program_config
-        ndim = len(subconfig['level'].interior_space)
+        level = subconfig['level']
+        interior_space = level.interior_space
+        ndim = len(interior_space)
         project = Project(transform_result)
         kernels = project.files[1:]
 
-        kernels = [cl.clCreateProgramWithSource(subconfig['level'].context, kernel.codegen()).build()["kernel_%d" % k_idx] for kernel, k_idx in zip(kernels, range(len(kernels)))]
-
-        fn = BoundaryOclFunction(kernels)
+        global_sizes = [reduce(operator.mul, interior_space[dim+1:], 1) for dim in range(ndim)]
+        local_sizes = [min(1024, gsize) for gsize in global_sizes]
 
         entry_type = [ctypes.c_int32, cl.cl_command_queue]
         entry_type.extend(cl.cl_kernel for _ in range(ndim))
         entry_type.append(cl.cl_mem)
         entry_type = ctypes.CFUNCTYPE(*entry_type)
 
-        fn = fn.finalize("boundary_control", project, entry_type)
+        kernels = [cl.clCreateProgramWithSource(level.context, kernel.codegen()).build() for kernel in kernels]
+        kernels = [kernel["kernel_%d" % k_idx] for kernel, k_idx in zip(kernels, range(len(kernels)))]
+        for dim in range(ndim):
+            kernels[dim].argtypes = (cl.cl_mem,)
+            kernels[dim] = KernelRunManager(kernels[dim], global_sizes[dim], local_sizes[dim])
+
+        fn = BoundaryOclFunction()
+        fn = fn.finalize("boundary_control", project, entry_type, level.context, level.queue, kernels)
         return fn
 
 

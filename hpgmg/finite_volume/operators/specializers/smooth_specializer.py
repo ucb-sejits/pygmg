@@ -25,7 +25,8 @@ from rebox.specializers.rm.encode import MultiplyEncode
 import time
 import hpgmg
 from hpgmg.finite_volume.mesh import Mesh
-from hpgmg.finite_volume.operators.specializers.jit import PyGMGConcreteSpecializedFunction
+from hpgmg.finite_volume.operators.specializers.jit import PyGMGConcreteSpecializedFunction, \
+    PyGMGOclConcreteSpecializedFunction, KernelRunManager
 
 from hpgmg.finite_volume.operators.specializers.util import to_macro_function, apply_all_layers, include_mover, \
     LayerPrinter, time_this, compute_local_work_size, flattened_to_multi_index
@@ -71,50 +72,115 @@ class SmoothCFunction(PyGMGConcreteSpecializedFunction):
     #     self._c_function(*args)
 
 
-class SmoothOclFunction(PyGMGConcreteSpecializedFunction):
+class SmoothOclFunction(PyGMGOclConcreteSpecializedFunction):
 
-    def __init__(self, kernel, local_size):
-        self.kernel = kernel
-        self._c_function = lambda: 0
-        self.local_size = local_size
-
-    def finalize(self, entry_point_name, project_node, entry_point_typesig):
-        self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)
-        self.entry_point_name = entry_point_name
-        return self
-    #
-    # def __call__(self, thing, level, working_source, working_target, rhs_mesh, lambda_mesh):
-    #     self.kernel.argtypes = tuple(cl.cl_mem for _ in range(len(level.buffers)))
-    #     global_size = reduce(operator.mul, level.interior_space, 1)
-    #
-    #     run_evt = self.kernel(*level.buffers).on(level.queue, gsize=global_size, lsize=self.local_size)
-
-    def __call__(self, thing, level, working_source, working_target, rhs_mesh, lambda_mesh):
-
-        meshes = [
+    def set_kernel_args(self, args, kwargs):
+        thing, level, working_source, working_target, rhs_mesh, lambda_mesh = args
+        args_to_bufferize = [
             working_source, working_target,
             rhs_mesh, lambda_mesh
         ] + level.beta_face_values + [level.alpha]
-        # meshes = [mesh.ravel() for mesh in meshes]
-        ocl_args = [level.queue, self.kernel]
-        for mesh in meshes:
-            if hasattr(mesh, "buffer"):
-                if mesh.buffer is None:
-                    mesh.buffer, evt = cl.buffer_from_ndarray(level.queue, mesh)
-                else:
-                    mesh.buffer, evt = cl.buffer_from_ndarray(level.queue, mesh, buf=mesh.buffer)
-                ocl_args.append(mesh.buffer)
-            else:
-                buf, evt = cl.buffer_from_ndarray(level.queue, mesh)
-                ocl_args.append(buf)
+        kernel_args = []
+        # kernel_argtypes = []
 
-        # self.kernel.argtypes = tuple(cl.cl_mem for _ in range(len(ocl_args) - 2))
-        # global_size = reduce(operator.mul, level.interior_space, 1)
+        for mesh in args_to_bufferize: # i know that these are all Meshes
 
-        # run_evt = self.kernel(*ocl_args[2:]).on(level.queue, gsize=global_size, lsize=self.local_size)
-        self._c_function(*ocl_args)
-        cl.buffer_to_ndarray(level.queue, meshes[0].buffer, out=meshes[0])
-        cl.buffer_to_ndarray(level.queue, meshes[1].buffer, out=meshes[1])
+            if isinstance(mesh, np.ndarray) and not isinstance(mesh, Mesh):
+                mesh = Mesh(mesh.shape)
+                mesh.fill(0)
+
+            if mesh.dirty:
+                buffer = None if mesh.buffer is None else mesh.buffer.buffer
+                buf, evt = cl.buffer_from_ndarray(self.queue, mesh, buf=buffer)
+                mesh.buffer = buf
+                mesh.buffer.evt = evt
+                mesh.dirty = False
+
+            elif mesh.buffer is None:  # mesh contains garbage and has never been written to before
+                size = mesh.size * ctypes.sizeof(ctypes.c_double)
+                mesh.buffer = cl.clCreateBuffer(self.context, size)
+
+            kernel_args.append(mesh.buffer)
+            # kernel_argtypes.append(cl.cl_mem)
+
+        self.kernels[0].args = kernel_args
+        # self.kernels[0].kernel.argtypes = tuple(kernel_argtypes)
+
+    def __call__(self, *args, **kwargs):
+        self.set_kernel_args(args, kwargs)
+
+        kernel = self.kernels[0]
+        kernel_args = [buffer.buffer for buffer in kernel.args]
+        previous_events = [buffer.evt for buffer in kernel.args if buffer.evt]
+
+        cl.clWaitForEvents(*previous_events)
+        run_evt = kernel.kernel(*kernel_args).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
+
+        for buffer in kernel.args:
+            buffer.evt = run_evt
+        kernel.args[0].dirty = True
+        kernel.args[1].dirty = True
+
+        # manually copy back for now????
+        kernel.args[0].evt.wait()
+        ary, evt = cl.buffer_to_ndarray(self.queue, kernel.args[0].buffer, args[2])
+        kernel.args[0].evt = evt
+        kernel.args[0].dirty = False
+
+        kernel.args[1].evt.wait()
+        ary, evt = cl.buffer_to_ndarray(self.queue, kernel.args[1].buffer, args[3])
+        kernel.args[1].dirty = False
+        kernel.args[1].evt = evt
+
+
+        kernel.args[0].evt.wait()
+        kernel.args[1].evt.wait()
+
+
+# class SmoothOclFunction(PyGMGConcreteSpecializedFunction):
+#
+#     def __init__(self, kernel, local_size):
+#         self.kernel = kernel
+#         self._c_function = lambda: 0
+#         self.local_size = local_size
+#
+#     def finalize(self, entry_point_name, project_node, entry_point_typesig):
+#         self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)
+#         self.entry_point_name = entry_point_name
+#         return self
+#     #
+#     # def __call__(self, thing, level, working_source, working_target, rhs_mesh, lambda_mesh):
+#     #     self.kernel.argtypes = tuple(cl.cl_mem for _ in range(len(level.buffers)))
+#     #     global_size = reduce(operator.mul, level.interior_space, 1)
+#     #
+#     #     run_evt = self.kernel(*level.buffers).on(level.queue, gsize=global_size, lsize=self.local_size)
+#
+#     def __call__(self, thing, level, working_source, working_target, rhs_mesh, lambda_mesh):
+#
+#         meshes = [
+#             working_source, working_target,
+#             rhs_mesh, lambda_mesh
+#         ] + level.beta_face_values + [level.alpha]
+#         # meshes = [mesh.ravel() for mesh in meshes]
+#         ocl_args = [level.queue, self.kernel]
+#         for mesh in meshes:
+#             if hasattr(mesh, "buffer"):
+#                 if mesh.buffer is None:
+#                     mesh.buffer, evt = cl.buffer_from_ndarray(level.queue, mesh)
+#                 else:
+#                     mesh.buffer, evt = cl.buffer_from_ndarray(level.queue, mesh, buf=mesh.buffer)
+#                 ocl_args.append(mesh.buffer)
+#             else:
+#                 buf, evt = cl.buffer_from_ndarray(level.queue, mesh)
+#                 ocl_args.append(buf)
+#
+#         # self.kernel.argtypes = tuple(cl.cl_mem for _ in range(len(ocl_args) - 2))
+#         # global_size = reduce(operator.mul, level.interior_space, 1)
+#
+#         # run_evt = self.kernel(*ocl_args[2:]).on(level.queue, gsize=global_size, lsize=self.local_size)
+#         self._c_function(*ocl_args)
+#         cl.buffer_to_ndarray(level.queue, meshes[0].buffer, out=meshes[0])
+#         cl.buffer_to_ndarray(level.queue, meshes[1].buffer, out=meshes[1])
 
 
 class CSmoothSpecializer(LazySpecializedFunction):
@@ -495,7 +561,9 @@ class OclSmoothSpecializer(LazySpecializedFunction):
 
         subconfig, tuner = program_config
         device = cl.clGetDeviceIDs()[-1]
-        local_size = compute_local_work_size(device, subconfig['level'].interior_space)
+        level = subconfig['level']
+        local_size = compute_local_work_size(device, level.interior_space)
+        global_size = reduce(operator.mul, level.interior_space, 1)
 
         project = Project(transform_result)
         kernel = project.find(OclFile)
@@ -515,12 +583,14 @@ class OclSmoothSpecializer(LazySpecializedFunction):
         entry_type.extend(param_types)
         entry_type = ctypes.CFUNCTYPE(*entry_type)
 
-
-        program = cl.clCreateProgramWithSource(subconfig['level'].context, kernel.codegen()).build()
+        program = cl.clCreateProgramWithSource(level.context, kernel.codegen()).build()
         kernel = program["smooth_points_kernel"]
+        kernel.argtypes = tuple(cl.cl_mem for _ in range(len(param_types)))
 
-        fn = SmoothOclFunction(kernel, local_size)
-        return fn.finalize(control.name, project, entry_type)
+        kernel = KernelRunManager(kernel, global_size, local_size)
+
+        fn = SmoothOclFunction()
+        return fn.finalize("smooth_points_control", project, entry_type, level.context, level.queue, [kernel])
 
 
 def generate_control(params, shape, entire_shape, local_size):

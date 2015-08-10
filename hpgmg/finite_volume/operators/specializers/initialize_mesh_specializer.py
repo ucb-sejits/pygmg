@@ -4,20 +4,21 @@ from ctree.c.nodes import MultiNode, For, Assign, SymbolRef, Constant, Lt, PostI
 from ctree.cpp.nodes import CppInclude
 from ctree.jit import LazySpecializedFunction, ConcreteSpecializedFunction
 from ctree.nodes import Project
+from ctree.ocl.nodes import OclFile
 from ctree.transformations import PyBasicConversions
 import math
 from rebox.specializers.order import Ordering
 from rebox.specializers.rm.encode import MultiplyEncode
 from hpgmg.finite_volume.operators.specializers.jit import PyGMGConcreteSpecializedFunction
 from hpgmg.finite_volume.operators.specializers.util import apply_all_layers, to_macro_function, sympy_to_c, \
-    include_mover
+    include_mover, flattened_to_multi_index, new_generate_control
 from hpgmg.finite_volume.operators.transformers.semantic_transformer import SemanticFinder
 
 from ctree.frontend import dump, get_ast
 from hpgmg.finite_volume.operators.transformers.semantic_transformers.csemantics import CRangeTransformer
 from hpgmg.finite_volume.operators.transformers.transformer_util import nest_loops
 from hpgmg.finite_volume.operators.transformers.utility_transformers import ParamStripper, AttributeGetter, \
-    IndexOpTransformer, AttributeRenamer, CallReplacer, IndexDirectTransformer, IndexTransformer
+    IndexOpTransformer, AttributeRenamer, CallReplacer, IndexDirectTransformer, IndexTransformer, OclFileWrapper
 
 import numpy as np
 
@@ -93,7 +94,7 @@ class CInitializeMesh(LazySpecializedFunction):
             CallReplacer({
                 'func': expr
             }),
-            CRangeTransformer(),
+            CRangeTransformer(), #if subconfig['self'].configuration.backend != "ocl" else self.RangeTransformer(),
             IndexTransformer(('coord',)),
             IndexDirectTransformer(ndim=ndim, encode_func_names={'coord': 'encode'}),
             PyBasicConversions(),
@@ -115,7 +116,7 @@ class CInitializeMesh(LazySpecializedFunction):
         ])
 
         cfile = include_mover(cfile)
-
+        #print(cfile)
         return [cfile]
 
     def finalize(self, transform_result, program_config):
@@ -132,3 +133,34 @@ class CInitializeMesh(LazySpecializedFunction):
         )
 
 
+class OclInitializeMesh(CInitializeMesh):
+    class RangeTransformer(ast.NodeTransformer):
+        def visit_RangeNode(self, node):
+            body=[
+                Assign(SymbolRef("global_id", ctypes.c_int()), FunctionCall(SymbolRef("get_global_id"), [Constant(0)]))
+            ]
+            ranges = node.iterator.ranges
+            # offsets = tuple(r[0] for r in ranges)
+            shape = tuple(r[1] - r[0] for r in ranges)
+            indices = flattened_to_multi_index(SymbolRef("global_id"), shape)
+            for d in range(len(shape)):
+                body.append(Assign(SymbolRef("coord_%d"%d), indices[d]))
+            body.extend(node.body)
+            return MultiNode(body=body)
+
+    def transform(self, tree, program_config):
+        file = super(OclInitializeMesh, self).transform(tree, program_config)[0]
+        # global_size =
+        # local_size =
+        while isinstance(file.body[0], CppInclude):
+            file.body.pop(0)
+        kernel_file = OclFileWrapper().visit(file)
+        kernel_func = kernel_file.find(FunctionDecl, kernel=True)
+        kernel_name = kernel_func.name
+        kernel_func.name = "%s_kernel" % kernel_name
+        kernel_func.set_kernel()
+        for param in kernel_func.params:
+            if isinstance(param, ctypes.POINTER(ctypes.c_double)):
+                param.set_global()
+        control = new_generate_control(kernel_name, 1, 1, kernel_func.params, [kernel_file])
+        return []

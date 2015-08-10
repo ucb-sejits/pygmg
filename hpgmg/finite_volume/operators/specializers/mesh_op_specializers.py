@@ -14,8 +14,9 @@ import math
 from ctree.transforms.declaration_filler import DeclarationFiller
 from rebox.specializers.order import Ordering
 from rebox.specializers.rm.encode import MultiplyEncode
-from hpgmg.finite_volume.mesh import Mesh
-from hpgmg.finite_volume.operators.specializers.jit import PyGMGConcreteSpecializedFunction
+from hpgmg.finite_volume.mesh import Mesh, Buffer
+from hpgmg.finite_volume.operators.specializers.jit import PyGMGConcreteSpecializedFunction, KernelRunManager, \
+    PyGMGOclConcreteSpecializedFunction
 from hpgmg.finite_volume.operators.specializers.smooth_specializer import apply_all_layers
 from hpgmg.finite_volume.operators.specializers.util import include_mover, flattened_to_multi_index, \
     new_generate_control
@@ -50,46 +51,185 @@ class MeshOpCFunction(PyGMGConcreteSpecializedFunction):
         return flattened, {}
 
 
-class MeshOpOclFunction(ConcreteSpecializedFunction):
+class MeshOpOclFunction(PyGMGOclConcreteSpecializedFunction):
 
-    def __init__(self, kernels, other_args=None):
-        self.kernels = kernels
-        self.other_args = other_args if other_args else []
+    def set_kernel_args(self, args, kwargs):
+        # need to set kernel argtypes!!!
+        kernel = self.kernels[0]  # there is one kernel until we do reductions
 
-    def finalize(self, entry_point_name, project_node, entry_point_typesig):
-        self.entry_point_name = entry_point_name
-        self.entry_point_typesig = entry_point_typesig
-        self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)
-        return self
+        kernel_args = []
+        # kernel_argtypes = []
 
-    def __call__(self, *args, **kwargs):
-        arguments = []
-        queue = None
-        args = args + tuple(self.other_args)
-        for arg in args:
-            if hasattr(arg, "queue"):
-                queue = arg.queue
-                arguments.append(queue)
-                arguments.extend(kernel for kernel in self.kernels)
-            elif isinstance(arg, Mesh) or isinstance(arg, np.ndarray):
-                if hasattr(arg, "buffer"):
-                    if arg.buffer is None:
-                        arg.buffer, evt = cl.buffer_from_ndarray(queue, arg)
-                    else:
-                        arg.buffer, evt = cl.buffer_from_ndarray(queue, arg, buf=arg.buffer)
-                    arguments.append(arg.buffer)
-                else:
-                    buf, evt = cl.buffer_from_ndarray(queue, arg)
-                    arguments.append(buf)
-            elif isinstance(arg, (int, float)):
-                arguments.append(arg)
-
-        value = self._c_function(*arguments)
         for arg in args:
             if isinstance(arg, Mesh):
-                arg, evt = cl.buffer_to_ndarray(queue, arg.buffer, out=arg)
+                mesh = arg
+                if mesh.dirty:
+                    buffer = None if mesh.buffer is None else mesh.buffer.buffer
+                    buf, evt = cl.buffer_from_ndarray(self.queue, mesh, buf=buffer)
+                    mesh.buffer = buf
+                    mesh.buffer.evt = evt
+                    mesh.dirty = False
 
-        return value
+                elif mesh.buffer is None:
+                    size = mesh.size * ctypes.sizeof(ctypes.c_double)
+                    mesh.buffer = cl.clCreateBuffer(self.context, size)
+
+                kernel_args.append(mesh.buffer)
+                # kernel_argtypes.append(cl.cl_mem)
+
+            elif isinstance(arg, (int, float)):
+                kernel_args.append(arg)
+                # kernel_argtypes.append(ctypes.c_double) # ?????
+
+        kernel.args = kernel_args
+        # kernel.kernel.argtypes = tuple(kernel_argtypes)
+
+
+    def __call__(self, *args, **kwargs):
+        self.set_kernel_args(args, kwargs)
+
+        kernel = self.kernels[0]
+        kernel_args = []
+        previous_events = []
+        for arg in kernel.args:
+            if isinstance(arg, Buffer):
+                kernel_args.append(arg.buffer)
+                if arg.evt is not None:
+                    previous_events.append(arg.evt)
+            else:
+                kernel_args.append(arg)
+
+        cl.clWaitForEvents(*previous_events)
+
+        run_evt = kernel.kernel(*kernel_args).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
+        run_evt.wait()
+
+        ary, evt = cl.buffer_to_ndarray(self.queue, kernel.args[0].buffer, args[1])
+        kernel.args[0].evt = evt
+        kernel.args[0].dirty = False
+        kernel.args[0].evt.wait()
+
+
+class MeshReduceOpOclFunction(PyGMGOclConcreteSpecializedFunction):
+
+    def set_kernel_args(self, args, kwargs):
+        # need to set kernel argtypes!!!
+        bufferized_args = []
+
+        for arg in args:
+            if isinstance(arg, Mesh):
+                mesh = arg
+                if mesh.dirty:
+                    buffer = None if mesh.buffer is None else mesh.buffer.buffer
+                    buf, evt = cl.buffer_from_ndarray(self.queue, mesh, buf=buffer)
+                    mesh.buffer = buf
+                    mesh.buffer.evt = evt
+                    mesh.dirty = False
+
+                elif mesh.buffer is None:
+                    size = mesh.size * ctypes.sizeof(ctypes.c_double)
+                    mesh.buffer = cl.clCreateBuffer(self.context, size)
+
+                bufferized_args.append(mesh.buffer)
+
+            elif isinstance(arg, (int, float)):
+                bufferized_args.append(arg)
+
+        self.kernels[0].args = bufferized_args[:-1]
+        self.kernels[1].args = bufferized_args[-2:]
+
+
+    def __call__(self, *args, **kwargs):
+        local_size = self.kernels[0].lsize
+        args = args + (Mesh((local_size,)), Mesh((1,)))
+        self.set_kernel_args(args, kwargs)
+
+        for kernel in self.kernels:
+            kernel_args = []
+            previous_events = []
+            for arg in kernel.args:
+                if isinstance(arg, Buffer):
+                    kernel_args.append(arg.buffer)
+                    if arg.evt:
+                        previous_events.append(arg.evt)
+                else:
+                    kernel_args.append(arg)
+
+            cl.clWaitForEvents(*previous_events)
+            run_evt = kernel.kernel(*kernel_args).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
+            run_evt.wait()
+
+        ary, evt = cl.buffer_to_ndarray(self.queue, args[-1].buffer.buffer, args[-1])
+        evt.wait()
+        return args[-1][0]
+
+# class MeshOpOclFunction(ConcreteSpecializedFunction):
+#
+#     def __init__(self, kernels, other_args=None):
+#         self.kernels = kernels
+#         self.other_args = other_args if other_args else []
+#
+#     def finalize(self, entry_point_name, project_node, entry_point_typesig):
+#         self.entry_point_name = entry_point_name
+#         self.entry_point_typesig = entry_point_typesig
+#         self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)
+#         return self
+#
+#     # def set_kernel_args(self, level, args, kwargs):
+#     #     # args contains the extra args already
+#     #     # we know that there are two kernels
+#     #     # and that the arguments to the second kernels are just temp and final
+#     #     queue = level.queue
+#     #     bufferized_args = []
+#     #     for arg in args:
+#     #         if isinstance(arg, Mesh):
+#     #             mesh = arg
+#     #             if mesh.buffer and mesh.buffer.dirty:
+#     #                 mesh.buffer, evt = cl.buffer_from_ndarray(queue, mesh, mesh.buffer)
+#     #                 mesh.buffer.evt = evt
+#     #             elif mesh.dirty:
+#     #                 mesh.buffer, evt = cl.buffer_from_ndarray(queue, mesh)
+#     #                 mesh.buffer.evt = evt
+#     #             else:
+#     #                 size = mesh.size * ctypes.sizeof(ctypes.c_double)
+#     #                 mesh.buffer = cl.clCreateBuffer(level.context, size)
+#     #                 mesh.buffer.evt = None
+#     #             mesh.buffer.dirty = False
+#     #             bufferized_args.append(mesh.buffer)
+#     #         elif isinstance(arg, (int, float)):
+#     #             bufferized_args.append(arg)
+#     #
+#     #     self.kernels[0].args = bufferized_args[:-1]
+#     #     self.kernels[1].args = bufferized_args[-2:]
+#
+#     def __call__(self, *args, **kwargs):
+#         arguments = []
+#         queue = None
+#         args = args + tuple(self.other_args)
+#         for arg in args:
+#             if hasattr(arg, "queue"):
+#                 queue = arg.queue
+#                 arguments.append(queue)
+#                 arguments.extend(kernel for kernel in self.kernels)
+#             elif isinstance(arg, Mesh) or isinstance(arg, np.ndarray):
+#                 if hasattr(arg, "buffer"):
+#                     if arg.buffer is None:
+#                         arg.buffer, evt = cl.buffer_from_ndarray(queue, arg)
+#                     else:
+#                         arg.buffer, evt = cl.buffer_from_ndarray(queue, arg, buf=arg.buffer)
+#                     arguments.append(arg.buffer)
+#                 else:
+#                     buf, evt = cl.buffer_from_ndarray(queue, arg)
+#                     arguments.append(buf)
+#             elif isinstance(arg, (int, float)):
+#                 arguments.append(arg)
+#         #
+#         # value = self._c_function(*arguments)
+#         # for arg in args:
+#         #     if isinstance(arg, Mesh):
+#         #         arg, evt = cl.buffer_to_ndarray(queue, arg.buffer, out=arg)
+#         #
+#         # return value
 
 
 class MeshOpSpecializer(LazySpecializedFunction):
@@ -232,6 +372,14 @@ class OclFillMeshSpecializer(MeshOpSpecializer):
         project = Project(transform_result)
         control = transform_result[0]
         kernel = transform_result[1]
+        level = subconfig['self']
+
+        global_shape = tuple(dim + 2 * ghost for dim, ghost in zip(level.interior_space, level.ghost_zone))
+        global_size = reduce(operator.mul, global_shape, 1)
+        local_size = min(1024, global_size)
+        while global_size % local_size != 0:
+            local_size -= 1
+
         retval = ctypes.c_int
         kernel_name = self.tree.body[0].name  # refers to original FunctionDef
         entry_point = kernel_name + "_control"
@@ -243,9 +391,12 @@ class OclFillMeshSpecializer(MeshOpSpecializer):
                 param_types.append(ctypes.c_double)
         level = subconfig['self']
         kernel = cl.clCreateProgramWithSource(level.context, kernel.codegen()).build()[kernel_name + "_kernel"]
-        fn = MeshOpOclFunction([kernel])
+        kernel.argtypes = tuple(param_types[2:])
+        kernel = KernelRunManager(kernel, global_size, local_size)
+        fn = MeshOpOclFunction()
         return fn.finalize(
-            entry_point, project, ctypes.CFUNCTYPE(retval, *param_types)
+            entry_point, project, ctypes.CFUNCTYPE(retval, *param_types),
+            level.context, level.queue, [kernel]
         )
 
 
@@ -385,9 +536,16 @@ class OclGeneralizedSimpleMeshOpSpecializer(MeshOpSpecializer):
 
     def finalize(self, transform_result, program_config):
         subconfig, tuner_config = program_config
+        level = subconfig['self']
         project = Project(transform_result)
         control = transform_result[0]
         kernel = transform_result[1]
+
+        global_size = reduce(operator.mul, level.interior_space, 1)
+        local_size = min(1024, global_size)
+        while global_size % local_size != 0:
+            local_size -= 1
+
         retval = ctypes.c_int
         kernel_name = self.tree.body[0].name  # refers to original FunctionDef
         entry_point = kernel_name + "_control"
@@ -397,11 +555,13 @@ class OclGeneralizedSimpleMeshOpSpecializer(MeshOpSpecializer):
                 param_types.append(cl.cl_mem)
             elif isinstance(subconfig[param], (int, float)):
                 param_types.append(ctypes.c_double)
-        level = subconfig['self']
         kernel = cl.clCreateProgramWithSource(level.context, kernel.codegen()).build()[kernel_name + "_kernel"]
-        fn = MeshOpOclFunction([kernel])
+        kernel.argtypes = tuple(param_types[2:])
+        kernel = KernelRunManager(kernel, global_size, local_size)
+        fn = MeshOpOclFunction()
         return fn.finalize(
-            entry_point, project, ctypes.CFUNCTYPE(retval, *param_types)
+            entry_point, project, ctypes.CFUNCTYPE(retval, *param_types),
+            level.context, level.queue, [kernel]
         )
 
 
@@ -526,13 +686,20 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
 
     def finalize(self, transform_result, program_config):
         subconfig, tuner_config = program_config
-        interior_space = subconfig['self'].interior_space
-        interior_size = reduce(operator.mul, interior_space, 1)
-        local_size = min(cl.clGetDeviceIDs()[-1].max_work_group_size, interior_size)
+        level = subconfig['self']
+        # interior_size = reduce(operator.mul, interior_space, 1)
+
+        global_size = reduce(operator.mul, level.interior_space, 1)
+        local_size = min(cl.clGetDeviceIDs()[-1].max_work_group_size, global_size)
+        while global_size % local_size != 0:
+            local_size -= 1
 
         project = Project(transform_result)
         control = transform_result[0]
         kernels = transform_result[1:]
+        # print(kernels[0])
+        # print(kernels[1])
+        # raise TypeError()
         retval = ctypes.c_double
         kernel_name = self.tree.body[0].name  # refers to original FunctionDef
         entry_point = kernel_name + "_control"
@@ -547,12 +714,15 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
         param_types.append(cl.cl_mem)  # temp
         param_types.append(cl.cl_mem)  # final
 
-        level = subconfig['self']
         kernels = [cl.clCreateProgramWithSource(level.context, kernel.codegen()).build()[kernel.name] for kernel in kernels]
-        fn = MeshOpOclFunction(kernels, [np.ndarray((local_size,)), np.ndarray((1,))])
-        return fn.finalize(
-            entry_point, project, ctypes.CFUNCTYPE(retval, *param_types)
-        )
+        kernels[0].argtypes = tuple(param_types[len(kernels)+1:-1])
+        kernels[1].argtypes = tuple(param_types[-2:])
+        kernels[0] = KernelRunManager(kernels[0], global_size, local_size)
+        kernels[1] = KernelRunManager(kernels[1], local_size, 1)
+        fn = MeshReduceOpOclFunction()
+        fn = fn.finalize(entry_point, project, ctypes.CFUNCTYPE(retval, *param_types),
+                         level.context, level.queue, kernels)
+        return fn
 
 
 
