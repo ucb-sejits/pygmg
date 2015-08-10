@@ -4,7 +4,7 @@ from stencil_code.neighborhood import Neighborhood
 
 from hpgmg.finite_volume.operators.base_operator import BaseOperator
 from hpgmg.finite_volume.operators.restriction import Restriction
-from hpgmg.finite_volume.operators.specializers.rebuild_specializer import CRebuildSpecializer
+from hpgmg.finite_volume.operators.specializers.rebuild_specializer import CRebuildSpecializer, OclRebuildSpecializer
 from hpgmg.finite_volume.operators.specializers.util import specialized_func_dispatcher, profile
 from hpgmg.finite_volume.space import Coord
 
@@ -117,6 +117,7 @@ class StencilVonNeumannR1(BaseOperator):
     @specialized_func_dispatcher({
         'c': CRebuildSpecializer,
         'omp': CRebuildSpecializer,
+        'ocl': OclRebuildSpecializer
         # 'ocl': CRebuildSpecializer
     })
     def get_dominant_eigenvalue(self, target_level):

@@ -2,22 +2,30 @@ import ctypes
 import math
 import ast
 
-from ctree.c.nodes import SymbolRef, ArrayDef, Array, CFile, FunctionCall
+from ctree.c.nodes import SymbolRef, ArrayDef, Array, CFile, FunctionCall, FunctionDecl, Assign, MultiNode, Constant, \
+    ArrayRef
 from ctree.cpp.nodes import CppInclude, CppDefine
 from ctree.jit import LazySpecializedFunction, ConcreteSpecializedFunction
 from ctree.nodes import Project
 from ctree.transformations import PyBasicConversions
+from ctree.transforms.declaration_filler import DeclarationFiller
 from rebox.specializers.order import Ordering
 from rebox.specializers.rm.encode import MultiplyEncode
 import numpy as np
-from hpgmg.finite_volume.operators.specializers.jit import PyGMGConcreteSpecializedFunction
+from hpgmg.finite_volume.mesh import Mesh
+from hpgmg.finite_volume.operators.specializers.jit import PyGMGConcreteSpecializedFunction, KernelRunManager, \
+    PyGMGOclConcreteSpecializedFunction
 
-from hpgmg.finite_volume.operators.specializers.util import apply_all_layers, include_mover
+from hpgmg.finite_volume.operators.specializers.util import apply_all_layers, include_mover, \
+    compute_largest_local_work_size, new_generate_control, flattened_to_multi_index
 from hpgmg.finite_volume.operators.transformers.generator_transformers import GeneratorTransformer, CompReductionTransformer
 from hpgmg.finite_volume.operators.transformers.level_transformers import RowMajorInteriorPoints
 from hpgmg.finite_volume.operators.transformers.utility_transformers import ParamStripper, AttributeRenamer, \
     AttributeGetter, ArrayRefIndexTransformer, IndexOpTransformer, LookupSimplificationTransformer, IndexTransformer, \
-    IndexDirectTransformer, BranchSimplifier
+    IndexDirectTransformer, BranchSimplifier, OclFileWrapper
+
+import operator
+import pycl as cl
 
 
 __author__ = 'nzhang-dev'
@@ -47,6 +55,55 @@ class RebuildCFunction(PyGMGConcreteSpecializedFunction):
     #             args.append(target_level.alpha)
     #     flattened = [arg.ravel() for arg in args]
     #     return self._c_function(*flattened)
+
+
+class RebuildOclFunction(PyGMGOclConcreteSpecializedFunction):
+
+    def set_kernel_args(self, args, kwargs):
+        thing, target_level, final_answer = args
+
+        kernel = self.kernels[0]
+
+        meshes = [target_level.valid, target_level.l1_inverse, target_level.d_inverse, final_answer]
+        kernel_args = []
+        for mesh in meshes:
+            if mesh.dirty:
+                buffer = None if mesh.buffer is None else mesh.buffer.buffer
+                buf, evt = cl.buffer_from_ndarray(self.queue, mesh, buf=buffer)
+                mesh.buffer = buf
+                mesh.buffer.evt = evt
+                mesh.dirty = False
+
+            elif mesh.buffer is None:
+                size = mesh.size * ctypes.sizeof(ctypes.c_double)
+                mesh.buffer = cl.clCreateBuffer(self.context, size)
+
+            kernel_args.append(mesh.buffer)
+
+        kernel.args = kernel_args
+
+    def __call__(self, *args, **kwargs):
+        final_answer = Mesh((1,))
+        args = args + (final_answer,)
+        self.set_kernel_args(args, kwargs)
+
+        kernel = self.kernels[0]
+        kernel_args = []
+        previous_events = []
+        for arg in kernel.args:
+            kernel_args.append(arg.buffer)
+            if arg.evt is not None:
+                previous_events.append(arg.evt)
+
+        cl.clWaitForEvents(*previous_events)
+        run_evt = kernel.kernel(*kernel_args).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
+        run_evt.wait()
+
+        ary, evt = cl.buffer_to_ndarray(self.queue, kernel.args[-1].buffer, args[-1])
+        kernel.args[0].evt = evt
+        kernel.args[0].dirty = False
+        kernel.args[0].evt.wait()
+        return args[-1][0]
 
 class CRebuildSpecializer(LazySpecializedFunction):
 
@@ -184,3 +241,63 @@ class CRebuildSpecializer(LazySpecializedFunction):
             name, Project(transform_result),
             ctypes.CFUNCTYPE(ctypes.c_double, *parameter_types)
         )
+
+class OclRebuildSpecializer(CRebuildSpecializer):
+
+    class RangeTransformer(ast.NodeTransformer):
+        def visit_RangeNode(self, node):
+            body=[
+                Assign(SymbolRef("global_id", ctypes.c_ulong()), FunctionCall(SymbolRef("get_global_id"), [Constant(0)]))
+            ]
+            ranges = node.iterator.ranges
+            offsets = tuple(r[0] for r in ranges)
+            shape = tuple(r[1] - r[0] for r in ranges)
+            indices = flattened_to_multi_index(SymbolRef("global_id"), shape, offsets=offsets)
+            for d in range(len(shape)):
+                body.append(Assign(SymbolRef("index_%d"%d, ctypes.c_ulong()), indices[d]))
+            body.extend(node.body)
+            return MultiNode(body=body)
+
+    def transform(self, tree, program_config):
+        subconfig, tuner = program_config
+        target_level = subconfig['target_level']
+        file = super(OclRebuildSpecializer, self).transform(tree, program_config)[0]
+        while isinstance(file.body[0], CppInclude):
+            file.body.pop(0)
+        kernel = file.find(FunctionDecl)
+        kernel.set_kernel()
+        kernel.return_type = None
+        kernel.defn[-1] = Assign(ArrayRef(SymbolRef("final"), Constant(0)), kernel.defn[-1].value)
+        kernel.params.append(SymbolRef("final", ctypes.POINTER(ctypes.c_double)()))
+        for param in kernel.params:
+            param.set_global()
+        ocl_file = OclFileWrapper("%s_kernel" % kernel.name).visit(file)
+        ocl_file = DeclarationFiller().visit(ocl_file)
+        global_size = reduce(operator.mul, target_level.interior_space, 1)
+        local_size = compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], global_size)
+        control = new_generate_control("%s_control" % kernel.name, global_size, local_size, kernel.params, [kernel])
+        kernel.name = "%s_kernel" % kernel.name
+        return [control, ocl_file]
+
+
+    def finalize(self, transform_result, program_config):
+
+        subconfig, tuner = program_config
+        target_level = subconfig['target_level']
+        global_size = reduce(operator.mul, target_level.interior_space, 1)
+        local_size = compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], global_size)
+
+        project = Project(transform_result)
+        control = transform_result[0]
+        kernel = transform_result[1]
+
+        name = kernel.name
+        kernel = cl.clCreateProgramWithSource(target_level.context, kernel.codegen()).build()[name]
+        kernel.argtypes = (cl.cl_mem, cl.cl_mem, cl.cl_mem, cl.cl_mem)
+        kernel = KernelRunManager(kernel, global_size, local_size)
+
+        typesig = [ctypes.c_int, cl.cl_command_queue, cl.cl_kernel, cl.cl_mem, cl.cl_mem, cl.cl_mem, cl.cl_mem]
+        fn = RebuildOclFunction()
+        fn = fn.finalize(control.name, project, ctypes.CFUNCTYPE(*typesig),
+                         target_level.context, target_level.queue, [kernel])
+        return fn

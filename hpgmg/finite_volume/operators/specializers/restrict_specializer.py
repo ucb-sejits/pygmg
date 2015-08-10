@@ -223,7 +223,7 @@ class OclRestrictSpecializer(CRestrictSpecializer):
         kernel = cl.clCreateProgramWithSource(level.context, kernel.codegen()).build()[name]
         kernel.argtypes = (cl.cl_mem, cl.cl_mem)
         global_size = reduce(operator.mul, level.interior_space, 1)
-        local_size = compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], )
+        local_size = compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], global_size)
         kernel = KernelRunManager(kernel, global_size, local_size)
 
         typesig = [ctypes.c_int, cl.cl_command_queue, cl.cl_kernel, cl.cl_mem, cl.cl_mem]
