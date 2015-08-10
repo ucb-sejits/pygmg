@@ -113,7 +113,6 @@ class MeshOpOclFunction(PyGMGOclConcreteSpecializedFunction):
 class MeshReduceOpOclFunction(PyGMGOclConcreteSpecializedFunction):
 
     def set_kernel_args(self, args, kwargs):
-        # need to set kernel argtypes!!!
         bufferized_args = []
 
         for arg in args:

@@ -26,7 +26,7 @@ class Residual(object):
     @specialized_func_dispatcher({
         'c': CSmoothSpecializer,
         'omp': OmpSmoothSpecializer,
-        # 'ocl': OclSmoothSpecializer
+        'ocl': OclSmoothSpecializer
         # 'ocl': CSmoothSpecializer
     })
     def residue(self, level, target_mesh, source_mesh, right_hand_side, lambda_mesh):

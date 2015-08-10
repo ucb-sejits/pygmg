@@ -22,6 +22,10 @@ class Mesh(np.ndarray):
         self.dirty = True
         super(Mesh, self).__setitem__(key, value)
 
+    def fill(self, value):
+        self.dirty = True
+        super(Mesh, self).fill(value)
+
     @property
     def buffer(self):
         return self._buffer
