@@ -32,6 +32,7 @@ from hpgmg.finite_volume.space import Space, Vector
 from hpgmg.finite_volume.simple_level import SimpleLevel
 
 import numpy as np
+import pycl as cl
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
@@ -128,6 +129,10 @@ class SimpleMultigridSolver(object):
             self.beta_generator = VariableBeta(self.dimensions)
 
         self.timer = EventTimer(self)
+
+        if self.configuration.backend == 'ocl':
+            self.context = cl.clCreateContext(devices=[cl.clGetDeviceIDs()[-1]])
+            self.queue = cl.clCreateCommandQueue(self.context)
 
         self.fine_level = SimpleLevel(solver=self, space=self.global_size, level_number=0)
         self.all_levels = [self.fine_level]

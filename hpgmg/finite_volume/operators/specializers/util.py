@@ -362,6 +362,13 @@ def compute_local_work_size(device, shape):
             local_size = local_cube_dim ** ndim
     return local_size
 
+def compute_largest_local_work_size(device, shape):
+    global_size = reduce(operator.mul, shape, 1)
+    local_size = min(device.max_work_group_size, global_size)
+    while global_size % local_size != 0:
+        local_size -= 1
+    return local_size
+
 def flattened_to_multi_index(flattened_id_symbol, shape, multipliers=None, offsets=None):
 
     # flattened_id should be a symbol ref

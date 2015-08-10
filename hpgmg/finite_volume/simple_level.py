@@ -88,10 +88,11 @@ class SimpleLevel(object):
         self.timer = EventTimer(self)
 
         self.buffers = []
-        self.context = cl.clCreateContext(devices=[cl.clGetDeviceIDs()[-1]])
-        self.queue = cl.clCreateCommandQueue(self.context)
-        # self.smooth_events = []
-        # self.boundary_events = []
+        # self.context = cl.clCreateContext(devices=[cl.clGetDeviceIDs()[-1]])
+        # self.queue = cl.clCreateCommandQueue(self.context)
+        if self.configuration.backend == 'ocl':
+            self.context = self.solver.context
+            self.queue = self.solver.queue
 
     def dimension_size(self):
         return self.space[0] - (self.ghost_zone[0]*2)
