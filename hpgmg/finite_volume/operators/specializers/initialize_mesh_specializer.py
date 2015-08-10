@@ -160,7 +160,7 @@ class CInitializeMesh(LazySpecializedFunction):
         ])
 
         cfile = include_mover(cfile)
-        print(cfile)
+        #print(cfile)
         return [cfile]
 
     def finalize(self, transform_result, program_config):
