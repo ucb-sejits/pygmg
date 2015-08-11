@@ -3,7 +3,7 @@ import math
 import ast
 
 from ctree.c.nodes import SymbolRef, ArrayDef, Array, CFile, FunctionCall, FunctionDecl, Assign, MultiNode, Constant, \
-    ArrayRef
+    ArrayRef, For
 from ctree.cpp.nodes import CppInclude, CppDefine
 from ctree.jit import LazySpecializedFunction, ConcreteSpecializedFunction
 from ctree.nodes import Project
@@ -83,8 +83,7 @@ class RebuildOclFunction(PyGMGOclConcreteSpecializedFunction):
         kernel.args = kernel_args
 
     def __call__(self, *args, **kwargs):
-        final_answer = Mesh((1,))
-        args = args + (final_answer,)
+        args = args + self.extra_args
         self.set_kernel_args(args, kwargs)
 
         kernel = self.kernels[0]
@@ -98,7 +97,6 @@ class RebuildOclFunction(PyGMGOclConcreteSpecializedFunction):
         cl.clWaitForEvents(*previous_events)
         run_evt = kernel.kernel(*kernel_args).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
         run_evt.wait()
-
         ary, evt = cl.buffer_to_ndarray(self.queue, kernel.args[-1].buffer, args[-1])
         kernel.args[0].evt = evt
         kernel.args[0].dirty = False
@@ -137,7 +135,7 @@ class CRebuildSpecializer(LazySpecializedFunction):
         #print(dump(tree))
         layers = [
             ParamStripper(('self',)),
-            RowMajorInteriorPoints(subconfig),
+            RowMajorInteriorPoints(subconfig) if subconfig['target_level'].configuration.backend != 'ocl' else self.RangeTransformer(subconfig),
             GeneratorTransformer(subconfig),
             CompReductionTransformer(),
             AttributeRenamer({
@@ -245,17 +243,28 @@ class CRebuildSpecializer(LazySpecializedFunction):
 class OclRebuildSpecializer(CRebuildSpecializer):
 
     class RangeTransformer(ast.NodeTransformer):
-        def visit_RangeNode(self, node):
+
+        def __init__(self, subconfig):
+            self.subconfig = subconfig
+            super(OclRebuildSpecializer.RangeTransformer, self).__init__()
+
+        def visit_For(self, node):
+            target_level = self.subconfig['target_level']
+
+            offsets = target_level.ghost_zone
+            shape = target_level.interior_space
+
+            current_body = node.body
+            while(len(current_body) == 1):
+                current_body = current_body[0].body
+
             body=[
                 Assign(SymbolRef("global_id", ctypes.c_ulong()), FunctionCall(SymbolRef("get_global_id"), [Constant(0)]))
             ]
-            ranges = node.iterator.ranges
-            offsets = tuple(r[0] for r in ranges)
-            shape = tuple(r[1] - r[0] for r in ranges)
             indices = flattened_to_multi_index(SymbolRef("global_id"), shape, offsets=offsets)
             for d in range(len(shape)):
                 body.append(Assign(SymbolRef("index_%d"%d, ctypes.c_ulong()), indices[d]))
-            body.extend(node.body)
+            body.extend(current_body)
             return MultiNode(body=body)
 
     def transform(self, tree, program_config):
@@ -287,6 +296,10 @@ class OclRebuildSpecializer(CRebuildSpecializer):
         global_size = reduce(operator.mul, target_level.interior_space, 1)
         local_size = compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], global_size)
 
+        if (1,) not in target_level.reducer_meshes:
+            target_level.reducer_meshes[(1,)] = Mesh((1,))
+        final_mesh = target_level.reducer_meshes[(1,)]
+
         project = Project(transform_result)
         control = transform_result[0]
         kernel = transform_result[1]
@@ -299,5 +312,5 @@ class OclRebuildSpecializer(CRebuildSpecializer):
         typesig = [ctypes.c_int, cl.cl_command_queue, cl.cl_kernel, cl.cl_mem, cl.cl_mem, cl.cl_mem, cl.cl_mem]
         fn = RebuildOclFunction()
         fn = fn.finalize(control.name, project, ctypes.CFUNCTYPE(*typesig),
-                         target_level.context, target_level.queue, [kernel])
+                         target_level.context, target_level.queue, [kernel], (final_mesh,))
         return fn

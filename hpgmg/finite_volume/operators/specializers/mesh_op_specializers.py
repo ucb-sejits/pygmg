@@ -692,6 +692,15 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
         while global_size % local_size != 0:
             local_size -= 1
 
+        if level.interior_space not in level.reducer_meshes:
+            level.reducer_meshes[level.interior_space] = Mesh(global_size)
+        if (1,) not in level.reducer_meshes:
+            level.reducer_meshes[(1,)] = Mesh((1,))
+        temp_mesh = level.reducer_meshes[level.interior_space]
+        final_mesh = level.reducer_meshes[(1,)]
+
+        # print("I AM USING THE LOCAL SIZE {} FOR A LEVEL OF SHAPE {}".format(local_size, level.interior_space))
+
         project = Project(transform_result)
         control = transform_result[0]
         kernels = transform_result[1:]
@@ -714,7 +723,8 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
         kernels[1].argtypes = tuple(param_types[-2:])
         kernels[0] = KernelRunManager(kernels[0], global_size, local_size)
         kernels[1] = KernelRunManager(kernels[1], local_size, 1)
-        extra_args = (Mesh((local_size,)), Mesh((1,)))
+        # extra_args = (Mesh((local_size,)), Mesh((1,)))
+        extra_args = (temp_mesh, final_mesh)
         fn = MeshReduceOpOclFunction()
         fn = fn.finalize(entry_point, project, ctypes.CFUNCTYPE(retval, *param_types),
                          level.context, level.queue, kernels, extra_args)

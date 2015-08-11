@@ -93,6 +93,8 @@ class SimpleLevel(object):
         if self.configuration.backend == 'ocl':
             self.context = self.solver.context
             self.queue = self.solver.queue
+            self.reducer_meshes = {}
+
 
     def dimension_size(self):
         return self.space[0] - (self.ghost_zone[0]*2)
