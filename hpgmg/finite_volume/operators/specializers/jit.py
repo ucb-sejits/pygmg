@@ -26,11 +26,12 @@ class PyGMGConcreteSpecializedFunction(ConcreteSpecializedFunction):
 
 class PyGMGOclConcreteSpecializedFunction(ConcreteSpecializedFunction):
 
-    def finalize(self, entry_point_name, project_node, entry_point_typesig, context, queue, kernels):
+    def finalize(self, entry_point_name, project_node, entry_point_typesig, context, queue, kernels, extra_args=None):
         self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)
         self.context = context
         self.queue = queue
         self.kernels = kernels
+        self.extra_args = extra_args
         return self
 
     def set_kernel_args(self, args, kwargs):

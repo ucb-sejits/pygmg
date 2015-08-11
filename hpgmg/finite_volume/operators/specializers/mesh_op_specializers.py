@@ -139,8 +139,7 @@ class MeshReduceOpOclFunction(PyGMGOclConcreteSpecializedFunction):
 
 
     def __call__(self, *args, **kwargs):
-        local_size = self.kernels[0].lsize
-        args = args + (Mesh((local_size,)), Mesh((1,)))
+        args = args + self.extra_args
         self.set_kernel_args(args, kwargs)
 
         for kernel in self.kernels:
@@ -696,9 +695,6 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
         project = Project(transform_result)
         control = transform_result[0]
         kernels = transform_result[1:]
-        # print(kernels[0])
-        # print(kernels[1])
-        # raise TypeError()
         retval = ctypes.c_double
         kernel_name = self.tree.body[0].name  # refers to original FunctionDef
         entry_point = kernel_name + "_control"
@@ -718,9 +714,10 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
         kernels[1].argtypes = tuple(param_types[-2:])
         kernels[0] = KernelRunManager(kernels[0], global_size, local_size)
         kernels[1] = KernelRunManager(kernels[1], local_size, 1)
+        extra_args = (Mesh((local_size,)), Mesh((1,)))
         fn = MeshReduceOpOclFunction()
         fn = fn.finalize(entry_point, project, ctypes.CFUNCTYPE(retval, *param_types),
-                         level.context, level.queue, kernels)
+                         level.context, level.queue, kernels, extra_args)
         return fn
 
 
