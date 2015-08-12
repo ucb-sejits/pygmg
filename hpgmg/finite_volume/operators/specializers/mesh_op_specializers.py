@@ -576,6 +576,7 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
             shape = tuple(r[1] - r[0] for r in ranges)
             ndim = len(shape)
             global_size = reduce(operator.mul, shape, 1)  # this is an interior space
+            local_size = compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], global_size)
             if global_size > cl.clGetDeviceIDs()[-1].max_work_group_size:
                 stride = global_size / cl.clGetDeviceIDs()[-1].max_work_group_size
             else:
@@ -588,16 +589,16 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
 
             body.extend(SymbolRef("index_%d"%d, ctypes.c_int()) for d in range(ndim))
 
-            indices = flattened_to_multi_index(Add(SymbolRef("global_offset"), SymbolRef("local_offset")),
+            indices = flattened_to_multi_index(SymbolRef("global_id"),
                                                shape, offsets=offsets)
 
             loop_body = []
             loop_body.extend(Assign(SymbolRef("index_%d"%d), indices[d]) for d in range(ndim))
             loop_body.extend(node.body)
 
-            for_loop = For(init=Assign(SymbolRef("local_offset", ctypes.c_int()), Constant(0)),
-                           test=Lt(SymbolRef("local_offset"), Constant(stride)),
-                           incr=PostInc(SymbolRef("local_offset")),
+            for_loop = For(init=Assign(SymbolRef("global_id", ctypes.c_int()), global_id),
+                           test=Lt(SymbolRef("global_id"), Constant(global_size)),
+                           incr=AddAssign(SymbolRef("global_id"), Constant(local_size)),
                            body=loop_body)
 
             body.append(for_loop)
@@ -625,6 +626,17 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
         # need to change return statement to assign statement
         first_reducer = DeclarationFiller().visit(first_reducer)
         acc_name = get_reduction_var_name(first_reducer.name)
+
+        # # if we are doing norm_mesh, need to remove if statement
+        if first_reducer.name == "norm_mesh":
+            for_loop = first_reducer.find(For)
+            if_statement = for_loop.body.pop()
+            temp_assign = if_statement.then[0].body[0]
+            max_assign = Assign(SymbolRef("max_norm"),
+                                   FunctionCall(SymbolRef("fmax"),
+                                                [SymbolRef("max_norm"), SymbolRef("____temp__max_norm")]))
+            for_loop.body.append(temp_assign)
+            for_loop.body.append(max_assign)
 
         # remove return statement and add assignment statement:
         first_reducer.defn[-1] = Assign(ArrayRef(SymbolRef("temp"),
@@ -681,11 +693,6 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
 
         files = [control_file]
         files.extend(kernel_files)
-        if first_reducer.name == "norm_mesh":
-            print(kernel_files[0])
-            print(kernel_files[1])
-        # for file in files:
-        #     print(file)
         return files
 
     def finalize(self, transform_result, program_config):
@@ -727,9 +734,8 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
         kernels = [cl.clCreateProgramWithSource(level.context, kernel.codegen()).build()[kernel.name] for kernel in kernels]
         kernels[0].argtypes = tuple(param_types[len(kernels)+1:-1])
         kernels[1].argtypes = tuple(param_types[-2:])
-        kernels[0] = KernelRunManager(kernels[0], global_size, local_size)
+        kernels[0] = KernelRunManager(kernels[0], local_size, local_size)
         kernels[1] = KernelRunManager(kernels[1], local_size, 1)
-        # extra_args = (Mesh((local_size,)), Mesh((1,)))
         extra_args = (temp_mesh, final_mesh)
         fn = MeshReduceOpOclFunction()
         fn = fn.finalize(entry_point, project, ctypes.CFUNCTYPE(retval, *param_types),
