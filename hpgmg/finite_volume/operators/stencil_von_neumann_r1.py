@@ -39,8 +39,6 @@ class StencilVonNeumannR1(BaseOperator):
         ]
         self.num_neighbors = len(self.neighborhood_offsets)
 
-        self.kernel_class = None
-
         if solver.is_variable_coefficient:
             #self.kernel_class = VariableCoefficientVonNeumannStencil
             if solver.is_helmholtz:

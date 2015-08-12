@@ -1,9 +1,11 @@
 from __future__ import print_function
 import functools
+from inspect import getargspec
 import itertools
 import numpy as np
 
 from stencil_code.halo_enumerator import HaloEnumerator
+from hpgmg.finite_volume import compiler
 
 from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.operators.boundary_kernels.dirichlet import DirichletBoundary
@@ -46,15 +48,23 @@ class BoundaryUpdaterV1(object):
             self.boundary = PeriodicBoundary()
 
         self.kernels = [self.boundary.make_kernel(boundary) for boundary in self.boundary_cases()]
+        self.stencil_kernels = [self.boundary.get_kernel(boundary) for boundary in self.boundary_cases()]
+        self.stencil_kernels = [
+            compiler.compile(kern) for kern in self.stencil_kernels
+        ]
 
-    @time_this
-    @specialized_func_dispatcher({
-        'c': CBoundarySpecializer,
-        'omp': OmpBoundarySpecializer
-    })
+    # @time_this
+    # @specialized_func_dispatcher({
+    #     'c': CBoundarySpecializer,
+    #     'omp': OmpBoundarySpecializer
+    # })
+    # def apply(self, level, mesh):
+    #     for kernel in self.kernels:
+    #         kernel(level, mesh)
+
     def apply(self, level, mesh):
-        for kernel in self.kernels:
-            kernel(level, mesh)
+        for kernel in self.stencil_kernels:
+            kernel(mesh)
 
 
     # #@time_this

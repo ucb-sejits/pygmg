@@ -32,8 +32,7 @@ class JacobiSmoother(Smoother):
         self.use_l1_jacobi = use_l1_jacobi
         self.weight = 1.0 if use_l1_jacobi else 2.0/3.0
         self.iterations = iterations
-        self._stencil = None
-        self._kernel = None
+        self.__kernels = {}
 
     def get_stencil(self, level):
         #print("Rebuilding stencil")
@@ -45,11 +44,14 @@ class JacobiSmoother(Smoother):
         return Stencil(rhs, 'target', ((1, -1),) * self.operator.dimensions)
 
     def get_kernel(self, level):
+        if level in self.__kernels:
+            return self.__kernels[level]
         stencil = self.get_stencil(level)
-        return compiler.compile(stencil)
+        kernel = self.__kernels[level] = compiler.compile(stencil)
+        return kernel
 
     #@time_this
-    def smooth(self, level, mesh_to_smooth, rhs_mesh):
+    def std_smooth(self, level, mesh_to_smooth, rhs_mesh):
         """
 
         :param level: the level being smoothed
@@ -69,6 +71,25 @@ class JacobiSmoother(Smoother):
             #self.kernel_smooth_points(level, working_source, working_target, rhs_mesh, lambda_mesh)
             self.smooth_points(level, working_source, working_target, rhs_mesh, lambda_mesh)
 
+    def kernel_smooth(self, level, mesh_to_smooth, rhs_mesh):
+        """
+        :param level: the level being smoothed
+        :param mesh_to_smooth:
+        :param rhs_mesh:
+        :return:
+        """
+        lambda_mesh = level.l1_inverse if self.use_l1_jacobi else level.d_inverse
+
+        working_target, working_source = mesh_to_smooth, level.temp
+
+        self.operator.set_scale(level.h)
+
+        for i in range(self.iterations):
+            working_target, working_source = working_source, working_target
+            level.solver.boundary_updater.apply(level, working_source)
+            self.kernel_smooth_points(level, working_source, working_target, rhs_mesh, lambda_mesh)
+
+    smooth = kernel_smooth
 
     @time_this
     @specialized_func_dispatcher({
