@@ -122,19 +122,24 @@ class SmoothOclFunction(PyGMGOclConcreteSpecializedFunction):
         kernel.args[1].dirty = True
 
         # manually copy back for now????
-        kernel.args[0].evt.wait()
-        ary, evt = cl.buffer_to_ndarray(self.queue, kernel.args[0].buffer, args[2])
-        kernel.args[0].evt = evt
-        kernel.args[0].dirty = False
+        # kernel.args[0].evt.wait()
+        # ary, evt = cl.buffer_to_ndarray(self.queue, kernel.args[0].buffer, args[2])
+        # kernel.args[0].evt = evt
+        # kernel.args[0].dirty = False
+        #
+        # kernel.args[1].evt.wait()
+        # ary, evt = cl.buffer_to_ndarray(self.queue, kernel.args[1].buffer, args[3])
+        # kernel.args[1].dirty = False
+        # kernel.args[1].evt = evt
+        #
+        #
+        # kernel.args[0].evt.wait()
+        # kernel.args[1].evt.wait()
 
-        kernel.args[1].evt.wait()
-        ary, evt = cl.buffer_to_ndarray(self.queue, kernel.args[1].buffer, args[3])
-        kernel.args[1].dirty = False
-        kernel.args[1].evt = evt
-
-
-        kernel.args[0].evt.wait()
-        kernel.args[1].evt.wait()
+        args[2].buffer.evt = run_evt
+        args[2].buffer.dirty = True
+        args[3].buffer.evt = run_evt
+        args[3].buffer.dirty = True
 
 
 # class SmoothOclFunction(PyGMGConcreteSpecializedFunction):

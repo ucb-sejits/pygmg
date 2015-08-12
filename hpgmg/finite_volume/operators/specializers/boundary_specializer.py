@@ -78,12 +78,12 @@ class BoundaryOclFunction(PyGMGOclConcreteSpecializedFunction):
             buffer.evt = run_evt
             buffer.dirty = True
 
-        last_kernel = self.kernels[-1]
-        last_kernel.args[0].evt.wait()
-        ary, evt = cl.buffer_to_ndarray(self.queue, last_kernel.args[0].buffer, args[2])
-        last_kernel.args[0].evt = evt
-        last_kernel.args[0].dirty = False
-        last_kernel.args[0].evt.wait()
+        # last_kernel = self.kernels[-1]
+        # last_kernel.args[0].evt.wait()
+        # ary, evt = cl.buffer_to_ndarray(self.queue, last_kernel.args[0].buffer, args[2])
+        # last_kernel.args[0].evt = evt
+        # last_kernel.args[0].dirty = False
+        # last_kernel.args[0].evt.wait()
 
 
 # class BoundaryOclFunction(ConcreteSpecializedFunction):  # PyGMGConcreteSpecializedFunction???

@@ -175,7 +175,8 @@ class AttributeGetter(ast.NodeTransformer):
     def get_value(self, node):
         name = get_name(node)
         attributes = name.split('.')
-        error = AttributeError("Could not find {} in {}".format(name, self.namespace))
+        error = AttributeError("Could not find {} in {}".format(name, "namespace won't print cry"))
+        # error = AttributeError("Could not find {} in {}".format(name, self.namespace))
         if attributes[0] in self.namespace:
             obj = self.namespace[attributes.pop(0)]
             try:

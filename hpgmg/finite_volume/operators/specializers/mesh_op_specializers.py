@@ -102,12 +102,15 @@ class MeshOpOclFunction(PyGMGOclConcreteSpecializedFunction):
         cl.clWaitForEvents(*previous_events)
 
         run_evt = kernel.kernel(*kernel_args).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
-        run_evt.wait()
+        # run_evt.wait()
+        #
+        # ary, evt = cl.buffer_to_ndarray(self.queue, kernel.args[0].buffer, args[1])
+        # kernel.args[0].evt = evt
+        # kernel.args[0].dirty = False
+        # kernel.args[0].evt.wait()
 
-        ary, evt = cl.buffer_to_ndarray(self.queue, kernel.args[0].buffer, args[1])
-        kernel.args[0].evt = evt
-        kernel.args[0].dirty = False
-        kernel.args[0].evt.wait()
+        args[1].buffer.evt = run_evt
+        args[1].buffer.dirty = True
 
 
 class MeshReduceOpOclFunction(PyGMGOclConcreteSpecializedFunction):
@@ -678,6 +681,9 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
 
         files = [control_file]
         files.extend(kernel_files)
+        if first_reducer.name == "norm_mesh":
+            print(kernel_files[0])
+            print(kernel_files[1])
         # for file in files:
         #     print(file)
         return files

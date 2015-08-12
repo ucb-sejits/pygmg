@@ -17,10 +17,27 @@ class Mesh(np.ndarray):
         obj.dirty = False
         #obj.fill(0)
         return obj
+    #
+    # def __setitem__(self, key, value):
+    #     self.dirty = True
+    #     super(Mesh, self).__setitem__(key, value)
 
     def __setitem__(self, key, value):
+        if self.buffer and self.buffer.dirty:
+            self.buffer.dirty = False
+            queue = cl.clCreateCommandQueue(self.buffer.buffer.context)
+            ary, evt = cl.buffer_to_ndarray(queue, self.buffer.buffer, self)
+            evt.wait()
         self.dirty = True
         super(Mesh, self).__setitem__(key, value)
+
+    def __getitem__(self, item):
+        if self.buffer and self.buffer.dirty:
+            self.buffer.dirty = False
+            queue = cl.clCreateCommandQueue(self.buffer.buffer.context)
+            ary, evt = cl.buffer_to_ndarray(queue, self.buffer.buffer, self)
+            evt.wait()
+        return super(Mesh, self).__getitem__(item)
 
     def fill(self, value):
         self.dirty = True

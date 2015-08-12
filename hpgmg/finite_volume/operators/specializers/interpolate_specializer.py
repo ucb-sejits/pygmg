@@ -83,12 +83,15 @@ class InterpolateOclFunction(PyGMGOclConcreteSpecializedFunction):
 
         cl.clWaitForEvents(*previous_events)
         run_evt = kernel.kernel(*kernel_args).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
-        run_evt.wait()
+        # run_evt.wait()
 
-        ary, evt = cl.buffer_to_ndarray(self.queue, kernel.args[0].buffer, args[2])
-        kernel.args[0].evt = evt
-        kernel.args[0].dirty = False
-        kernel.args[0].evt.wait()
+        # ary, evt = cl.buffer_to_ndarray(self.queue, kernel.args[0].buffer, args[2])
+        # kernel.args[0].evt = evt
+        # kernel.args[0].dirty = False
+        # kernel.args[0].evt.wait()
+
+        args[2].buffer.evt = run_evt
+        args[2].buffer.dirty = True
 
 
 class CInterpolateSpecializer(LazySpecializedFunction):
