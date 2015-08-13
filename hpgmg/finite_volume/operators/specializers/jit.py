@@ -35,13 +35,7 @@ class PyGMGOclConcreteSpecializedFunction(ConcreteSpecializedFunction):
         self.extra_args = extra_args
         return self
 
-    # def set_kernel_args(self, args, kwargs):
-    #     raise NotImplementedError("PyArgs need to be Ocl-Argified")
-
     def set_kernel_args(self, args, kwargs):
-        # should we assume that all other parameters have been stripped from args?? no need, type check is ok
-        # any specializer with special arg assignment can override this
-        # works when there are one or more kernels that all are assigned the same arguments
         kernel_args = []
 
         for arg in args:
