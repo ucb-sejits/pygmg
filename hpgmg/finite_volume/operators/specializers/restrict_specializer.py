@@ -48,27 +48,6 @@ class RestrictCFunction(PyGMGConcreteSpecializedFunction):
 
 class RestrictOclFunction(PyGMGOclConcreteSpecializedFunction):
 
-    # def set_kernel_args(self, args, kwargs):
-    #     thing, level, target, source, restriction_type = args
-    #     kernel = self.kernels[0]
-    #     kernel_args = []
-    #
-    #     for mesh in (target, source):
-    #         if mesh.dirty:
-    #             buffer = None if mesh.buffer is None else mesh.buffer.buffer
-    #             buf, evt = cl.buffer_from_ndarray(self.queue, mesh, buf=buffer)
-    #             mesh.buffer = buf
-    #             mesh.buffer.evt = evt
-    #             mesh.dirty = False
-    #
-    #         elif mesh.buffer is None:
-    #             size = mesh.size * ctypes.sizeof(ctypes.c_double)
-    #             mesh.buffer = cl.clCreateBuffer(self.context, size)
-    #
-    #         kernel_args.append(mesh.buffer)
-    #
-    #     kernel.args = kernel_args
-
     def __call__(self, *args, **kwargs):
         args = args[:-1]
         self.set_kernel_args(args, kwargs)
@@ -82,12 +61,6 @@ class RestrictOclFunction(PyGMGOclConcreteSpecializedFunction):
 
         cl.clWaitForEvents(*previous_events)
         run_evt = kernel.kernel(*kernel_args).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
-        # run_evt.wait()
-
-        # ary, evt = cl.buffer_to_ndarray(self.queue, kernel.args[0].buffer, args[2])
-        # kernel.args[0].evt = evt
-        # kernel.args[0].dirty = False
-        # kernel.args[0].evt.wait()
 
         args[2].buffer.evt = run_evt
         args[2].buffer.dirty = True

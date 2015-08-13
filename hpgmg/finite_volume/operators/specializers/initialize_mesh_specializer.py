@@ -45,24 +45,6 @@ class InitializeCFunction(PyGMGConcreteSpecializedFunction):
 
 class InitializeOclFunction(PyGMGOclConcreteSpecializedFunction):
 
-    # def set_kernel_args(self, args, kwargs):
-    #     thing, level, mesh, exp, coord_transform = args
-    #     kernel = self.kernels[0]
-    #
-    #     if mesh.dirty:
-    #         buffer = None if mesh.buffer is None else mesh.buffer.buffer
-    #         buf, evt = cl.buffer_from_ndarray(self.queue, mesh, buf=buffer)
-    #         mesh.buffer = buf
-    #         mesh.buffer.evt = evt
-    #         mesh.dirty = False
-    #
-    #     elif mesh.buffer is None:
-    #         size = mesh.size * ctypes.sizeof(ctypes.c_double)
-    #         mesh.buffer = cl.clCreateBuffer(self.context, size)
-    #
-    #
-    #     kernel.args = [mesh.buffer]
-
     def __call__(self, *args, **kwargs):
         self.set_kernel_args(args, kwargs)
         kernel = self.kernels[0]
@@ -77,12 +59,6 @@ class InitializeOclFunction(PyGMGOclConcreteSpecializedFunction):
         run_evt = kernel.kernel(*kernel_args).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
         args[2].buffer.evt = run_evt
         args[2].buffer.dirty = True
-        # run_evt.wait()
-        #
-        # ary, evt = cl.buffer_to_ndarray(self.queue, kernel.args[0].buffer, args[2])
-        # kernel.args[0].evt = evt
-        # kernel.args[0].dirty = False
-        # kernel.args[0].evt.wait()
 
 
 class CInitializeMesh(LazySpecializedFunction):
