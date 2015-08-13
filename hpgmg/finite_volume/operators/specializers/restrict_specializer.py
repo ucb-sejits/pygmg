@@ -48,28 +48,29 @@ class RestrictCFunction(PyGMGConcreteSpecializedFunction):
 
 class RestrictOclFunction(PyGMGOclConcreteSpecializedFunction):
 
-    def set_kernel_args(self, args, kwargs):
-        thing, level, target, source, restriction_type = args
-        kernel = self.kernels[0]
-        kernel_args = []
-
-        for mesh in (target, source):
-            if mesh.dirty:
-                buffer = None if mesh.buffer is None else mesh.buffer.buffer
-                buf, evt = cl.buffer_from_ndarray(self.queue, mesh, buf=buffer)
-                mesh.buffer = buf
-                mesh.buffer.evt = evt
-                mesh.dirty = False
-
-            elif mesh.buffer is None:
-                size = mesh.size * ctypes.sizeof(ctypes.c_double)
-                mesh.buffer = cl.clCreateBuffer(self.context, size)
-
-            kernel_args.append(mesh.buffer)
-
-        kernel.args = kernel_args
+    # def set_kernel_args(self, args, kwargs):
+    #     thing, level, target, source, restriction_type = args
+    #     kernel = self.kernels[0]
+    #     kernel_args = []
+    #
+    #     for mesh in (target, source):
+    #         if mesh.dirty:
+    #             buffer = None if mesh.buffer is None else mesh.buffer.buffer
+    #             buf, evt = cl.buffer_from_ndarray(self.queue, mesh, buf=buffer)
+    #             mesh.buffer = buf
+    #             mesh.buffer.evt = evt
+    #             mesh.dirty = False
+    #
+    #         elif mesh.buffer is None:
+    #             size = mesh.size * ctypes.sizeof(ctypes.c_double)
+    #             mesh.buffer = cl.clCreateBuffer(self.context, size)
+    #
+    #         kernel_args.append(mesh.buffer)
+    #
+    #     kernel.args = kernel_args
 
     def __call__(self, *args, **kwargs):
+        args = args[:-1]
         self.set_kernel_args(args, kwargs)
         kernel = self.kernels[0]
         kernel_args = []

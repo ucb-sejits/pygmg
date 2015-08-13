@@ -59,32 +59,34 @@ class RebuildCFunction(PyGMGConcreteSpecializedFunction):
 
 class RebuildOclFunction(PyGMGOclConcreteSpecializedFunction):
 
-    def set_kernel_args(self, args, kwargs):
-        thing, target_level, final_answer = args
-
-        kernel = self.kernels[0]
-
-        meshes = [target_level.valid, target_level.l1_inverse, target_level.d_inverse, final_answer]
-        kernel_args = []
-        for mesh in meshes:
-            if mesh.dirty:
-                buffer = None if mesh.buffer is None else mesh.buffer.buffer
-                buf, evt = cl.buffer_from_ndarray(self.queue, mesh, buf=buffer)
-                mesh.buffer = buf
-                mesh.buffer.evt = evt
-                mesh.dirty = False
-
-            elif mesh.buffer is None:
-                size = mesh.size * ctypes.sizeof(ctypes.c_double)
-                mesh.buffer = cl.clCreateBuffer(self.context, size)
-
-            kernel_args.append(mesh.buffer)
-
-        kernel.args = kernel_args
+    # def set_kernel_args(self, args, kwargs):
+    #     thing, target_level, final_answer = args
+    #
+    #     kernel = self.kernels[0]
+    #
+    #     meshes = [target_level.valid, target_level.l1_inverse, target_level.d_inverse, final_answer]
+    #     kernel_args = []
+    #     for mesh in meshes:
+    #         if mesh.dirty:
+    #             buffer = None if mesh.buffer is None else mesh.buffer.buffer
+    #             buf, evt = cl.buffer_from_ndarray(self.queue, mesh, buf=buffer)
+    #             mesh.buffer = buf
+    #             mesh.buffer.evt = evt
+    #             mesh.dirty = False
+    #
+    #         elif mesh.buffer is None:
+    #             size = mesh.size * ctypes.sizeof(ctypes.c_double)
+    #             mesh.buffer = cl.clCreateBuffer(self.context, size)
+    #
+    #         kernel_args.append(mesh.buffer)
+    #
+    #     kernel.args = kernel_args
 
     def __call__(self, *args, **kwargs):
         args = args + self.extra_args
-        self.set_kernel_args(args, kwargs)
+        thing, target_level, final_answer = args
+        meshes = [target_level.valid, target_level.l1_inverse, target_level.d_inverse, final_answer]
+        self.set_kernel_args(meshes, kwargs)
 
         kernel = self.kernels[0]
         kernel_args = []

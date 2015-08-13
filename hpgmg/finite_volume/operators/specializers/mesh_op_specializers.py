@@ -28,7 +28,6 @@ from ctree.frontend import dump
 import numpy as np
 from hpgmg.finite_volume.operators.transformers.utility_transformers import ParamStripper, IndexDirectTransformer, \
     IndexTransformer, OclFileWrapper
-# from hpgmg.finite_volume.simple_level import SimpleLevel
 import operator
 import pycl as cl
 
@@ -53,36 +52,36 @@ class MeshOpCFunction(PyGMGConcreteSpecializedFunction):
 
 class MeshOpOclFunction(PyGMGOclConcreteSpecializedFunction):
 
-    def set_kernel_args(self, args, kwargs):
-        # need to set kernel argtypes!!!
-        kernel = self.kernels[0]  # there is one kernel until we do reductions
-
-        kernel_args = []
-        # kernel_argtypes = []
-
-        for arg in args:
-            if isinstance(arg, Mesh):
-                mesh = arg
-                if mesh.dirty:
-                    buffer = None if mesh.buffer is None else mesh.buffer.buffer
-                    buf, evt = cl.buffer_from_ndarray(self.queue, mesh, buf=buffer)
-                    mesh.buffer = buf
-                    mesh.buffer.evt = evt
-                    mesh.dirty = False
-
-                elif mesh.buffer is None:
-                    size = mesh.size * ctypes.sizeof(ctypes.c_double)
-                    mesh.buffer = cl.clCreateBuffer(self.context, size)
-
-                kernel_args.append(mesh.buffer)
-                # kernel_argtypes.append(cl.cl_mem)
-
-            elif isinstance(arg, (int, float)):
-                kernel_args.append(arg)
-                # kernel_argtypes.append(ctypes.c_double) # ?????
-
-        kernel.args = kernel_args
-        # kernel.kernel.argtypes = tuple(kernel_argtypes)
+    # def set_kernel_args(self, args, kwargs):
+    #     # need to set kernel argtypes!!!
+    #     kernel = self.kernels[0]  # there is one kernel until we do reductions
+    #
+    #     kernel_args = []
+    #     # kernel_argtypes = []
+    #
+    #     for arg in args:
+    #         if isinstance(arg, Mesh):
+    #             mesh = arg
+    #             if mesh.dirty:
+    #                 buffer = None if mesh.buffer is None else mesh.buffer.buffer
+    #                 buf, evt = cl.buffer_from_ndarray(self.queue, mesh, buf=buffer)
+    #                 mesh.buffer = buf
+    #                 mesh.buffer.evt = evt
+    #                 mesh.dirty = False
+    #
+    #             elif mesh.buffer is None:
+    #                 size = mesh.size * ctypes.sizeof(ctypes.c_double)
+    #                 mesh.buffer = cl.clCreateBuffer(self.context, size)
+    #
+    #             kernel_args.append(mesh.buffer)
+    #             # kernel_argtypes.append(cl.cl_mem)
+    #
+    #         elif isinstance(arg, (int, float)):
+    #             kernel_args.append(arg)
+    #             # kernel_argtypes.append(ctypes.c_double) # ?????
+    #
+    #     kernel.args = kernel_args
+    #     # kernel.kernel.argtypes = tuple(kernel_argtypes)
 
 
     def __call__(self, *args, **kwargs):

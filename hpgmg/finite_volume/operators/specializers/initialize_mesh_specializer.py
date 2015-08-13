@@ -45,23 +45,23 @@ class InitializeCFunction(PyGMGConcreteSpecializedFunction):
 
 class InitializeOclFunction(PyGMGOclConcreteSpecializedFunction):
 
-    def set_kernel_args(self, args, kwargs):
-        thing, level, mesh, exp, coord_transform = args
-        kernel = self.kernels[0]
-
-        if mesh.dirty:
-            buffer = None if mesh.buffer is None else mesh.buffer.buffer
-            buf, evt = cl.buffer_from_ndarray(self.queue, mesh, buf=buffer)
-            mesh.buffer = buf
-            mesh.buffer.evt = evt
-            mesh.dirty = False
-
-        elif mesh.buffer is None:
-            size = mesh.size * ctypes.sizeof(ctypes.c_double)
-            mesh.buffer = cl.clCreateBuffer(self.context, size)
-
-
-        kernel.args = [mesh.buffer]
+    # def set_kernel_args(self, args, kwargs):
+    #     thing, level, mesh, exp, coord_transform = args
+    #     kernel = self.kernels[0]
+    #
+    #     if mesh.dirty:
+    #         buffer = None if mesh.buffer is None else mesh.buffer.buffer
+    #         buf, evt = cl.buffer_from_ndarray(self.queue, mesh, buf=buffer)
+    #         mesh.buffer = buf
+    #         mesh.buffer.evt = evt
+    #         mesh.dirty = False
+    #
+    #     elif mesh.buffer is None:
+    #         size = mesh.size * ctypes.sizeof(ctypes.c_double)
+    #         mesh.buffer = cl.clCreateBuffer(self.context, size)
+    #
+    #
+    #     kernel.args = [mesh.buffer]
 
     def __call__(self, *args, **kwargs):
         self.set_kernel_args(args, kwargs)

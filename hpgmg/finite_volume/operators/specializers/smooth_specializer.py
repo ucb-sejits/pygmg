@@ -107,6 +107,19 @@ class SmoothOclFunction(PyGMGOclConcreteSpecializedFunction):
         # self.kernels[0].kernel.argtypes = tuple(kernel_argtypes)
 
     def __call__(self, *args, **kwargs):
+        # thing, level, working_source, working_target, rhs_mesh, lambda_mesh = args
+        # print(thing)
+        # print(args[-1])
+        # args_to_bufferize = [
+        #     working_source, working_target,
+        #     rhs_mesh, lambda_mesh
+        # ] + level.beta_face_values + [level.alpha]
+        # for mesh in args_to_bufferize:
+        #     if isinstance(mesh, np.ndarray) and not isinstance(mesh, Mesh):
+        #         mesh = Mesh(mesh.shape)
+        #         mesh.fill(0)
+        #
+        # self.set_kernel_args(args_to_bufferize, kwargs)
         self.set_kernel_args(args, kwargs)
 
         kernel = self.kernels[0]

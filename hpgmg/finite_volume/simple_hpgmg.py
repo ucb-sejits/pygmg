@@ -585,7 +585,7 @@ class SimpleMultigridSolver(object):
             min_solves = 1
             number_passes = 1
         else:
-            min_solves = 10
+            min_solves = 0
             number_passes = 1
         for pass_num in range(number_passes):
             if pass_num == 0:
@@ -616,7 +616,7 @@ class SimpleMultigridSolver(object):
         configuration = SimpleMultigridSolver.get_configuration()
         solver = SimpleMultigridSolver(configuration)
         solver.benchmark_hpgmg(start_level=0)
-        solver.benchmark_hpgmg(start_level=0)
+        # solver.benchmark_hpgmg(start_level=0)
         return
 
 if __name__ == '__main__':

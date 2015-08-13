@@ -48,23 +48,23 @@ class BoundaryCFunction(PyGMGConcreteSpecializedFunction):
 
 class BoundaryOclFunction(PyGMGOclConcreteSpecializedFunction):
 
-    def set_kernel_args(self, args, kwargs):
-        thing, level, mesh = args
-
-        if mesh.dirty:
-            buffer = None if mesh.buffer is None else mesh.buffer.buffer
-            buf, evt = cl.buffer_from_ndarray(self.queue, mesh, buf=buffer)
-            mesh.buffer = buf
-            mesh.buffer.evt = evt
-            mesh.dirty = False
-
-        elif mesh.buffer is None:
-            size = mesh.size * ctypes.sizeof(ctypes.c_double)
-            mesh.buffer = cl.clCreateBuffer(self.context, size)
-
-        for kernel in self.kernels:
-            kernel.args = [mesh.buffer]
-            # kernel.kernel.argtypes = (cl.cl_mem,)
+    # def set_kernel_args(self, args, kwargs):
+    #     thing, level, mesh = args
+    #
+    #     if mesh.dirty:
+    #         buffer = None if mesh.buffer is None else mesh.buffer.buffer
+    #         buf, evt = cl.buffer_from_ndarray(self.queue, mesh, buf=buffer)
+    #         mesh.buffer = buf
+    #         mesh.buffer.evt = evt
+    #         mesh.dirty = False
+    #
+    #     elif mesh.buffer is None:
+    #         size = mesh.size * ctypes.sizeof(ctypes.c_double)
+    #         mesh.buffer = cl.clCreateBuffer(self.context, size)
+    #
+    #     for kernel in self.kernels:
+    #         kernel.args = [mesh.buffer]
+    #         # kernel.kernel.argtypes = (cl.cl_mem,)
 
     def __call__(self, *args, **kwargs):
         self.set_kernel_args(args, kwargs)

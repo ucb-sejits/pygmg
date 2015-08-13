@@ -1,7 +1,8 @@
 import abc
 from ctree.jit import ConcreteSpecializedFunction
 import pycl as cl
-from hpgmg.finite_volume.mesh import Buffer
+from hpgmg.finite_volume.mesh import Buffer, Mesh
+import ctypes
 
 __author__ = 'nzhang-dev'
 
@@ -34,8 +35,36 @@ class PyGMGOclConcreteSpecializedFunction(ConcreteSpecializedFunction):
         self.extra_args = extra_args
         return self
 
+    # def set_kernel_args(self, args, kwargs):
+    #     raise NotImplementedError("PyArgs need to be Ocl-Argified")
+
     def set_kernel_args(self, args, kwargs):
-        raise NotImplementedError("PyArgs need to be Ocl-Argified")
+        # should we assume that all other parameters have been stripped from args?? no need, type check is ok
+        # any specializer with special arg assignment can override this
+        # works when there are one or more kernels that all are assigned the same arguments
+        kernel_args = []
+
+        for arg in args:
+            if isinstance(arg, Mesh):
+                mesh = arg
+                if mesh.dirty:
+                    buffer = None if mesh.buffer is None else mesh.buffer.buffer
+                    buf, evt = cl.buffer_from_ndarray(self.queue, mesh, buf=buffer)
+                    mesh.buffer = buf
+                    mesh.buffer.evt = evt
+                    mesh.dirty = False
+
+                elif mesh.buffer is None:
+                    size = mesh.size * ctypes.sizeof(ctypes.c_double)
+                    mesh.buffer = cl.clCreateBuffer(self.context, size)
+
+                kernel_args.append(mesh.buffer)
+
+            elif isinstance(arg, (int, float)):
+                kernel_args.append(arg)
+
+        for kernel in self.kernels:
+            kernel.args = kernel_args
 
 
 class KernelRunManager(object):
