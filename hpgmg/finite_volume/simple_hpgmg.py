@@ -79,7 +79,7 @@ class SimpleMultigridSolver(object):
         self.interpolator = InterpolatorPC(solver=self, pre_scale=1.0)
         self.restrictor = Restriction(solver=self)
 
-        self.do_f_cycle = configuration.do_f_cycle
+        self.do_f_cycle = configuration.do_f_cycles
         self.unlimited_fmg_cycles = configuration.unlimited_fmg_cycles
 
         self.problem_operator = StencilVonNeumannR1(solver=self)
@@ -620,7 +620,7 @@ class SimpleMultigridSolver(object):
                             help="don't compute or show richardson error at end of run",
                             action="store_true", default=False)
         parser.add_argument('-dfc', '--do-f-cycles',
-                            help="set max_v_cycles during f-cycles to 20 (that's nearly without limit :-)",
+                            help="use f-cycle solver instead of full v-cycle solver",
                             action="store_true", default=False)
         parser.add_argument('-ufc', '--unlimited-fmg-cycles',
                             help="set max_v_cycles during f-cycles to 20 (that's nearly without limit :-)",
