@@ -3,11 +3,9 @@ implement a simple single threaded, gmg solver
 """
 from __future__ import division, print_function
 import argparse
-import functools
 import os
 import sys
 import logging
-import time
 import sympy
 from hpgmg import finite_volume
 from hpgmg.finite_volume.mesh import Mesh
@@ -28,7 +26,7 @@ from hpgmg.finite_volume.operators.boundary_conditions_fv import BoundaryUpdater
 from hpgmg.finite_volume.solvers.bicgstab import BiCGStab
 from hpgmg.finite_volume.solvers.smoothing_solver import SmoothingSolver
 from hpgmg.finite_volume.timer import EventTimer
-from hpgmg.finite_volume.space import Space, Vector
+from hpgmg.finite_volume.space import Space
 from hpgmg.finite_volume.simple_level import SimpleLevel
 
 import numpy as np
@@ -80,6 +78,9 @@ class SimpleMultigridSolver(object):
         self.number_of_v_cycles = configuration.number_of_vcycles
         self.interpolator = InterpolatorPC(solver=self, pre_scale=1.0)
         self.restrictor = Restriction(solver=self)
+
+        self.do_f_cycle = configuration.do_f_cycle
+        self.unlimited_fmg_cycles = configuration.unlimited_fmg_cycles
 
         self.problem_operator = StencilVonNeumannR1(solver=self)
         self.ghost_zone = self.problem_operator.ghost_zone
@@ -176,7 +177,6 @@ class SimpleMultigridSolver(object):
                 self.all_levels[index].beta_face_values[0].dump("VECTOR_BETA_K_LEVEL_{}".format(index))
                 self.all_levels[index].d_inverse.dump("VECTOR_DINV_LEVEL_{}".format(index))
 
-
     @specialized_func_dispatcher({
         'c': CInitializeMesh,
         'omp': CInitializeMesh
@@ -185,8 +185,6 @@ class SimpleMultigridSolver(object):
         func = self.problem.get_func(exp, self.problem.symbols)
         for coord in level.indices():
             mesh[coord] = func(*coord_transform(coord))
-
-
 
     @time_this
     @profile
@@ -199,50 +197,47 @@ class SimpleMultigridSolver(object):
         """
         alpha = 1.0
         beta = 1.0
-        beta_xyz = Vector(0.0, 0.0, 0.0)
-        face_betas = [1.0 for _ in range(self.dimensions)]
+        # beta_xyz = Vector(0.0, 0.0, 0.0)
+        # face_betas = [1.0 for _ in range(self.dimensions)]
 
         problem = self.problem
         print(self.problem.expression)
 
-        if level.is_variable_coefficient:
-            beta_generator = self.beta_generator
+        beta_generator = self.beta_generator
 
-        a = time.time()
-        #fill Alpha
-        #level.alpha
+        # a = time.time()
+        # fill Alpha
+        # level.alpha
         level.alpha.fill(alpha)
 
         #fill U
         self.initialize_mesh(level, level.exact_solution, problem.expression, level.coord_to_cell_center_point)
 
-
-
-        #beta stuff
+        # beta stuff
         if level.is_variable_coefficient:
-            beta_values = np.fromfunction(
-                np.frompyfunc(
-                    lambda *vector: beta_generator.evaluate_beta(vector), self.dimensions, 1
-                ),
-                level.space,
-                dtype=level.exact_solution.dtype
-            )
+            # beta_values = np.fromfunction(
+            #     np.frompyfunc(
+            #         lambda *vector: beta_generator.evaluate_beta(vector), self.dimensions, 1
+            #     ),
+            #     level.space,
+            #     dtype=level.exact_solution.dtype
+            # )
             beta_expression = beta_generator.get_beta_expression()
 
-            beta_vectors = np.fromfunction(
-                np.frompyfunc(
-                    lambda *vector: beta_generator.evaluate_beta_vector(vector), self.dimensions, self.dimensions
-                ),
-                level.space,
-                dtype=level.exact_solution.dtype
-            )
+            # beta_vectors = np.fromfunction(
+            #     np.frompyfunc(
+            #         lambda *vector: beta_generator.evaluate_beta_vector(vector), self.dimensions, self.dimensions
+            #     ),
+            #     level.space,
+            #     dtype=level.exact_solution.dtype
+            # )
         else:
             beta_expression = beta
-            beta_values = np.full(level.space, beta)
-            beta_vectors = [
-                np.full(level.space, 0)
-                for i in range(self.dimensions)
-            ]
+            # beta_values = np.full(level.space, beta)
+            # beta_vectors = [
+            #     np.full(level.space, 0)
+            #     for i in range(self.dimensions)
+            # ]
         #
         # level.right_hand_side -= self.b * (sum(A*B for A, B in zip(beta_vectors, first_derivatives)) +
         #                                    beta_values * second_derivatives)
@@ -263,9 +258,9 @@ class SimpleMultigridSolver(object):
         symbols = self.problem.symbols
         beta_first_derivative = [sympy.diff(beta_expression, sym) for sym in symbols]
         u_first_derivative = [sympy.diff(self.problem.expression, sym) for sym in symbols]
-        BU_derivative_1 = sum(a * b for a, b in zip(beta_first_derivative, u_first_derivative))
-        U_derivative_2 = [sympy.diff(problem.expression, sym, 2) for sym in symbols]
-        f_exp = self.a * alpha * problem.expression - self.b * (BU_derivative_1 + beta_expression * sum(U_derivative_2))
+        bu_derivative_1 = sum(a * b for a, b in zip(beta_first_derivative, u_first_derivative))
+        u_derivative_2 = [sympy.diff(problem.expression, sym, 2) for sym in symbols]
+        f_exp = self.a * alpha * problem.expression - self.b * (bu_derivative_1 + beta_expression * sum(u_derivative_2))
         #F = a*A*U - b*( (Bx*Ux + By*Uy + Bz*Uz)  +  B*(Uxx + Uyy + Uzz) );
         #print(f_exp)
         # rhs = np.zeros_like(level.right_hand_side)
@@ -274,8 +269,7 @@ class SimpleMultigridSolver(object):
         # print(rhs.ravel()[:10])
         # print(level.right_hand_side.ravel()[:10])
 
-        b = time.time()
-
+        # b = time.time()
 
         if level.alpha_is_zero is None:
             level.alpha_is_zero = level.dot_mesh(level.alpha, level.alpha) == 0.0
@@ -395,6 +389,85 @@ class SimpleMultigridSolver(object):
                     break
                 if norm_of_residual < d_tolerance:
                     break
+
+    @time_this
+    def solve_with_f_cycle(self, start_level_number, d_tolerance, r_tolerance):
+        max_v_cycles = 10 if self.unlimited_fmg_cycles else 0
+        number_of_levels = len(self.all_levels)
+        start_level = self.all_levels[start_level_number]
+
+        # calculate norm of f...
+        norm_of_f, norm_of_d_inv_f = 1.0, 1.0
+        if d_tolerance > 0.0:
+            # D^{-1}F
+            start_level.multiply_meshes(start_level.temp, 1.0, start_level.right_hand_side, start_level.d_inverse)
+            norm_of_d_inv_f = start_level.norm_mesh(start_level.temp)  # ||D^{-1}F||
+        if r_tolerance:
+            norm_of_f = start_level.norm_mesh(start_level.right_hand_side)  # ||F||
+
+        # initialize the RHS for the f-cycle to f...
+        start_level.scale_mesh(start_level.residual, 1.0, start_level.right_hand_side)
+
+        # restrict RHS to bottom (coarsest grids)
+        for restrict_level in range(start_level_number, len(self.all_levels)):
+            self.restrictor.restrict(self.all_levels[restrict_level+1].residual,
+                                     self.all_levels[restrict_level].residual, Restriction.RESTRICT_CELL)
+
+        # solve coarsest grid...
+        last_level_number = number_of_levels - 1
+        last_level = self.all_levels[last_level_number]
+        if last_level_number > start_level_number:
+            start_level.fill_mesh(start_level.cell_values, 0.0)  # use whatever was the initial guess
+            self.bottom_solver.solve(last_level, start_level.cell_values, start_level.residual)
+
+        # now do the F-cycle proper...
+        for cycle_level in range(number_of_levels-2, start_level_number-1, -1):
+            # high-order interpolation
+            source_coarse_level = self.all_levels[cycle_level+1]
+            target_fine_level = self.all_levels[cycle_level]
+            self.interpolator.interpolate(target_fine_level, target_fine_level.cell_values,
+                                          source_coarse_level.cell_values)
+            target_fine_level.v_cycles_from_this_level += 1
+            self.v_cycle(target_fine_level, target_fine_level.cell_values, target_fine_level.residual)
+
+        # now do the post-F V-cycles
+        for v in range(-1, max_v_cycles):
+            level_number = start_level_number
+
+            # do the v-cycle...
+            if v >= 0:
+                self.all_levels[level_number].v_cycles_from_this_level += 1
+                self.v_cycle(self.fine_level, self.fine_level.cell_values,
+                             self.fine_level.residual)
+
+            # now calculate the norm of the residual...
+            if start_level.must_subtract_mean:
+                average_value_of_cell_values = start_level.mean_mesh(start_level.cell_values)
+                start_level.shift_mesh(start_level.cell_values, average_value_of_cell_values, start_level.cell_values)
+
+            self.residual.run(start_level.temp,
+                              start_level.cell_values, start_level.right_hand_side,
+                              start_level.d_inverse)
+
+            if d_tolerance > 0.0:
+                start_level.multiply_meshes(start_level.temp, 1.0, start_level.temp, start_level.d_inverse)
+
+            norm_of_residual = start_level.norm_mesh(start_level.temp)
+
+            if r_tolerance > 0.0:
+                rel = norm_of_residual / norm_of_f
+            else:
+                rel = norm_of_residual / norm_of_d_inv_f
+
+            if v > 0.0:
+                print("            v-cycle={:2d}  norm={:1.15e}  rel={1.15e}  ".format(v+1, norm_of_residual, rel))
+            else:
+                print("            f-cycle={:2s}  norm={:1.15e}  rel={1.15e}  ".format("", norm_of_residual, rel))
+
+            if norm_of_residual / norm_of_f < r_tolerance:
+                break
+            if norm_of_residual < d_tolerance:
+                break
 
     def richardson_error(self, start_level=0):
         import math
@@ -546,13 +619,20 @@ class SimpleMultigridSolver(object):
         parser.add_argument('-dre', '--disable-richardson-error',
                             help="don't compute or show richardson error at end of run",
                             action="store_true", default=False)
+        parser.add_argument('-dfc', '--do-f-cycles',
+                            help="set max_v_cycles during f-cycles to 20 (that's nearly without limit :-)",
+                            action="store_true", default=False)
+        parser.add_argument('-ufc', '--unlimited-fmg-cycles',
+                            help="set max_v_cycles during f-cycles to 20 (that's nearly without limit :-)",
+                            action="store_true", default=False)
         parser.add_argument('-dg', '--dump-grids', help='dump various grids for comparison with hpgmg.c',
                             action="store_true", default=False)
         parser.add_argument('-l', '--log', help='turn on logging', action="store_true", default=False)
         parser.add_argument('-b', '--backend', help='turn on JIT',
                             choices=('python', 'c', 'omp', 'ocl'), default='python')
         parser.add_argument('-v', '--verbose', help='print verbose', action="store_true", default=False)
-        parser.add_argument('-bd', '--blocking_dimensions', help='number of dimensions to block in', default=0, type=int)
+        parser.add_argument('-bd', '--blocking_dimensions', help='number of dimensions to block in',
+                            default=0, type=int)
         parser.add_argument('-bls', '--block_size', help='size of each block', default=32, type=int)
         parser.add_argument('-t', '--tune', help='try tuning it', default=False, action="store_true")
         finite_volume.CONFIG = parser.parse_args(args=args)
@@ -592,6 +672,8 @@ class SimpleMultigridSolver(object):
             for solve_pass in range(min_solves):
                 self.all_levels[start_level].fill_mesh(self.all_levels[start_level].cell_values, 0.0)
 
+                if self.do_f_cycle:
+                    self.solve_with_f_cycle(0, 0.0, 1.0e-10)
                 self.solve(start_level=start_level)
 
         print("===== Timing Breakdown ==============================================")

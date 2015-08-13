@@ -80,6 +80,8 @@ class SimpleLevel(object):
 
         self.cell_size = 1.0 / space[0]
         self.alpha_is_zero = None
+        self.v_cycles_from_this_level = 0
+        self.must_subtract_mean = False
 
         self.timer = EventTimer(self)
 
