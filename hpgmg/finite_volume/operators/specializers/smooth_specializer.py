@@ -88,7 +88,7 @@ class SmoothOclFunction(PyGMGOclConcreteSpecializedFunction):
                 mesh.fill(0)
                 args_to_bufferize[m] = mesh
 
-        self.set_kernel_args(args, kwargs)
+        self.set_kernel_args(args_to_bufferize, kwargs)
 
 
         kernel = self.kernels[0]
