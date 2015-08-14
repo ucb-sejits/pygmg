@@ -3,6 +3,7 @@ from ctree.jit import ConcreteSpecializedFunction
 import pycl as cl
 from hpgmg.finite_volume.mesh import Buffer, Mesh
 import ctypes
+from hpgmg.finite_volume.operators.specializers.util import time_this
 
 __author__ = 'nzhang-dev'
 
@@ -43,7 +44,8 @@ class PyGMGOclConcreteSpecializedFunction(ConcreteSpecializedFunction):
                 mesh = arg
                 if mesh.dirty:
                     buffer = None if mesh.buffer is None else mesh.buffer.buffer
-                    buf, evt = cl.buffer_from_ndarray(self.queue, mesh, buf=buffer)
+                    # buf, evt = cl.buffer_from_ndarray(self.queue, mesh, buf=buffer)
+                    buf, evt = self.mesh_to_buffer(self.queue, mesh, buffer)
                     mesh.buffer = buf
                     mesh.buffer.evt = evt
                     mesh.dirty = False
@@ -59,6 +61,12 @@ class PyGMGOclConcreteSpecializedFunction(ConcreteSpecializedFunction):
 
         for kernel in self.kernels:
             kernel.args = kernel_args
+
+    @time_this
+    def mesh_to_buffer(self, queue, mesh, buffer):
+        buf, evt = cl.buffer_from_ndarray(queue, mesh, buffer)
+        evt.wait()
+        return buf, evt
 
 
 class KernelRunManager(object):

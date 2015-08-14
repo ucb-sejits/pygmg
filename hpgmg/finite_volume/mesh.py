@@ -1,4 +1,5 @@
 from __future__ import print_function
+from hpgmg.finite_volume.operators.specializers.util import time_this
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
@@ -24,20 +25,29 @@ class Mesh(np.ndarray):
 
     def __setitem__(self, key, value):
         if self.buffer and self.buffer.dirty:
-            self.buffer.dirty = False
-            queue = cl.clCreateCommandQueue(self.buffer.buffer.context)
-            ary, evt = cl.buffer_to_ndarray(queue, self.buffer.buffer, self)
-            evt.wait()
+            self.buffer_to_mesh()
+            # self.buffer.dirty = False
+            # queue = cl.clCreateCommandQueue(self.buffer.buffer.context)
+            # ary, evt = cl.buffer_to_ndarray(queue, self.buffer.buffer, self)
+            # evt.wait()
         self.dirty = True
         super(Mesh, self).__setitem__(key, value)
 
     def __getitem__(self, item):
         if self.buffer and self.buffer.dirty:
-            self.buffer.dirty = False
-            queue = cl.clCreateCommandQueue(self.buffer.buffer.context)
-            ary, evt = cl.buffer_to_ndarray(queue, self.buffer.buffer, self)
-            evt.wait()
+            self.buffer_to_mesh()
+            # self.buffer.dirty = False
+            # queue = cl.clCreateCommandQueue(self.buffer.buffer.context)
+            # ary, evt = cl.buffer_to_ndarray(queue, self.buffer.buffer, self)
+            # evt.wait()
         return super(Mesh, self).__getitem__(item)
+
+    @time_this
+    def buffer_to_mesh(self):
+        self.buffer.dirty = False
+        queue = cl.clCreateCommandQueue(self.buffer.buffer.context)
+        ary, evt = cl.buffer_to_ndarray(queue, self.buffer.buffer, self)
+        evt.wait()
 
     def fill(self, value):
         self.dirty = True

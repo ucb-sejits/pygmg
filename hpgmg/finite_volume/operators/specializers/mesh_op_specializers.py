@@ -84,7 +84,8 @@ class MeshReduceOpOclFunction(PyGMGOclConcreteSpecializedFunction):
                 mesh = arg
                 if mesh.dirty:
                     buffer = None if mesh.buffer is None else mesh.buffer.buffer
-                    buf, evt = cl.buffer_from_ndarray(self.queue, mesh, buf=buffer)
+                    # buf, evt = cl.buffer_from_ndarray(self.queue, mesh, buf=buffer)
+                    buf, evt = self.mesh_to_buffer(self.queue, mesh, buffer)
                     mesh.buffer = buf
                     mesh.buffer.evt = evt
                     mesh.dirty = False
