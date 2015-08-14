@@ -453,8 +453,8 @@ class OclSmoothSpecializer(LazySpecializedFunction):
         for param in params:
             param.type = ctypes.POINTER(ctypes.c_double)()
             param.set_global()  # this is not safe
-            if param.name != 'working_target':
-                param.set_const()
+            # if param.name != 'working_target':
+            #     param.set_const()
 
         # file creation
 
