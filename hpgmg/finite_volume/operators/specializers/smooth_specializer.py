@@ -5,8 +5,6 @@ import ctypes
 import inspect
 import math
 from ast import Name
-from ctree.c.macros import NULL
-from ctree.ocl import get_context_and_queue_from_devices
 from ctree.ocl.nodes import OclFile
 from ctree.templates.nodes import StringTemplate
 import pycl as cl
@@ -17,7 +15,7 @@ from ctree.c.nodes import SymbolRef, CFile, FunctionCall, ArrayDef, Array, For, 
 from ctree.cpp.nodes import CppInclude
 from ctree.tune import MinimizeTime
 import numpy as np
-from ctree.jit import LazySpecializedFunction, ConcreteSpecializedFunction
+from ctree.jit import LazySpecializedFunction
 from ctree.nodes import Project
 from ctree.transformations import PyBasicConversions
 from rebox.specializers.order import Ordering
@@ -29,7 +27,7 @@ from hpgmg.finite_volume.operators.specializers.jit import PyGMGConcreteSpeciali
     PyGMGOclConcreteSpecializedFunction, KernelRunManager
 
 from hpgmg.finite_volume.operators.specializers.util import to_macro_function, apply_all_layers, include_mover, \
-    LayerPrinter, time_this, compute_local_work_size, flattened_to_multi_index, new_generate_control
+    LayerPrinter, compute_local_work_size, flattened_to_multi_index, new_generate_control
 from hpgmg.finite_volume.operators.transformers.level_transformers import RowMajorInteriorPoints
 from hpgmg.finite_volume.operators.transformers.semantic_transformer import SemanticFinder
 from hpgmg.finite_volume.operators.transformers.semantic_transformers.csemantics import CRangeTransformer
@@ -81,7 +79,7 @@ class SmoothOclFunction(PyGMGOclConcreteSpecializedFunction):
             rhs_mesh, lambda_mesh
         ] + level.beta_face_values + [level.alpha]
 
-        for m in range(len(args_to_bufferize)): # i know that these are all Meshes
+        for m in range(len(args_to_bufferize)):
             mesh = args_to_bufferize[m]
             if isinstance(mesh, np.ndarray) and not isinstance(mesh, Mesh):
                 mesh = Mesh(mesh.shape)
@@ -455,8 +453,8 @@ class OclSmoothSpecializer(LazySpecializedFunction):
         for param in params:
             param.type = ctypes.POINTER(ctypes.c_double)()
             param.set_global()  # this is not safe
-            # if param.name != 'working_target':
-            #     param.set_const()
+            if param.name != 'working_target':
+                param.set_const()
 
         # file creation
 

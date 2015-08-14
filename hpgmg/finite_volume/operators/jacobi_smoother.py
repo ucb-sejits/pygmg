@@ -28,8 +28,6 @@ class JacobiSmoother(Smoother):
         self.weight = 1.0 if use_l1_jacobi else 2.0/3.0
         self.iterations = iterations
 
-    #@time_this
-    # @manage_smooth_buffers
     def smooth(self, level, mesh_to_smooth, rhs_mesh):
         """
         :param level: the level being smoothed
@@ -54,7 +52,6 @@ class JacobiSmoother(Smoother):
         'c': CSmoothSpecializer,
         'omp': OmpSmoothSpecializer,
         'ocl': OclSmoothSpecializer
-        # 'ocl':  CSmoothSpecializer
     })
     def smooth_points(self, level, working_source, working_target, rhs_mesh, lambda_mesh):
         for index in level.interior_points():

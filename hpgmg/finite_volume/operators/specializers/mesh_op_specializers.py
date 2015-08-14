@@ -287,7 +287,6 @@ class OclFillMeshSpecializer(MeshOpOclSpecializer):
     def finalize(self, transform_result, program_config):
         subconfig, tuner_config = program_config
         project = Project(transform_result)
-        control = transform_result[0]
         kernel = transform_result[1]
         level = subconfig['self']
 
@@ -298,7 +297,7 @@ class OclFillMeshSpecializer(MeshOpOclSpecializer):
             local_size -= 1
 
         retval = ctypes.c_int
-        kernel_name = self.tree.body[0].name  # refers to original FunctionDef
+        kernel_name = self.tree.body[0].name
         entry_point = kernel_name + "_control"
         param_types = [cl.cl_command_queue, cl.cl_kernel]
         for param, value in subconfig.items():
@@ -614,7 +613,7 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
         control = transform_result[0]
         kernels = transform_result[1:]
         retval = ctypes.c_double
-        kernel_name = self.tree.body[0].name  # refers to original FunctionDef
+        kernel_name = self.tree.body[0].name
         entry_point = kernel_name + "_control"
 
         param_types = [cl.cl_command_queue]
@@ -641,7 +640,6 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
 
 
 def generate_reduce_mesh_control(name, global_sizes, local_sizes, original_params, kernels):
-    # kernels are expected to be ocl files
     first_reducer_params = original_params[:]
     first_reducer_params.append(SymbolRef("temp", ctypes.POINTER(ctypes.c_double)()))
     second_reducer_params = [
@@ -705,7 +703,6 @@ def generate_reduce_mesh_control(name, global_sizes, local_sizes, original_param
     for kernel in kernels:
         params.append(SymbolRef(kernel.find(FunctionDecl, kernel=True).name, cl.cl_kernel()))
 
-    # params.append(SymbolRef("mesh", cl.cl_mem()))
     for param in original_params:
         if isinstance(param.type, ctypes.POINTER(ctypes.c_double)):
             params.append(SymbolRef(param.name, cl.cl_mem()))

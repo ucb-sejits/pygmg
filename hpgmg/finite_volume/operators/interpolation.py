@@ -32,7 +32,6 @@ class InterpolatorPC(Interpolator):
         'c': CInterpolateSpecializer,
         'omp': CInterpolateSpecializer,
         'ocl': OclInterpolateSpecializer
-        # 'ocl': CInterpolateSpecializer
     })
     def interpolate(self, target_level, target_mesh, source_mesh):
         for target_index in target_level.interior_points():

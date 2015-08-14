@@ -63,7 +63,6 @@ class Restriction(object):
         'c': CRestrictSpecializer,
         'omp': CRestrictSpecializer,
         'ocl': OclRestrictSpecializer
-        # 'ocl': CRestrictSpecializer
     }) #buggy
     def restrict(self, level, target, source, restriction_type):
         #assert(isinstance(level, SimpleLevel))

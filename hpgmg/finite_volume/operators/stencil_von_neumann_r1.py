@@ -118,7 +118,6 @@ class StencilVonNeumannR1(BaseOperator):
         'c': CRebuildSpecializer,
         'omp': CRebuildSpecializer,
         'ocl': OclRebuildSpecializer
-        # 'ocl': CRebuildSpecializer
     })
     def get_dominant_eigenvalue(self, target_level):
         adjust_value = 2.0

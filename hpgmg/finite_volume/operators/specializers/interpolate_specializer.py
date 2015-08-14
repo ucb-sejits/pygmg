@@ -180,9 +180,6 @@ class OclInterpolateSpecializer(LazySpecializedFunction):
         func = tree.body[0]
         layers = [
             ParamStripper(('self', 'target_level')),
-            # AttributeRenamer({
-            #     'self.operator.apply_op': ast.Name('apply_op', ast.Load())
-            # }),
             SemanticFinder(subconfig),
             AttributeGetter(subconfig),
             self.RangeTransformer(),
@@ -202,11 +199,6 @@ class OclInterpolateSpecializer(LazySpecializedFunction):
         func = apply_all_layers(layers, func)
         for param in func.params:
             param.type = ctypes.POINTER(ctypes.c_double)()
-
-        # func.defn = [
-        #     SymbolRef('source_index', sym_type=ctypes.c_uint64()),
-        #     SymbolRef('target_index', sym_type=ctypes.c_uint64())
-        # ] + func.defn
 
         ordering = Ordering([MultiplyEncode()], prefix="source_")
         source_bits_per_dim = min([math.log(i, 2) for i in subconfig['source_mesh'].space]) + 1

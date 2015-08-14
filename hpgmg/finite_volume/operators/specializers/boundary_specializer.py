@@ -52,7 +52,7 @@ class BoundaryOclFunction(PyGMGOclConcreteSpecializedFunction):
         self.set_kernel_args(args, kwargs)
 
         for kernel in self.kernels:
-            buffer = kernel.args[0]  # there is only one buffer being used
+            buffer = kernel.args[0]
             if buffer.evt:
                 buffer.evt.wait()
 
@@ -227,7 +227,7 @@ class OclBoundarySpecializer(LazySpecializedFunction):
             body.append(func)
             ocl_file_bodies.append(body)
 
-        num_kernels_per_dim = [calc_num_k_dim_cubes(ndim, ndim - dim - 1) for dim in range(ndim)]  # [6, 12, 8]
+        num_kernels_per_dim = [calc_num_k_dim_cubes(ndim, ndim - dim - 1) for dim in range(ndim)]
 
         boundary_map = {}
         for dim in range(ndim):
@@ -288,7 +288,6 @@ class OclBoundarySpecializer(LazySpecializedFunction):
             """)
 
         c_file = CFile(name="boundary_control", body=[ocl_include, generate_control(subconfig['level'].interior_space)])
-        # c_file = CFile(name="boundary_control", body=[FunctionDecl(ctypes.c_int32(), "boundary_control", [SymbolRef("x", ctypes.c_int())], [Return(Constant(0))])])
         c_file.config_target = 'opencl'
         files = [c_file]
         files.extend(ocl_files)

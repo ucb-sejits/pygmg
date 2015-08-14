@@ -256,7 +256,6 @@ class OclRebuildSpecializer(CRebuildSpecializer):
         subconfig, tuner_config = program_config
         subconfig['ghost'] = subconfig['self'].ghost_zone
         ndim = subconfig['self'].dimensions
-        #print(dump(tree))
         layers = [
             ParamStripper(('self',)),
             RowMajorInteriorPoints(subconfig) if subconfig['target_level'].configuration.backend != 'ocl' else self.RangeTransformer(subconfig),
@@ -282,7 +281,6 @@ class OclRebuildSpecializer(CRebuildSpecializer):
             IndexDirectTransformer(ndim),
             PyBasicConversions(constants_dict={'False': 0, 'True': 1}),
             BranchSimplifier()
-            #LayerPrinter(),
         ]
         func = apply_all_layers(layers, func)
         type_decls = {

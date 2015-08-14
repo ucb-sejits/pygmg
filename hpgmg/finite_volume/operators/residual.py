@@ -17,7 +17,6 @@ class Residual(object):
         self.b = self.solver.b
         self.operator = self.solver.problem_operator
 
-    # @manage_residual_buffers
     def run(self, level, target_mesh, source_mesh, right_hand_side):
         self.solver.boundary_updater.apply(level, source_mesh)
         with level.timer("residual"):
@@ -27,7 +26,6 @@ class Residual(object):
         'c': CSmoothSpecializer,
         'omp': OmpSmoothSpecializer,
         'ocl': OclSmoothSpecializer
-        # 'ocl': CSmoothSpecializer
     })
     def residue(self, level, target_mesh, source_mesh, right_hand_side, lambda_mesh):
         for index in level.interior_points():
