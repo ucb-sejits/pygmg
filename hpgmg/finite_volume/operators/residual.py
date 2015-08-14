@@ -4,7 +4,7 @@ import numpy as np
 
 from hpgmg.finite_volume.operators.specializers.smooth_specializer import CSmoothSpecializer, OmpSmoothSpecializer, \
     OclSmoothSpecializer
-from hpgmg.finite_volume.operators.specializers.util import specialized_func_dispatcher, manage_residual_buffers
+from hpgmg.finite_volume.operators.specializers.util import specialized_func_dispatcher
 
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
