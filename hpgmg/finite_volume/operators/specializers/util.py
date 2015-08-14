@@ -370,7 +370,7 @@ def compute_largest_local_work_size(device, global_size):
 
 def flattened_to_multi_index(flattened_id_symbol, shape, multipliers=None, offsets=None):
 
-    # flattened_id should be a symbol ref
+    # flattened_id should be a node
     # offsets applied after multipliers
 
     body = []
@@ -385,97 +385,6 @@ def flattened_to_multi_index(flattened_id_symbol, shape, multipliers=None, offse
             stmt = Add(stmt, Constant(offsets[i]))
         body.append(stmt)
     return body
-
-def manage_smooth_buffers(smooth_func):
-    def smooth_wrapper(self, level, mesh_to_smooth, rhs_mesh):
-        if level.configuration.backend == 'ocl':
-
-            lambda_mesh = level.l1_inverse if self.use_l1_jacobi else level.d_inverse
-            working_target, working_source = mesh_to_smooth, level.temp
-            self.operator.set_scale(level.h)
-
-            arrays = [working_source, working_target, rhs_mesh, lambda_mesh]
-            arrays.extend(level.beta_face_values)
-            arrays.append(level.alpha)
-            flattened = [a.ravel() for a in arrays]
-
-            if level.context is None:
-                level.context = cl.clCreateContext(devices=[cl.clGetDeviceIDs()[-1]])
-                level.queue = cl.clCreateCommandQueue(level.context)
-                level.buffers = [buf for buf, evt in [cl.buffer_from_ndarray(level.queue, mesh) for mesh in flattened]]
-            else:
-                level.buffers = [buf for buf, evt in [cl.buffer_from_ndarray(level.queue, mesh, buf=buf) for mesh, buf in zip(flattened, level. buffers)]]
-
-            for i in range(self.iterations):
-                # working_target, working_source = working_source, working_target
-                # flattened[0], flattened[1] = flattened[1], flattened[0]
-                level.buffers[0], level.buffers[1] = level.buffers[1], level.buffers[0]
-
-                level.solver.boundary_updater.apply(level, working_source)
-
-                # ary, evt = cl.buffer_to_ndarray(level.queue, out=flattened[0], buf=level.buffers[0])
-                # cl.clWaitForEvents(evt)
-
-                self.smooth_points(level, working_source, working_target, rhs_mesh, lambda_mesh)
-
-            ary, evt = cl.buffer_to_ndarray(level.queue, level.buffers[1], out=flattened[1])
-            cl.clWaitForEvents(evt)
-
-            # level.context, level.queue, level.buffers = None, None, []
-            # level.smooth_events, level.boundary_events = [], []
-        else:
-            return smooth_func(self, level, mesh_to_smooth, rhs_mesh)
-    return smooth_wrapper
-
-def manage_residual_buffers(residual_func):
-    def residual_wrapper(self, level, target_mesh, source_mesh, right_hand_side):
-        if level.configuration.backend == 'ocl':
-
-            lambda_mesh = np.zeros((1,))
-            arrays = [
-                target_mesh,
-                source_mesh,
-                right_hand_side,
-                lambda_mesh
-            ]
-            arrays.extend(level.beta_face_values)
-            arrays.append(level.alpha)
-            flattened = [a.ravel() for a in arrays]
-
-            if level.context is None:
-                level.context = cl.clCreateContext(devices=[cl.clGetDeviceIDs()[-1]])
-                level.queue = cl.clCreateCommandQueue(level.context)
-                level.buffers = [buf for buf, evt in [cl.buffer_from_ndarray(level.queue, mesh) for mesh in flattened]]
-
-            level.buffers[0], level.buffers[1] = level.buffers[1], level.buffers[0]
-            self.solver.boundary_updater.apply(level, source_mesh)
-
-            level.buffers[0], level.buffers[1] = level.buffers[1], level.buffers[0]
-
-            # buf, evt = cl.buffer_from_ndarray(level.queue, flattened[1], buf=level.buffers[1])
-            # cl.clWaitForEvents(evt)
-
-            with level.timer("residual"):
-                self.residue(level, target_mesh, source_mesh, right_hand_side, np.zeros((1,)))
-
-            ary, evt = cl.buffer_to_ndarray(level.queue, level.buffers[0], out=flattened[0])
-            cl.clWaitForEvents(evt)
-
-            # level.context, level.queue, level.buffers = None, None, []
-            # level.smooth_events, level.boundary_events = [], []
-        else:
-            return residual_func(self, level, target_mesh, source_mesh, right_hand_side)
-    return residual_wrapper
-
-def manage_buffers_fill_mesh(fill_mesh_func):
-    def fill_mesh_wrapper(self, mesh, value):
-        if self.configuration.backend == 'ocl':
-            self.buffers[0], evt = cl.buffer_from_ndarray(self.queue, mesh)
-            fill_mesh_func(self, mesh, self.buffers[0])
-            mesh, evt = cl.buffer_to_ndarray(self.queue, self.buffers[0], out=mesh)
-            # self.buffers = []
-        else:
-            fill_mesh_func(self, mesh, value)
 
 def new_generate_control(name, global_size, local_size, kernel_params, kernels, other=None):
     # assumes that all kernels take the same arguments and that they all use the same global and local size!

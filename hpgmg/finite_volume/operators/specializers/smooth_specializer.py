@@ -29,7 +29,7 @@ from hpgmg.finite_volume.operators.specializers.jit import PyGMGConcreteSpeciali
     PyGMGOclConcreteSpecializedFunction, KernelRunManager
 
 from hpgmg.finite_volume.operators.specializers.util import to_macro_function, apply_all_layers, include_mover, \
-    LayerPrinter, time_this, compute_local_work_size, flattened_to_multi_index
+    LayerPrinter, time_this, compute_local_work_size, flattened_to_multi_index, new_generate_control
 from hpgmg.finite_volume.operators.transformers.level_transformers import RowMajorInteriorPoints
 from hpgmg.finite_volume.operators.transformers.semantic_transformer import SemanticFinder
 from hpgmg.finite_volume.operators.transformers.semantic_transformers.csemantics import CRangeTransformer
@@ -468,7 +468,8 @@ class OclSmoothSpecializer(LazySpecializedFunction):
                                kernel,
                            ])
 
-        control_func = generate_control(params, shape, entire_shape, local_size)
+        global_size = reduce(operator.mul, shape, 1)
+        control_func = new_generate_control("smooth_points_control", global_size, local_size, params, [ocl_file])
 
         control = CFile(name="smooth_points_control",
                         body=[
@@ -477,9 +478,6 @@ class OclSmoothSpecializer(LazySpecializedFunction):
                         ])
 
         control.config_target = 'opencl'
-
-        # print(control)
-        # print(ocl_file)
 
         return [control, ocl_file]
 
@@ -518,66 +516,6 @@ class OclSmoothSpecializer(LazySpecializedFunction):
         fn = SmoothOclFunction()
         return fn.finalize("smooth_points_control", project, entry_type, level.context, level.queue, [kernel])
 
-
-def generate_control(params, shape, entire_shape, local_size):
-
-    control_params = []
-    control_params.append(SymbolRef("queue", cl.cl_command_queue()))
-    control_params.append(SymbolRef("kernel", cl.cl_kernel()))
-    b = 0
-    for param in params:
-        if isinstance(param.type, ctypes.POINTER(ctypes.c_double)):
-            control_params.append(SymbolRef("buf_{}".format(b), cl.cl_mem()))
-            b += 1
-        else:
-            control_params.append(param)
-
-    defn = []
-
-    global_size = reduce(operator.mul, shape, 1)
-
-    defn.append(ArrayDef(SymbolRef("global", ctypes.c_ulong()), 1, Array(body=[Constant(global_size)])))
-    defn.append(ArrayDef(SymbolRef("local", ctypes.c_ulong()), 1, Array(body=[Constant(local_size)])))
-
-    defn.append(Assign(SymbolRef("error_code", ctypes.c_int()), Constant(0)))
-
-    b = 0
-    for arg_num in range(len(params)):
-        if isinstance(params[arg_num].type, ctypes.POINTER(ctypes.c_double)):
-            defn.append(FunctionCall(SymbolRef("clSetKernelArg"),
-                                     [SymbolRef("kernel"),
-                                      Constant(b),
-                                      FunctionCall(SymbolRef("sizeof"), [SymbolRef("cl_mem")]),
-                                      Ref(SymbolRef("buf_{}".format(b)))]))
-            b += 1
-        else:
-            defn.append(FunctionCall(SymbolRef("clSetKernelArg"),
-                                     [SymbolRef("kernel"),
-                                      Constant(arg_num),
-                                      FunctionCall(SymbolRef("sizeof"), [SymbolRef("cl_mem")]),
-                                      params[arg_num]]))
-
-    enqueue_call = FunctionCall(SymbolRef("clEnqueueNDRangeKernel"), [
-            SymbolRef("queue"),
-            SymbolRef("kernel"),
-            Constant(1),
-            NULL(),
-            SymbolRef("global"),
-            SymbolRef("local"),
-            Constant(0),
-            NULL(),
-            NULL()
-        ])
-
-    defn.extend(check_ocl_error(enqueue_call, "clEnqueueNDRangeKernel"))
-    finish_call = check_ocl_error(
-            FunctionCall(SymbolRef('clFinish'), [SymbolRef('queue')]),
-            "clFinish"
-        )
-    defn.extend(finish_call)
-    defn.append(Return(SymbolRef("error_code")))
-
-    return FunctionDecl(ctypes.c_int(), "smooth_points_control", control_params, defn)
 
 def check_ocl_error(code_block, message="kernel"):
     return [
