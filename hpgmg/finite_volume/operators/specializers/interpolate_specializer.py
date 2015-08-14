@@ -89,7 +89,7 @@ class CInterpolateSpecializer(LazySpecializedFunction):
             # }),
             SemanticFinder(subconfig),
             AttributeGetter(subconfig),
-            CRangeTransformer() if subconfig['target_level'].configuration.backend != 'ocl' else self.RangeTransformer(),
+            CRangeTransformer(),
             IndexTransformer(('target_index', 'source_index')),
             IndexOpTransformer(ndim, {'target_index': 'target_encode', 'source_index': 'source_encode'}),
             ArrayRefIndexTransformer(
@@ -148,7 +148,7 @@ class CInterpolateSpecializer(LazySpecializedFunction):
         )
 
 
-class OclInterpolateSpecializer(CInterpolateSpecializer):
+class OclInterpolateSpecializer(LazySpecializedFunction):
 
     class RangeTransformer(ast.NodeTransformer):
         def visit_RangeNode(self, node):
@@ -164,18 +164,71 @@ class OclInterpolateSpecializer(CInterpolateSpecializer):
             body.extend(node.body)
             return MultiNode(body=body)
 
+    def args_to_subconfig(self, args):
+        return {
+            'self': args[0],
+            'target_level': args[1],
+            'target_mesh': args[2],
+            'source_mesh': args[3]
+        }
+
     def transform(self, tree, program_config):
         subconfig, tuner = program_config
         target_level = subconfig['target_level']
+        ndim = subconfig['self'].dimensions
 
-        file = super(OclInterpolateSpecializer, self).transform(tree, program_config)[0]
-        while isinstance(file.body[0], CppInclude):
-            file.body.pop(0)
-        kernel = file.find(FunctionDecl)
+        func = tree.body[0]
+        layers = [
+            ParamStripper(('self', 'target_level')),
+            # AttributeRenamer({
+            #     'self.operator.apply_op': ast.Name('apply_op', ast.Load())
+            # }),
+            SemanticFinder(subconfig),
+            AttributeGetter(subconfig),
+            self.RangeTransformer(),
+            IndexTransformer(('target_index', 'source_index')),
+            IndexOpTransformer(ndim, {'target_index': 'target_encode', 'source_index': 'source_encode'}),
+            ArrayRefIndexTransformer(
+                encode_map={
+                    'target_index': 'target_encode',
+                    'source_index': 'source_encode'
+                },
+                ndim=ndim
+            ),
+            IndexDirectTransformer(ndim, encode_func_names={'target_index': 'target_encode', 'source_index': 'source_encode'}),
+            IndexOpTransformBugfixer(func_names=('target_encode', 'source_encode')),
+            PyBasicConversions(),
+        ]
+        func = apply_all_layers(layers, func)
+        for param in func.params:
+            param.type = ctypes.POINTER(ctypes.c_double)()
+
+        # func.defn = [
+        #     SymbolRef('source_index', sym_type=ctypes.c_uint64()),
+        #     SymbolRef('target_index', sym_type=ctypes.c_uint64())
+        # ] + func.defn
+
+        ordering = Ordering([MultiplyEncode()], prefix="source_")
+        source_bits_per_dim = min([math.log(i, 2) for i in subconfig['source_mesh'].space]) + 1
+        target_bits_per_dim = min([math.log(i, 2) for i in subconfig['target_mesh'].space]) + 1
+        source_encode = ordering.generate(ndim, source_bits_per_dim, ctypes.c_uint64)
+        ordering.prefix = 'target_'
+        target_encode = ordering.generate(ndim, target_bits_per_dim, ctypes.c_uint64)
+
+        cfile = CFile(body=[
+            source_encode,
+            target_encode,
+            func
+        ])
+        cfile = include_mover(cfile)
+
+        while isinstance(cfile.body[0], CppInclude):
+            cfile.body.pop(0)
+        kernel = cfile.find(FunctionDecl)
         kernel.set_kernel()
         for param in kernel.params:
             param.set_global()
-        ocl_file = OclFileWrapper("%s_kernel" % kernel.name).visit(file)
+        ocl_file = OclFileWrapper("%s_kernel" % kernel.name).visit(cfile)
         ocl_file = DeclarationFiller().visit(ocl_file)
         global_size = reduce(operator.mul, target_level.interior_space, 1)
         local_size = compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], global_size)

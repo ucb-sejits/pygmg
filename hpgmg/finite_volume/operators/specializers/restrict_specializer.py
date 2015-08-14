@@ -5,7 +5,6 @@ import operator
 from ctree.c.nodes import Assign, For, SymbolRef, Constant, PostInc, Lt, FunctionDecl, CFile, FunctionCall, MultiNode
 from ctree.cpp.nodes import CppDefine, CppInclude
 from ctree.nodes import Project
-from ctree.templates.nodes import StringTemplate
 from ctree.transformations import PyBasicConversions
 import math
 from hpgmg.finite_volume.operators.specializers.jit import PyGMGConcreteSpecializedFunction, \
@@ -115,7 +114,7 @@ class CRestrictSpecializer(LazySpecializedFunction):
             IndexOpTransformer(ndim=ndim, encode_func_names={'target_point': 'target_encode', 'source_point': 'source_encode'}),
             IndexDirectTransformer(ndim=ndim, encode_func_names={'source_point': 'source_encode', 'target_point': 'target_encode'}),
             IndexOpTransformBugfixer(func_names=('target_encode', 'source_encode')),
-            CRangeTransformer() if subconfig['level'].configuration.backend != 'ocl' else self.RangeTransformer(),
+            CRangeTransformer(),
             PyBasicConversions(),
         ]
         tree = apply_all_layers(layers, tree)
@@ -156,7 +155,7 @@ class CRestrictSpecializer(LazySpecializedFunction):
                            ctypes.CFUNCTYPE(None, *param_types))
 
 
-class OclRestrictSpecializer(CRestrictSpecializer):
+class OclRestrictSpecializer(LazySpecializedFunction):
 
     class RangeTransformer(ast.NodeTransformer):
         def visit_RangeNode(self, node):
@@ -172,18 +171,65 @@ class OclRestrictSpecializer(CRestrictSpecializer):
             body.extend(node.body)
             return MultiNode(body=body)
 
+    def args_to_subconfig(self, args):
+        return CRestrictSpecializer.RestrictSubconfig({
+            'self': args[0],
+            'level': args[1],
+            'target': args[2],
+            'source': args[3],
+            'restriction_type': args[4]
+        })
+
     def transform(self, tree, program_config):
-        subconfig, tuner = program_config
+
+        subconfig, tuner_config = program_config
+        ndim = subconfig['self'].dimensions
+        layers = [
+            ParamStripper(('self', 'level', 'restriction_type')),
+            AttributeRenamer({'restriction_type': ast.Num(n=subconfig['restriction_type'])}),
+            AttributeGetter({'self': subconfig['self']}),
+            PyBranchSimplifier(),
+            SemanticFinder(subconfig, locals=subconfig),
+            IndexTransformer(('target_point', 'source_point')),
+            AttributeGetter(subconfig),
+            LookupSimplificationTransformer(),
+            FunctionCallSimplifier(),
+            LoopUnroller(),
+            GeneratorTransformer(subconfig),
+            CompReductionTransformer(),
+            IndexOpTransformer(ndim=ndim, encode_func_names={'target_point': 'target_encode', 'source_point': 'source_encode'}),
+            IndexDirectTransformer(ndim=ndim, encode_func_names={'source_point': 'source_encode', 'target_point': 'target_encode'}),
+            IndexOpTransformBugfixer(func_names=('target_encode', 'source_encode')),
+            self.RangeTransformer(),
+            PyBasicConversions(),
+        ]
+        tree = apply_all_layers(layers, tree)
+        function = tree.find(FunctionDecl)
+        function.defn = [
+            SymbolRef('source_point_{}'.format(i), sym_type=ctypes.c_uint64())
+            for i in range(ndim)
+        ] + function.defn
+        function.name = 'totally_not_restrict'
+        for param in function.params:
+            param.type = ctypes.POINTER(ctypes.c_double)()
+        ordering = Ordering([MultiplyEncode()], prefix='source_')
+        bits_per_dim = min([math.log(i, 2) for i in subconfig['source'].shape]) + 1
+        encode_func_source = ordering.generate(ndim, bits_per_dim, ctypes.c_uint64)
+        ordering = Ordering([MultiplyEncode()], prefix='target_')
+        bits_per_dim = min([math.log(i, 2) for i in subconfig['target'].shape]) + 1
+        encode_func_target = ordering.generate(ndim, bits_per_dim, ctypes.c_uint64)
+        cfile = CFile(body=[tree, encode_func_source, encode_func_target])
+        cfile = include_mover(cfile)
+
         level = subconfig['level']
         interior_space = level.interior_space
-        file = super(OclRestrictSpecializer, self).transform(tree, program_config)[0]
-        while (isinstance(file.body[0], CppInclude)):
-            file.body.pop(0)
-        kernel = file.find(FunctionDecl)
+        while (isinstance(cfile.body[0], CppInclude)):
+            cfile.body.pop(0)
+        kernel = cfile.find(FunctionDecl)
         kernel.set_kernel()
         for param in kernel.params:
             param.set_global()
-        ocl_file = OclFileWrapper("%s_kernel" % kernel.name).visit(file)
+        ocl_file = OclFileWrapper("%s_kernel" % kernel.name).visit(cfile)
         global_size = reduce(operator.mul, interior_space, 1)
         local_size = compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], global_size)
         control = new_generate_control("%s_control" % kernel.name, global_size, local_size, kernel.params, [kernel])

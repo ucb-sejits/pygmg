@@ -2,9 +2,8 @@ import ast
 import ctypes
 from ctree.c.nodes import MultiNode, For, Assign, SymbolRef, Constant, Lt, PostInc, FunctionCall, FunctionDecl, CFile
 from ctree.cpp.nodes import CppInclude
-from ctree.jit import LazySpecializedFunction, ConcreteSpecializedFunction
+from ctree.jit import LazySpecializedFunction
 from ctree.nodes import Project
-from ctree.ocl.nodes import OclFile
 from ctree.transformations import PyBasicConversions
 import math
 from ctree.transforms.declaration_filler import DeclarationFiller
@@ -116,7 +115,7 @@ class CInitializeMesh(LazySpecializedFunction):
             CallReplacer({
                 'func': expr
             }),
-            CRangeTransformer() if subconfig['self'].configuration.backend != "ocl" else self.RangeTransformer(),
+            CRangeTransformer(),
             IndexTransformer(('coord',)),
             IndexDirectTransformer(ndim=ndim, encode_func_names={'coord': 'encode'}),
             PyBasicConversions(),
@@ -155,7 +154,8 @@ class CInitializeMesh(LazySpecializedFunction):
         )
 
 
-class OclInitializeMesh(CInitializeMesh):
+class OclInitializeMesh(LazySpecializedFunction):
+
     class RangeTransformer(ast.NodeTransformer):
         def visit_RangeNode(self, node):
             body=[
@@ -169,18 +169,95 @@ class OclInitializeMesh(CInitializeMesh):
             body.extend(node.body)
             return MultiNode(body=body)
 
+    class InitializeMeshSubconfig(dict):
+        def __hash__(self):
+            to_hash = (
+                self['level'].space,
+                self['level'].ghost_zone,
+                self['mesh'].shape,
+                str(self['exp']),
+                self['coord_transform'].__name__
+            )
+            return hash(to_hash)
+
+    def args_to_subconfig(self, args):
+        return self.InitializeMeshSubconfig({
+            'self': args[0],
+            'level': args[1],
+            'mesh': args[2],
+            'exp': args[3],
+            'coord_transform': args[4]
+        })
+
     def transform(self, tree, program_config):
         subconfig, tuner = program_config
         level = subconfig['level']
         global_size = reduce(operator.mul, level.space, 1)
         local_size = compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], global_size)
 
-        file = super(OclInitializeMesh, self).transform(tree, program_config)[0]
-        kernel = file.find(FunctionDecl)
+        # c transformations:
 
-        while isinstance(file.body[0], CppInclude):
-            file.body.pop(0)
-        ocl_file = OclFileWrapper("%s_kernel" % kernel.name).visit(file)
+        func_node = tree.body[0]
+        func_node.body.pop(0)
+        ndim = subconfig['self'].dimensions
+
+        coord_tree = get_ast(subconfig['coord_transform']).body[0].body[-1].value
+
+        coord_layers = [
+            SemanticFinder(),
+            AttributeGetter({'self': subconfig['level']}),
+            IndexOpTransformer(ndim=ndim, encode_func_names={'coord': ''}),
+            PyBasicConversions(),
+        ]
+
+        coord_tree = apply_all_layers(coord_layers, coord_tree)
+        coord_transform = coord_tree.args
+        expr = sympy_to_c(subconfig['exp'], 'coord_')
+
+        expr_layers = [
+            AttributeRenamer({
+                'coord_{}'.format(i) : coord_transform[i] for i in range(ndim)
+            })
+        ]
+
+        expr = apply_all_layers(expr_layers, expr)
+
+        layers = [
+            ParamStripper(('self', 'level', 'exp', 'coord_transform')),
+            SemanticFinder(subconfig),
+            CallReplacer({
+                'func': expr
+            }),
+            self.RangeTransformer(),
+            IndexTransformer(('coord',)),
+            IndexDirectTransformer(ndim=ndim, encode_func_names={'coord': 'encode'}),
+            PyBasicConversions(),
+
+        ]
+
+        tree = apply_all_layers(layers, tree)
+        func_node = tree.find(FunctionDecl)
+        func_node.params[0].type = ctypes.POINTER(ctypes.c_double)()
+
+        ordering = Ordering([MultiplyEncode()])
+        bits_per_dim = min([math.log(i, 2) for i in subconfig['level'].space]) + 1
+        encode_func = ordering.generate(ndim, bits_per_dim, ctypes.c_uint64)
+
+        cfile = CFile(body=[
+            tree,
+            CppInclude("math.h"),
+            encode_func
+        ])
+
+        cfile = include_mover(cfile)
+
+        # ocl transformations:
+
+        kernel = cfile.find(FunctionDecl)
+
+        while isinstance(cfile.body[0], CppInclude):
+            cfile.body.pop(0)
+        ocl_file = OclFileWrapper("%s_kernel" % kernel.name).visit(cfile)
         ocl_file = DeclarationFiller().visit(ocl_file)
         kernel.set_kernel()
         for param in kernel.params:

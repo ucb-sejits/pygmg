@@ -5,7 +5,7 @@ import ast
 from ctree.c.nodes import SymbolRef, ArrayDef, Array, CFile, FunctionCall, FunctionDecl, Assign, MultiNode, Constant, \
     ArrayRef, For
 from ctree.cpp.nodes import CppInclude, CppDefine
-from ctree.jit import LazySpecializedFunction, ConcreteSpecializedFunction
+from ctree.jit import LazySpecializedFunction
 from ctree.nodes import Project
 from ctree.transformations import PyBasicConversions
 from ctree.transforms.declaration_filler import DeclarationFiller
@@ -111,10 +111,9 @@ class CRebuildSpecializer(LazySpecializedFunction):
         subconfig, tuner_config = program_config
         subconfig['ghost'] = subconfig['self'].ghost_zone
         ndim = subconfig['self'].dimensions
-        #print(dump(tree))
         layers = [
             ParamStripper(('self',)),
-            RowMajorInteriorPoints(subconfig) if subconfig['target_level'].configuration.backend != 'ocl' else self.RangeTransformer(subconfig),
+            self.RangeTransformer(subconfig),
             GeneratorTransformer(subconfig),
             CompReductionTransformer(),
             AttributeRenamer({
@@ -221,6 +220,11 @@ class CRebuildSpecializer(LazySpecializedFunction):
 
 class OclRebuildSpecializer(CRebuildSpecializer):
 
+    def args_to_subconfig(self, args):
+        return CRebuildSpecializer.RebuildSpecializerSubconfig({
+            'self': args[0], 'target_level': args[1]
+        })
+
     class RangeTransformer(ast.NodeTransformer):
 
         def __init__(self, subconfig):
@@ -247,19 +251,105 @@ class OclRebuildSpecializer(CRebuildSpecializer):
             return MultiNode(body=body)
 
     def transform(self, tree, program_config):
-        subconfig, tuner = program_config
+
+        func = tree.body[0]
+        subconfig, tuner_config = program_config
+        subconfig['ghost'] = subconfig['self'].ghost_zone
+        ndim = subconfig['self'].dimensions
+        #print(dump(tree))
+        layers = [
+            ParamStripper(('self',)),
+            RowMajorInteriorPoints(subconfig) if subconfig['target_level'].configuration.backend != 'ocl' else self.RangeTransformer(subconfig),
+            GeneratorTransformer(subconfig),
+            CompReductionTransformer(),
+            AttributeRenamer({
+                'target_level.l1_inverse': ast.Name('l1_inverse', ast.Load()),
+                'target_level.d_inverse': ast.Name('d_inverse', ast.Load()),
+                'target_level.valid': ast.Name('valid', ast.Load()),
+                'target_level.alpha': ast.Name('alpha', ast.Load()),
+                'target_level.beta_face_values': ast.Name('beta_face_values', ast.Load()),
+            }),
+            AttributeGetter(subconfig),
+            IndexTransformer(('index',)),
+            ArrayRefIndexTransformer(
+                encode_map={
+                    'index': 'encode'
+                },
+                ndim=ndim
+            ),
+            LookupSimplificationTransformer(),
+            IndexOpTransformer(ndim, encode_func_names={'index': 'encode'}),
+            IndexDirectTransformer(ndim),
+            PyBasicConversions(constants_dict={'False': 0, 'True': 1}),
+            BranchSimplifier()
+            #LayerPrinter(),
+        ]
+        func = apply_all_layers(layers, func)
+        type_decls = {
+            'adjust_value': ctypes.c_double(),
+            'dominant_eigenvalue': ctypes.c_double(),
+            'sum_abs': ctypes.c_double(),
+            'a_diagonal': ctypes.c_double(),
+            '____temp__sum_abs': ctypes.c_double(),
+            '____temp__a_diagonal': ctypes.c_double()
+        }
+        func.params.extend(
+            SymbolRef(name) for name in ('valid', 'l1_inverse', 'd_inverse')
+        )
+        if subconfig['self'].is_variable_coefficient:
+            func.params.extend([
+                SymbolRef("beta_face_values_{}".format(i)) for i in range(ndim)
+            ])
+            if subconfig['self'].solver.is_helmholtz:
+                func.params.append(
+                    SymbolRef("alpha")
+                )
+        params = []
+        for param in func.params:
+            if param.name == 'target_level':
+                continue
+            param.type = ctypes.POINTER(ctypes.c_double)()
+            params.append(param)
+        func.params = params
+        beta_def = ArrayDef(
+            SymbolRef('beta_face_values', sym_type=ctypes.POINTER(ctypes.c_double)()),
+            size=ndim,
+            body=Array(body=[
+                SymbolRef("beta_face_values_{}".format(i)) for i in range(ndim)
+            ])
+        )
+        defn = [
+            SymbolRef(name, sym_type=t) for name, t in type_decls.items()
+        ]
+        if subconfig['self'].is_variable_coefficient:
+            defn.append(beta_def)
+
+        func.defn = defn + func.defn
+        func.return_type = ctypes.c_double()
+        ordering = Ordering([MultiplyEncode()])
+        bits_per_dim = min([math.log(i, 2) for i in subconfig['target_level'].space]) + 1
+        encode_func = ordering.generate(ndim, bits_per_dim, ctypes.c_uint64)
+
+        cfile = CFile(body=[
+            func,
+            encode_func,
+            CppInclude('stdint.h'),
+            CppInclude('math.h'),
+            CppDefine('abs', ['x'], FunctionCall(SymbolRef('fabs'), [SymbolRef('x')]))
+        ])
+        cfile = include_mover(cfile)
+
         target_level = subconfig['target_level']
-        file = super(OclRebuildSpecializer, self).transform(tree, program_config)[0]
-        while isinstance(file.body[0], CppInclude):
-            file.body.pop(0)
-        kernel = file.find(FunctionDecl)
+        while isinstance(cfile.body[0], CppInclude):
+            cfile.body.pop(0)
+        kernel = cfile.find(FunctionDecl)
         kernel.set_kernel()
         kernel.return_type = None
         kernel.defn[-1] = Assign(ArrayRef(SymbolRef("final"), Constant(0)), kernel.defn[-1].value)
         kernel.params.append(SymbolRef("final", ctypes.POINTER(ctypes.c_double)()))
         for param in kernel.params:
             param.set_global()
-        ocl_file = OclFileWrapper("%s_kernel" % kernel.name).visit(file)
+        ocl_file = OclFileWrapper("%s_kernel" % kernel.name).visit(cfile)
         ocl_file = DeclarationFiller().visit(ocl_file)
         global_size = reduce(operator.mul, target_level.interior_space, 1)
         local_size = compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], global_size)

@@ -5,7 +5,7 @@ from ctree.c.macros import NULL
 from ctree.c.nodes import SymbolRef, Constant, PostInc, Lt, For, Assign, FunctionDecl, CFile, Return, FunctionCall, \
     MultiNode, ArrayRef, Array, Ref, Mul, Add, If, Gt, AddAssign, Div
 from ctree.cpp.nodes import CppInclude
-from ctree.jit import LazySpecializedFunction, ConcreteSpecializedFunction
+from ctree.jit import LazySpecializedFunction
 from ctree.nodes import Project
 from ctree.ocl.nodes import OclFile
 from ctree.templates.nodes import StringTemplate
@@ -149,7 +149,46 @@ class MeshOpSpecializer(LazySpecializedFunction):
         layers = [
             ParamStripper(('self')),
             SemanticFinder(subconfig),
-            CRangeTransformer() if subconfig['self'].configuration.backend != 'ocl' else self.RangeTransformer(),
+            CRangeTransformer(),
+            IndexTransformer(('index')),
+            IndexDirectTransformer(ndim, {'index': 'encode'}),
+            PyBasicConversions()
+        ]
+
+        tree = apply_all_layers(layers, tree)
+
+        ordering = Ordering([MultiplyEncode()])
+        bits_per_dim = min([math.log(i, 2) for i in subconfig['self'].space]) + 1
+        encode_func = ordering.generate(ndim, bits_per_dim, ctypes.c_uint64)
+        tree.find(CFile).body.append(encode_func)
+        tree = include_mover(tree)
+        return [tree]
+
+
+
+class MeshOpOclSpecializer(LazySpecializedFunction):
+
+    class RangeTransformer(ast.NodeTransformer):
+        def visit_RangeNode(self, node):
+            body=[
+                Assign(SymbolRef("global_id", ctypes.c_int()), FunctionCall(SymbolRef("get_global_id"), [Constant(0)]))
+            ]
+            ranges = node.iterator.ranges
+            offsets = tuple(r[0] for r in ranges)
+            shape = tuple(r[1] - r[0] for r in ranges)
+            indices = flattened_to_multi_index(SymbolRef("global_id"), shape, offsets=offsets)
+            for d in range(len(shape)):
+                body.append(Assign(SymbolRef("index_%d"%d, ctypes.c_int()), indices[d]))
+            body.extend(node.body)
+            return MultiNode(body=body)
+
+    def transform(self, tree, program_config):
+        subconfig, tuner_config = program_config
+        ndim = subconfig['self'].solver.dimensions
+        layers = [
+            ParamStripper(('self')),
+            SemanticFinder(subconfig),
+            self.RangeTransformer(),
             IndexTransformer(('index')),
             IndexDirectTransformer(ndim, {'index': 'encode'}),
             PyBasicConversions()
@@ -209,21 +248,7 @@ class CFillMeshSpecializer(MeshOpSpecializer):
         )
 
 
-class OclFillMeshSpecializer(MeshOpSpecializer):
-
-    class RangeTransformer(ast.NodeTransformer):
-        def visit_RangeNode(self, node):
-            body=[
-                Assign(SymbolRef("global_id", ctypes.c_int()), FunctionCall(SymbolRef("get_global_id"), [Constant(0)]))
-            ]
-            ranges = node.iterator.ranges
-            offsets = tuple(r[0] for r in ranges)
-            shape = tuple(r[1] - r[0] for r in ranges)
-            indices = flattened_to_multi_index(SymbolRef("global_id"), shape, offsets=offsets)
-            for d in range(len(shape)):
-                body.append(Assign(SymbolRef("index_%d"%d, ctypes.c_int()), indices[d]))
-            body.extend(node.body)
-            return MultiNode(body=body)
+class OclFillMeshSpecializer(MeshOpOclSpecializer):
 
     class MeshSubconfig(dict):
         def __hash__(self):
@@ -252,14 +277,11 @@ class OclFillMeshSpecializer(MeshOpSpecializer):
             f.body.pop(0)
         kernel = OclFileWrapper(name=func_decl.name).visit(f)
         global_shape = tuple(dim + 2 * ghost for dim, ghost in zip(subconfig['self'].interior_space, subconfig['self'].ghost_zone))
-        # control = generate_control(global_shape)
         global_size = reduce(operator.mul, global_shape, 1)
         local_size = compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], global_size)
         while global_size % local_size != 0:
             local_size -= 1
         control = new_generate_control("%s_control" % func_name, global_size, local_size, func_decl.params, [func_decl])
-        # print(control)
-        # print(kernel)
         return [control, kernel]
 
     def finalize(self, transform_result, program_config):
@@ -360,21 +382,7 @@ class CGeneralizedSimpleMeshOpSpecializer(MeshOpSpecializer):
         )
 
 
-class OclGeneralizedSimpleMeshOpSpecializer(MeshOpSpecializer):
-
-    class RangeTransformer(ast.NodeTransformer):
-        def visit_RangeNode(self, node):
-            body=[
-                Assign(SymbolRef("global_id", ctypes.c_int()), FunctionCall(SymbolRef("get_global_id"), [Constant(0)]))
-            ]
-            ranges = node.iterator.ranges
-            offsets = tuple(r[0] for r in ranges)
-            shape = tuple(r[1] - r[0] for r in ranges)
-            indices = flattened_to_multi_index(SymbolRef("global_id"), shape, offsets=offsets)
-            for d in range(len(shape)):
-                body.append(Assign(SymbolRef("index_%d"%d, ctypes.c_int()), indices[d]))
-            body.extend(node.body)
-            return MultiNode(body=body)
+class OclGeneralizedSimpleMeshOpSpecializer(MeshOpOclSpecializer):
 
     class GeneralizedSubconfig(OrderedDict):
         def __hash__(self):
@@ -425,8 +433,6 @@ class OclGeneralizedSimpleMeshOpSpecializer(MeshOpSpecializer):
         while global_size % local_size != 0:
             local_size -= 1
         control = new_generate_control("%s_control" % func_name, global_size, local_size, func_decl.params, [func_decl])
-        # print(control)
-        # print(kernel)
         return [control, kernel]
 
     def finalize(self, transform_result, program_config):
@@ -514,7 +520,6 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
         encode_func = f.body[0]
 
         #always launching two kernels no matter what, for now at least
-        # if local_size != interior_size:
 
         first_reducer = f.find(FunctionDecl)
         # need to change return statement to assign statement
@@ -592,7 +597,6 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
     def finalize(self, transform_result, program_config):
         subconfig, tuner_config = program_config
         level = subconfig['self']
-        # interior_size = reduce(operator.mul, interior_space, 1)
 
         global_size = reduce(operator.mul, level.interior_space, 1)
         local_size = min(cl.clGetDeviceIDs()[-1].max_work_group_size, global_size)
@@ -605,8 +609,6 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
             level.reducer_meshes[(1,)] = Mesh((1,))
         temp_mesh = level.reducer_meshes[level.interior_space]
         final_mesh = level.reducer_meshes[(1,)]
-
-        # print("I AM USING THE LOCAL SIZE {} FOR A LEVEL OF SHAPE {}".format(local_size, level.interior_space))
 
         project = Project(transform_result)
         control = transform_result[0]
