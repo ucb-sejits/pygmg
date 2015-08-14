@@ -9,8 +9,7 @@ from hpgmg.finite_volume.iterator import RangeIterator
 from hpgmg.finite_volume.operators.specializers.mesh_op_specializers import MeshOpSpecializer, CFillMeshSpecializer, \
     CGeneralizedSimpleMeshOpSpecializer, OclFillMeshSpecializer, OclGeneralizedSimpleMeshOpSpecializer, \
     OclMeshReduceOpSpecializer
-from hpgmg.finite_volume.operators.specializers.util import time_this, specialized_func_dispatcher, \
-    manage_buffers_fill_mesh
+from hpgmg.finite_volume.operators.specializers.util import time_this, specialized_func_dispatcher
 from hpgmg.finite_volume.timer import EventTimer
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
