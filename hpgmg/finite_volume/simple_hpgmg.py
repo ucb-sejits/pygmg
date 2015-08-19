@@ -127,6 +127,8 @@ class SimpleMultigridSolver(object):
 
         if configuration.variable_coefficient:
             self.beta_generator = VariableBeta(self.dimensions)
+        else:
+            self.beta_generator = None
 
         self.timer = EventTimer(self)
 
