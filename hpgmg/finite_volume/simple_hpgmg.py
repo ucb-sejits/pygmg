@@ -287,6 +287,12 @@ class SimpleMultigridSolver(object):
             self.all_levels.append(coarser_level)
             level = coarser_level
 
+        for level in self.all_levels:
+            level.must_subtract_mean = False
+            alpha_is_zero = level.dot_mesh(level.alpha, level.alpha) == 0.0
+            if self.boundary_is_periodic and (self.a == 0.0 or alpha_is_zero == 1.0):
+                level.must_subtract_mean = True
+
     def v_cycle(self, level, target_mesh, residual_mesh):
         if min(level.space) <= 3:
             with level.timer('total cycles'):
