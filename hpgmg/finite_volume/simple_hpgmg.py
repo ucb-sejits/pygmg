@@ -290,6 +290,8 @@ class SimpleMultigridSolver(object):
             self.problem_operator.rebuild_operator(coarser_level, level)
             self.all_levels.append(coarser_level)
             level = coarser_level
+        for level in self.all_levels:
+            self.smoother.get_kernel(level)
 
     def v_cycle(self, level, target_mesh, residual_mesh):
         if min(level.space) <= 3:
