@@ -11,4 +11,4 @@ class Problem(object):
         :param vector:
         :return: value of u and a tuple of u for each dimension
         """
-        raise HpgmgException("Problem subclass must implement evaluate_beta")
+        raise HpgmgException("Problem subclass must implement evaluate_u")

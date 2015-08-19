@@ -7,36 +7,52 @@ from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.problems.problem_sine_n_dim import SineProblemND
 from hpgmg.finite_volume.space import Vector, Space
 
+import hpgmg.finite_volume.simple_hpgmg as simple_hpgmg
+
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 
 class TestProblemSineND(unittest.TestCase):
     def test_problem_sine_n_d_matches_hard_coded_sine_problem(self):
         number_of_dimensions = 3
+        solver = simple_hpgmg.SimpleMultigridSolver.get_solver([
+            "3",
+            "--dimensions", "3",
+            "--smoother", "j",
+            "--problem", "sine"
+        ])
         problem = SineProblemND(number_of_dimensions)
         print("function python source")
-        for line in problem.source:
-            print("    {}".format(line))
-        space = Space(4 for _ in range(number_of_dimensions))
+        print("    {}".format(problem.expression))
+        space = Space(10 for _ in range(number_of_dimensions))
         mesh = Mesh(space)
 
+        level = solver.fine_level
+
+        #fill U
+        solver.initialize_mesh(level, level.exact_solution, problem.expression, level.coord_to_cell_center_point)
+
         if number_of_dimensions == 3:
-            for index in mesh.indices():
+            for index in solver.fine_level.interior_points():
                 point = Vector(float(index[d]) / mesh.space[d] for d in range(mesh.space.ndim))
 
-                a, da, d2a = problem.evaluate_u(point)
+                # a, da, d2a = problem.evaluate_u(point)
                 b, db, d2b = SineProblem.evaluate_u(point)
 
-                self.assertAlmostEqual(a, b)
-                self.assertTrue(da.near(db, threshold=1e-6), "mismatch du {:12} {:12}".format(da, db))
-                self.assertTrue(d2a.near(d2b, threshold=1e-6), "mismatch d2u {:12} {:12}".format(d2a, d2b))
+                self.assertAlmostEqual(level.exact_solution[index], b,
+                                       msg="index {}, new {:10.4f} old {:10.4f}".format(
+                                           index.__repr__(), level.exact_solution[index], b
+                ))
+                # self.assertTrue(da.near(db, threshold=1e-6), "mismatch du {:12} {:12}".format(da, db))
+                # self.assertTrue(d2a.near(d2b, threshold=1e-6), "mismatch d2u {:12} {:12}".format(d2a, d2b))
 
     def test_generators_for_other_dimensions(self):
         for d in range(1, 5):
             problem = SineProblemND(d)
             print("Dimensions {}".format(d))
-            for line in problem.source:
-                print("    {}".format(line))
+            print("    {}".format(problem.expression))
+            # following is crude test that we have the right number of terms
+            self.assertEqual(d*2, problem.expression.__str__().count('**13'))
 
 
 class SineProblem(object):
