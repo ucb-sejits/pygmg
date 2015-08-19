@@ -99,6 +99,7 @@ class TestInterpolationPC(unittest.TestCase):
         coarser_level.fill_mesh(mesh, 0.0)
         mesh[Coord(1, 1, 1)] = 1.0
 
+        level.fill_mesh(level.cell_values, 0.0)
         finer_mesh = level.cell_values
 
         interpolator = InterpolatorPC(solver, 0.0)
@@ -109,8 +110,8 @@ class TestInterpolationPC(unittest.TestCase):
 
         for point in finer_mesh.indices():
             expected = 1.0 if 0 < point.i < 3 and 0 < point.j < 3 and 0 < point.k < 3 else 0.0
-            self.assertEqual(
-                finer_mesh[point], expected,
+            self.assertAlmostEqual(
+                finer_mesh[point], expected, 15,
                 "finer_mesh[{}] is {} should be {}".format(point, finer_mesh[point], expected)
             )
 
