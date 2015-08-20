@@ -113,7 +113,7 @@ class CRebuildSpecializer(LazySpecializedFunction):
         ndim = subconfig['self'].dimensions
         layers = [
             ParamStripper(('self',)),
-            self.RangeTransformer(subconfig),
+            RowMajorInteriorPoints(subconfig),
             GeneratorTransformer(subconfig),
             CompReductionTransformer(),
             AttributeRenamer({
@@ -258,7 +258,7 @@ class OclRebuildSpecializer(CRebuildSpecializer):
         ndim = subconfig['self'].dimensions
         layers = [
             ParamStripper(('self',)),
-            RowMajorInteriorPoints(subconfig) if subconfig['target_level'].configuration.backend != 'ocl' else self.RangeTransformer(subconfig),
+            self.RangeTransformer(subconfig),
             GeneratorTransformer(subconfig),
             CompReductionTransformer(),
             AttributeRenamer({
