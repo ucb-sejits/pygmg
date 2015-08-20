@@ -282,5 +282,5 @@ class OclInitializeMesh(LazySpecializedFunction):
         typesig = [ctypes.c_int, cl.cl_command_queue, cl.cl_kernel, cl.cl_mem]
         fn = InitializeOclFunction()
         fn.finalize(control.name, project, ctypes.CFUNCTYPE(*typesig),
-                    level.context, level.queue, [kernel])
+                    level, [kernel])
         return fn

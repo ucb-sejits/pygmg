@@ -33,6 +33,7 @@ from hpgmg.finite_volume.simple_level import SimpleLevel
 
 import numpy as np
 import pycl as cl
+import ctypes
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
@@ -133,6 +134,14 @@ class SimpleMultigridSolver(object):
         if self.configuration.backend == 'ocl':
             self.context = cl.clCreateContext(devices=[cl.clGetDeviceIDs()[-1]])
             self.queue = cl.clCreateCommandQueue(self.context)
+            fill_source = '''
+            #pragma OPENCL EXTENSION cl_khr_fp64 : enable
+            kernel void fill_buffer(__global double* mesh, double value) {
+                mesh[get_global_id(0)] = value;
+            }
+            '''
+            self.fill_kernel = cl.clCreateProgramWithSource(self.context, fill_source).build()['fill_buffer']
+            self.fill_kernel.argtypes = (cl.cl_mem, ctypes.c_double)
 
         self.fine_level = SimpleLevel(solver=self, space=self.global_size, level_number=0)
         self.all_levels = [self.fine_level]

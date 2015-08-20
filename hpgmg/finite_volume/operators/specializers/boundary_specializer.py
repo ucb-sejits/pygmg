@@ -316,7 +316,7 @@ class OclBoundarySpecializer(LazySpecializedFunction):
             kernels[dim] = KernelRunManager(kernels[dim], global_sizes[dim], local_sizes[dim])
 
         fn = BoundaryOclFunction()
-        fn = fn.finalize("boundary_control", project, entry_type, level.context, level.queue, kernels)
+        fn = fn.finalize("boundary_control", project, entry_type, level, kernels)
         return fn
 
 

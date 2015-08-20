@@ -16,6 +16,7 @@ class Mesh(np.ndarray):
         obj = np.ndarray(*args, **kwargs).view(cls)
         obj._buffer = None
         obj.dirty = False
+        obj.fill_value = None
         #obj.fill(0)
         return obj
     #
@@ -52,6 +53,7 @@ class Mesh(np.ndarray):
     def fill(self, value):
         self.dirty = True
         super(Mesh, self).fill(value)
+        self.fill_value = value
 
     @property
     def buffer(self):

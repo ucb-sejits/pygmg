@@ -379,5 +379,5 @@ class OclRebuildSpecializer(CRebuildSpecializer):
         typesig = [ctypes.c_int, cl.cl_command_queue, cl.cl_kernel, cl.cl_mem, cl.cl_mem, cl.cl_mem, cl.cl_mem]
         fn = RebuildOclFunction()
         fn = fn.finalize(control.name, project, ctypes.CFUNCTYPE(*typesig),
-                         target_level.context, target_level.queue, [kernel], (final_mesh,))
+                         target_level, [kernel], (final_mesh,))
         return fn

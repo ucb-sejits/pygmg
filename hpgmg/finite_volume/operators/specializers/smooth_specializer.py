@@ -2,6 +2,7 @@ from __future__ import division, print_function
 import ast
 import atexit
 import ctypes
+import _ctypes
 import inspect
 import math
 from ast import Name
@@ -27,7 +28,8 @@ from hpgmg.finite_volume.operators.specializers.jit import PyGMGConcreteSpeciali
     PyGMGOclConcreteSpecializedFunction, KernelRunManager
 
 from hpgmg.finite_volume.operators.specializers.util import to_macro_function, apply_all_layers, include_mover, \
-    LayerPrinter, compute_local_work_size, flattened_to_multi_index, new_generate_control
+    LayerPrinter, compute_local_work_size, flattened_to_multi_index, new_generate_control, \
+    compute_largest_local_work_size
 from hpgmg.finite_volume.operators.transformers.level_transformers import RowMajorInteriorPoints
 from hpgmg.finite_volume.operators.transformers.semantic_transformer import SemanticFinder
 from hpgmg.finite_volume.operators.transformers.semantic_transformers.csemantics import CRangeTransformer
@@ -512,7 +514,7 @@ class OclSmoothSpecializer(LazySpecializedFunction):
         kernel = KernelRunManager(kernel, global_size, local_size)
 
         fn = SmoothOclFunction()
-        return fn.finalize("smooth_points_control", project, entry_type, level.context, level.queue, [kernel])
+        return fn.finalize("smooth_points_control", project, entry_type, level, [kernel])
 
 
 def check_ocl_error(code_block, message="kernel"):

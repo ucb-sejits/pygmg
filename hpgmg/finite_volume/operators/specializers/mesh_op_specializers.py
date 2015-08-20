@@ -82,7 +82,15 @@ class MeshReduceOpOclFunction(PyGMGOclConcreteSpecializedFunction):
         for arg in args:
             if isinstance(arg, Mesh):
                 mesh = arg
-                if mesh.dirty:
+                if mesh.fill_value is not None:
+                    if mesh.buffer is None:
+                        mesh.buffer = cl.clCreateBuffer(self.context, mesh.size * ctypes.sizeof(ctypes.c_double))
+                    lsize = compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], mesh.size)
+                    evt = self.target_level.solver.fill_kernel(mesh.buffer.buffer, ctypes.c_double(mesh.fill_value)).on(self.queue, gsize=mesh.size, lsize=lsize)
+                    mesh.buffer.evt = evt
+                    mesh.dirty = False
+                    mesh.fill_value = None
+                elif mesh.dirty:
                     buffer = None if mesh.buffer is None else mesh.buffer.buffer
                     # buf, evt = cl.buffer_from_ndarray(self.queue, mesh, buf=buffer)
                     buf, evt = self.mesh_to_buffer(self.queue, mesh, buffer)
@@ -312,7 +320,7 @@ class OclFillMeshSpecializer(MeshOpOclSpecializer):
         fn = MeshOpOclFunction()
         return fn.finalize(
             entry_point, project, ctypes.CFUNCTYPE(retval, *param_types),
-            level.context, level.queue, [kernel]
+            level, [kernel]
         )
 
 
@@ -461,7 +469,7 @@ class OclGeneralizedSimpleMeshOpSpecializer(MeshOpOclSpecializer):
         fn = MeshOpOclFunction()
         return fn.finalize(
             entry_point, project, ctypes.CFUNCTYPE(retval, *param_types),
-            level.context, level.queue, [kernel]
+            level, [kernel]
         )
 
 
@@ -634,7 +642,7 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
         extra_args = (temp_mesh, final_mesh)
         fn = MeshReduceOpOclFunction()
         fn = fn.finalize(entry_point, project, ctypes.CFUNCTYPE(retval, *param_types),
-                         level.context, level.queue, kernels, extra_args)
+                         level, kernels, extra_args)
         return fn
 
 

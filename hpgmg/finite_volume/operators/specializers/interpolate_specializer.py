@@ -246,5 +246,5 @@ class OclInterpolateSpecializer(LazySpecializedFunction):
         typesig = [ctypes.c_int, cl.cl_command_queue, cl.cl_kernel, cl.cl_mem, cl.cl_mem]
         fn = InterpolateOclFunction()
         fn = fn.finalize(control.name, project, ctypes.CFUNCTYPE(*typesig),
-                         target_level.context, target_level.queue, [kernel])
+                         target_level, [kernel])
         return fn
