@@ -100,12 +100,7 @@ class SmoothOclFunction(PyGMGOclConcreteSpecializedFunction):
 
         for buffer in kernel.args:
             buffer.evt = run_evt
-        kernel.args[0].dirty = True
-        kernel.args[1].dirty = True
 
-        args[2].buffer.evt = run_evt
-        args[2].buffer.dirty = True
-        args[3].buffer.evt = run_evt
         args[3].buffer.dirty = True
 
 
