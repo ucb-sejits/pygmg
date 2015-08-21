@@ -23,22 +23,14 @@ __author__ = 'dorthyluu'
 
 
 class OclApplyOpFunction(PyGMGOclConcreteSpecializedFunction):
-    def __call__(self, *args, **kwargs):
+
+    def get_all_args(self, args, kwargs):
         [level, target_mesh, source_mesh] = args
         args_to_bufferize = [target_mesh, source_mesh] + level.beta_face_values + [level.alpha]
+        return args_to_bufferize
 
-        self.set_kernel_args(args_to_bufferize, kwargs)
-
-        kernel = self.kernels[0]
-        kernel_args = [buffer.buffer for buffer in kernel.args]
-        previous_events = [buffer.evt for buffer in kernel.args if buffer.evt]
-
-        cl.clWaitForEvents(*previous_events)
-        run_evt = kernel.kernel(*kernel_args).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
-        for buffer in kernel.args:
-            buffer.evt = run_evt
-
-        kernel.args[0].dirty = True
+    def set_dirty_buffers(self, args):
+        args[0].buffer.dirty = True
 
 
 class OclApplyOpSpecializer(LazySpecializedFunction):

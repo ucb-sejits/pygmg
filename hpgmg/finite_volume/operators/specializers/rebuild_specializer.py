@@ -60,27 +60,19 @@ class RebuildCFunction(PyGMGConcreteSpecializedFunction):
 class RebuildOclFunction(PyGMGOclConcreteSpecializedFunction):
 
     def __call__(self, *args, **kwargs):
+        super(RebuildOclFunction, self).__call__(*args, **kwargs)
+        kernel = self.kernels[0]
+        ary, evt = cl.buffer_to_ndarray(self.queue, kernel.args[-1].buffer, self.extra_args[-1])
+        kernel.args[0].dirty = False
+        evt.wait()
+        return self.extra_args[-1][0]
+
+    def get_all_args(self, args, kwargs):
         args = args + self.extra_args
         thing, target_level, final_answer = args
-        meshes = [target_level.valid, target_level.l1_inverse, target_level.d_inverse, final_answer]
-        self.set_kernel_args(meshes, kwargs)
+        args_to_bufferize = [target_level.valid, target_level.l1_inverse, target_level.d_inverse, final_answer]
+        return args_to_bufferize
 
-        kernel = self.kernels[0]
-        kernel_args = []
-        previous_events = []
-        for arg in kernel.args:
-            kernel_args.append(arg.buffer)
-            if arg.evt is not None:
-                previous_events.append(arg.evt)
-
-        cl.clWaitForEvents(*previous_events)
-        run_evt = kernel.kernel(*kernel_args).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
-        run_evt.wait()
-        ary, evt = cl.buffer_to_ndarray(self.queue, kernel.args[-1].buffer, args[-1])
-        kernel.args[0].evt = evt
-        kernel.args[0].dirty = False
-        kernel.args[0].evt.wait()
-        return args[-1][0]
 
 class CRebuildSpecializer(LazySpecializedFunction):
 

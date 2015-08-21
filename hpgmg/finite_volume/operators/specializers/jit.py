@@ -40,6 +40,7 @@ class PyGMGOclConcreteSpecializedFunction(ConcreteSpecializedFunction):
         return self
 
     def set_kernel_args(self, args, kwargs):
+        # note: MeshReduceOpOclFunction overrides this method
         kernel_args = []
 
         for arg in args:
@@ -72,6 +73,40 @@ class PyGMGOclConcreteSpecializedFunction(ConcreteSpecializedFunction):
 
         for kernel in self.kernels:
             kernel.args = kernel_args
+
+    def __call__(self, *args, **kwargs):
+        # note reducer specializers override this
+        args_to_bufferize = self.get_all_args(args, kwargs)
+
+        self.set_kernel_args(args_to_bufferize, kwargs)
+
+        for kernel in self.kernels:
+            kernel_args = []
+            previous_events = []
+            for arg in kernel.args:
+                if isinstance(arg, Buffer):
+                    kernel_args.append(arg.buffer)
+                    if arg.evt:
+                        previous_events.append(arg.evt)
+                else:
+                    kernel_args.append(arg)
+
+            cl.clWaitForEvents(*previous_events)
+            run_evt = kernel.kernel(*kernel_args).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
+            run_evt.wait()
+
+            for arg in kernel.args:
+                if isinstance(arg, Buffer):
+                    arg.evt = run_evt
+
+        self.set_dirty_buffers(args_to_bufferize)
+
+    def get_all_args(self, args, kwargs):
+        return args
+
+    def set_dirty_buffers(self, args):
+        # args are going to be Meshes not Buffers
+        return
 
     @time_this
     def mesh_to_buffer(self, queue, mesh, buffer):

@@ -52,25 +52,7 @@ class MeshOpCFunction(PyGMGConcreteSpecializedFunction):
 
 class MeshOpOclFunction(PyGMGOclConcreteSpecializedFunction):
 
-    def __call__(self, *args, **kwargs):
-        self.set_kernel_args(args, kwargs)
-
-        kernel = self.kernels[0]
-        kernel_args = []
-        previous_events = []
-        for arg in kernel.args:
-            if isinstance(arg, Buffer):
-                kernel_args.append(arg.buffer)
-                if arg.evt is not None:
-                    previous_events.append(arg.evt)
-            else:
-                kernel_args.append(arg)
-
-        cl.clWaitForEvents(*previous_events)
-
-        run_evt = kernel.kernel(*kernel_args).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
-
-        args[1].buffer.evt = run_evt
+    def set_dirty_buffers(self, args):
         args[1].buffer.dirty = True
 
 
@@ -110,29 +92,14 @@ class MeshReduceOpOclFunction(PyGMGOclConcreteSpecializedFunction):
         self.kernels[0].args = bufferized_args[:-1]
         self.kernels[1].args = bufferized_args[-2:]
 
-
     def __call__(self, *args, **kwargs):
-        args = args + self.extra_args
-        self.set_kernel_args(args, kwargs)
-
-        for kernel in self.kernels:
-            kernel_args = []
-            previous_events = []
-            for arg in kernel.args:
-                if isinstance(arg, Buffer):
-                    kernel_args.append(arg.buffer)
-                    if arg.evt:
-                        previous_events.append(arg.evt)
-                else:
-                    kernel_args.append(arg)
-
-            cl.clWaitForEvents(*previous_events)
-            run_evt = kernel.kernel(*kernel_args).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
-            run_evt.wait()
-
-        ary, evt = cl.buffer_to_ndarray(self.queue, args[-1].buffer.buffer, args[-1])
+        super(MeshReduceOpOclFunction, self).__call__(*args, **kwargs)
+        ary, evt = cl.buffer_to_ndarray(self.queue, self.extra_args[-1].buffer.buffer, self.extra_args[-1])
         evt.wait()
-        return args[-1][0]
+        return self.extra_args[-1][0]
+
+    def get_all_args(self, args, kwargs):
+        return args + self.extra_args
 
 
 class MeshOpSpecializer(LazySpecializedFunction):

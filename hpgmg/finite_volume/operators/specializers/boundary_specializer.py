@@ -48,17 +48,12 @@ class BoundaryCFunction(PyGMGConcreteSpecializedFunction):
 
 class BoundaryOclFunction(PyGMGOclConcreteSpecializedFunction):
 
-    def __call__(self, *args, **kwargs):
-        self.set_kernel_args(args, kwargs)
+    def get_all_args(self, args, kwargs):
+        mesh = args[2]
+        return [mesh]
 
-        for kernel in self.kernels:
-            buffer = kernel.args[0]
-            if buffer.evt:
-                buffer.evt.wait()
-
-            run_evt = kernel.kernel(buffer.buffer).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
-            buffer.evt = run_evt
-            buffer.dirty = True
+    def set_dirty_buffers(self, args):
+        args[0].buffer.dirty = True
 
 
 class CBoundarySpecializer(LazySpecializedFunction):

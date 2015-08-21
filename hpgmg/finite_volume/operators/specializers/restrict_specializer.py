@@ -47,21 +47,10 @@ class RestrictCFunction(PyGMGConcreteSpecializedFunction):
 
 class RestrictOclFunction(PyGMGOclConcreteSpecializedFunction):
 
-    def __call__(self, *args, **kwargs):
-        args = args[:-1]
-        self.set_kernel_args(args, kwargs)
-        kernel = self.kernels[0]
-        kernel_args = []
-        previous_events = []
-        for arg in kernel.args:
-            kernel_args.append(arg.buffer)
-            if arg.evt is not None:
-                previous_events.append(arg.evt)
+    def get_all_args(self, args, kwargs):
+        return args[:-1]
 
-        cl.clWaitForEvents(*previous_events)
-        run_evt = kernel.kernel(*kernel_args).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
-
-        args[2].buffer.evt = run_evt
+    def set_dirty_buffers(self, args):
         args[2].buffer.dirty = True
 
 

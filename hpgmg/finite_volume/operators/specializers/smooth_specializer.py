@@ -74,7 +74,7 @@ class SmoothCFunction(PyGMGConcreteSpecializedFunction):
 
 class SmoothOclFunction(PyGMGOclConcreteSpecializedFunction):
 
-    def __call__(self, *args, **kwargs):
+    def get_all_args(self, args, kwargs):
         thing, level, working_source, working_target, rhs_mesh, lambda_mesh = args
         args_to_bufferize = [
             working_source, working_target,
@@ -87,21 +87,10 @@ class SmoothOclFunction(PyGMGOclConcreteSpecializedFunction):
                 mesh = Mesh(mesh.shape)
                 mesh.fill(0)
                 args_to_bufferize[m] = mesh
+        return args_to_bufferize
 
-        self.set_kernel_args(args_to_bufferize, kwargs)
-
-
-        kernel = self.kernels[0]
-        kernel_args = [buffer.buffer for buffer in kernel.args]
-        previous_events = [buffer.evt for buffer in kernel.args if buffer.evt]
-
-        cl.clWaitForEvents(*previous_events)
-        run_evt = kernel.kernel(*kernel_args).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
-
-        for buffer in kernel.args:
-            buffer.evt = run_evt
-
-        args[3].buffer.dirty = True
+    def set_dirty_buffers(self, args):
+        args[1].buffer.dirty = True
 
 
 class CSmoothSpecializer(LazySpecializedFunction):
