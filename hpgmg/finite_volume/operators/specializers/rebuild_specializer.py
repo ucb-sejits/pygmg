@@ -59,19 +59,26 @@ class RebuildCFunction(PyGMGConcreteSpecializedFunction):
 
 class RebuildOclFunction(PyGMGOclConcreteSpecializedFunction):
 
-    def __call__(self, *args, **kwargs):
-        super(RebuildOclFunction, self).__call__(*args, **kwargs)
-        kernel = self.kernels[0]
-        ary, evt = cl.buffer_to_ndarray(self.queue, kernel.args[-1].buffer, self.extra_args[-1])
-        kernel.args[0].dirty = False
-        evt.wait()
-        return self.extra_args[-1][0]
+    # def __call__(self, *args, **kwargs):
+    #     super(RebuildOclFunction, self).__call__(*args, **kwargs)
+    #     kernel = self.kernels[0]
+    #     ary, evt = cl.buffer_to_ndarray(self.queue, kernel.args[-1].buffer, self.extra_args[-1])
+    #     kernel.args[0].dirty = False
+    #     evt.wait()
+    #     return self.extra_args[-1][0]
 
     def get_all_args(self, args, kwargs):
         args = args + self.extra_args
         thing, target_level, final_answer = args
         args_to_bufferize = [target_level.valid, target_level.l1_inverse, target_level.d_inverse, final_answer]
         return args_to_bufferize
+
+    def reduced_value(self):
+        kernel = self.kernels[0]
+        ary, evt = cl.buffer_to_ndarray(self.queue, kernel.args[-1].buffer, self.extra_args[-1])
+        kernel.args[0].dirty = False
+        evt.wait()
+        return self.extra_args[-1][0]
 
 
 class CRebuildSpecializer(LazySpecializedFunction):

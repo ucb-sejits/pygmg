@@ -73,9 +73,8 @@ class PyGMGOclConcreteSpecializedFunction(ConcreteSpecializedFunction):
 
         for kernel in self.kernels:
             kernel.args = kernel_args
-
+    @time_this
     def __call__(self, *args, **kwargs):
-        # note reducer specializers override this
         args_to_bufferize = self.get_all_args(args, kwargs)
 
         self.set_kernel_args(args_to_bufferize, kwargs)
@@ -101,12 +100,17 @@ class PyGMGOclConcreteSpecializedFunction(ConcreteSpecializedFunction):
 
         self.set_dirty_buffers(args_to_bufferize)
 
+        return self.reduced_value()
+
     def get_all_args(self, args, kwargs):
         return args
 
     def set_dirty_buffers(self, args):
         # args are going to be Meshes not Buffers
         return
+
+    def reduced_value(self):
+        return None
 
     @time_this
     def mesh_to_buffer(self, queue, mesh, buffer):
