@@ -59,14 +59,6 @@ class RebuildCFunction(PyGMGConcreteSpecializedFunction):
 
 class RebuildOclFunction(PyGMGOclConcreteSpecializedFunction):
 
-    # def __call__(self, *args, **kwargs):
-    #     super(RebuildOclFunction, self).__call__(*args, **kwargs)
-    #     kernel = self.kernels[0]
-    #     ary, evt = cl.buffer_to_ndarray(self.queue, kernel.args[-1].buffer, self.extra_args[-1])
-    #     kernel.args[0].dirty = False
-    #     evt.wait()
-    #     return self.extra_args[-1][0]
-
     def get_all_args(self, args, kwargs):
         args = args + self.extra_args
         thing, target_level, final_answer = args

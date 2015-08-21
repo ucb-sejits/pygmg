@@ -73,30 +73,31 @@ class PyGMGOclConcreteSpecializedFunction(ConcreteSpecializedFunction):
 
         for kernel in self.kernels:
             kernel.args = kernel_args
+
     @time_this
     def __call__(self, *args, **kwargs):
         args_to_bufferize = self.get_all_args(args, kwargs)
 
-        self.set_kernel_args(args_to_bufferize, kwargs)
+        self.set_kernel_args(args_to_bufferize, kwargs)  # can move this function inside for time
 
         for kernel in self.kernels:
             kernel_args = []
-            previous_events = []
+            # previous_events = []
             for arg in kernel.args:
                 if isinstance(arg, Buffer):
                     kernel_args.append(arg.buffer)
-                    if arg.evt:
-                        previous_events.append(arg.evt)
+                    # if arg.evt:
+                    #     previous_events.append(arg.evt)
                 else:
                     kernel_args.append(arg)
 
-            cl.clWaitForEvents(*previous_events)
+            # cl.clWaitForEvents(*previous_events)
             run_evt = kernel.kernel(*kernel_args).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
             run_evt.wait()
 
-            for arg in kernel.args:
-                if isinstance(arg, Buffer):
-                    arg.evt = run_evt
+            # for arg in kernel.args:
+            #     if isinstance(arg, Buffer):
+            #         arg.evt = run_evt
 
         self.set_dirty_buffers(args_to_bufferize)
 

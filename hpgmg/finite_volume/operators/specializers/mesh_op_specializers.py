@@ -92,12 +92,6 @@ class MeshReduceOpOclFunction(PyGMGOclConcreteSpecializedFunction):
         self.kernels[0].args = bufferized_args[:-1]
         self.kernels[1].args = bufferized_args[-2:]
 
-    # def __call__(self, *args, **kwargs):
-    #     super(MeshReduceOpOclFunction, self).__call__(*args, **kwargs)
-    #     ary, evt = cl.buffer_to_ndarray(self.queue, self.extra_args[-1].buffer.buffer, self.extra_args[-1])
-    #     evt.wait()
-    #     return self.extra_args[-1][0]
-
     def get_all_args(self, args, kwargs):
         return args + self.extra_args
 
