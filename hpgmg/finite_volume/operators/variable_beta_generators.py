@@ -27,9 +27,7 @@ class VariableBeta(object):
         delta = vector - self.center
         distance = sum(d**2 for d in delta)**0.5
 
-
         beta_at_face = c1 + c2 * tanh(c3 * (distance - 0.25))
-
 
         # print("eb v {} dis {} del {} ndel {} bv {}".format(
         #     ",".join(map(str, vector)), distance, ",".join(map(str, delta)), ",".join(map(str, normalized_delta)),
@@ -50,9 +48,6 @@ class VariableBeta(object):
         symbols = [sympy.Symbol("x{}".format(i)) for i in range(self.dimensions)]
         distance = sum((sym - d)**2 for sym, d in zip(symbols, self.center)) ** 0.5
         return c1 + c2 * sympy.tanh(c3 * (distance - 0.25))
-
-
-
 
     def evaluate_beta_vector(self, vector):
         b_min = 1.0

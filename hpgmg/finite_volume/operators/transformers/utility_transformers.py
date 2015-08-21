@@ -12,9 +12,11 @@ from hpgmg.finite_volume.operators.nodes import ArrayIndex
 
 __author__ = 'nzhang-dev'
 
+
 def to_node(obj):
     from hpgmg.finite_volume.operators.transformers.generator_transformers import to_node as func
     return func(obj)
+
 
 def get_name(attribute_node):
     if isinstance(attribute_node, ast.Name):
@@ -22,15 +24,16 @@ def get_name(attribute_node):
     return get_name(attribute_node.value) + "." + attribute_node.attr
 
 
-def eval_node(node, locals, globals):
+def eval_node(node, my_locals, my_globals):
     expr = ast.Expression(node)
     expr = ast.fix_missing_locations(expr)
-    #print(locals, globals)
+    #print(my_locals, my_globals)
     items = eval(
         compile(expr, "<string>", "eval"),
-        globals, locals
+        my_globals, my_locals
     )
     return items
+
 
 class ParamStripper(ast.NodeTransformer):
     def __init__(self, params):
@@ -44,6 +47,7 @@ class ParamStripper(ast.NodeTransformer):
         return node
 
 
+# noinspection PyPep8Naming
 class IndexTransformer(ast.NodeTransformer):
     def __init__(self, indices=()):
         self.indices = indices
@@ -54,6 +58,7 @@ class IndexTransformer(ast.NodeTransformer):
         return node
 
 
+# noinspection PyPep8Naming
 class IndexOpTransformer(ast.NodeTransformer):
 
     def __init__(self, ndim, encode_func_names=None):
@@ -108,6 +113,8 @@ class IndexOpTransformer(ast.NodeTransformer):
             )
         return node
 
+
+# noinspection PyPep8Naming
 class IndexOpTransformBugfixer(ast.NodeTransformer):
     """
     Designed to fix the Index = Index + Things encoding bug
@@ -125,6 +132,7 @@ class IndexOpTransformBugfixer(ast.NodeTransformer):
         return self.generic_visit(node)
 
 
+# noinspection PyPep8Naming
 class IndexDirectTransformer(ast.NodeTransformer):
     def __init__(self, ndim, encode_func_names=None):
         self.ndim = ndim
@@ -142,12 +150,13 @@ class IndexDirectTransformer(ast.NodeTransformer):
         return self.generic_visit(node)
 
     def visit_ArrayIndex(self, node):
-        return ast.Call(func=ast.Name(id=self.encode_func_names.get(node.name, 'encode'), ctx=ast.Load()), args=[
-            ast.Name(id=node.name+"_{}".format(i), ctx=ast.Load()) for i in range(self.ndim)
-        ],
-                        keywords=None, starargs=None)
+        return ast.Call(
+            func=ast.Name(id=self.encode_func_names.get(node.name, 'encode'), ctx=ast.Load()),
+            args=[ast.Name(id=node.name+"_{}".format(i), ctx=ast.Load()) for i in range(self.ndim)],
+            keywords=None, starargs=None)
 
 
+# noinspection PyPep8Naming
 class AttributeRenamer(ast.NodeTransformer):
     def __init__(self, substitutes):
         self.substitutes = substitutes
@@ -167,6 +176,8 @@ class AttributeRenamer(ast.NodeTransformer):
             return self.substitutes[name]
         return node
 
+
+# noinspection PyPep8Naming
 class AttributeGetter(ast.NodeTransformer):
     def __init__(self, namespace):
         self.namespace = namespace
@@ -192,6 +203,8 @@ class AttributeGetter(ast.NodeTransformer):
         except (AttributeError, ValueError):
             return node
 
+
+# noinspection PyPep8Naming
 class ArrayRefIndexTransformer(ast.NodeTransformer):
     def __init__(self, encode_map, ndim):
         self.encode_map = encode_map
@@ -211,6 +224,8 @@ class ArrayRefIndexTransformer(ast.NodeTransformer):
             )
         return node
 
+
+# noinspection PyPep8Naming
 class LookupSimplificationTransformer(ast.NodeTransformer):
     def visit_Subscript(self, node):
         #print("visited")
@@ -227,6 +242,7 @@ class LookupSimplificationTransformer(ast.NodeTransformer):
         return node
 
 
+# noinspection PyPep8Naming
 class BranchSimplifier(ast.NodeTransformer):
     """C Transformer"""
     def visit_If(self, node):
@@ -239,12 +255,16 @@ class BranchSimplifier(ast.NodeTransformer):
             node.elze = [self.visit(i) for i in node.elze]
         return node
 
+
+# noinspection PyPep8Naming
 class FunctionCallSimplifier(ast.NodeTransformer):
     def visit_Call(self, node):
         if node.func.id == 'len':
             return ast.Num(n=len(node.args[0].elts))
         return self.generic_visit(node)
 
+
+# noinspection PyPep8Naming
 class LoopUnroller(ast.NodeTransformer):
     def visit_For(self, node):
         body = node.body
@@ -256,7 +276,10 @@ class LoopUnroller(ast.NodeTransformer):
             result.body.extend(body_copy)
         return result
 
+
+# noinspection PyPep8Naming
 class PyBranchSimplifier(ast.NodeTransformer):
+    # noinspection PyBroadException
     def visit_If(self, node):
         test = node.test
         try:
@@ -269,9 +292,11 @@ class PyBranchSimplifier(ast.NodeTransformer):
             return self.generic_visit(node)
 
 
+# noinspection PyPep8Naming
 class CallReplacer(ast.NodeTransformer):
     def __init__(self, replacements):
         self.replacements = replacements
+
     def visit_FunctionCall(self, node):
         if node.func.name in self.replacements:
             return self.generic_visit(self.replacements[node.func.name])
@@ -282,6 +307,8 @@ class CallReplacer(ast.NodeTransformer):
             return self.generic_visit(self.replacements[node.func.id])
         return self.generic_visit(node)
 
+
+# noinspection PyPep8Naming
 class GeneralAttributeRenamer(ast.NodeTransformer):
     def __init__(self, rename_func):
         self.rename_func = rename_func
@@ -290,7 +317,10 @@ class GeneralAttributeRenamer(ast.NodeTransformer):
         name = get_name(node)
         return ast.Name(id=self.rename_func(name), ctx=ast.Load())
 
+
+# noinspection PyPep8Naming
 class FunctionCallTimer(ast.NodeTransformer):
+    # noinspection PyPep8Naming
     class ReturnFiller(ast.NodeTransformer):
         def __init__(self, name, title=""):
             self.name = name
@@ -305,7 +335,7 @@ class FunctionCallTimer(ast.NodeTransformer):
     def visit_FunctionDecl(self, node):
         if node.name in self.function_names:
             node.defn.insert(0, self.make_timer("time_start"))
-            if node.find(Return):  #insert the timing thing before every return
+            if node.find(Return):  # insert the timing thing before every return
                 self.ReturnFiller("time", node.name).visit(node)
             else:
                 node.defn.append(self.print_time("time_start", node.name))
@@ -320,4 +350,6 @@ class FunctionCallTimer(ast.NodeTransformer):
 
     @staticmethod
     def print_time(name, title=""):
-        return StringTemplate(r"""printf("{title}: %5.5e\t", (((float)(clock() - {name}))) / CLOCKS_PER_SEC);""".format(title=title, name=name))
+        return StringTemplate(
+            r"""printf("{title}: %5.5e\t", (((float)(clock() - {name}))) / CLOCKS_PER_SEC);""".format(
+                title=title, name=name))
