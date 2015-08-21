@@ -1,12 +1,14 @@
 import ctypes
 import math
 import ast
+from ctree.c.macros import NULL
 
 from ctree.c.nodes import SymbolRef, ArrayDef, Array, CFile, FunctionCall, FunctionDecl, Assign, MultiNode, Constant, \
-    ArrayRef, For
+    ArrayRef, For, Return, Ref
 from ctree.cpp.nodes import CppInclude, CppDefine
 from ctree.jit import LazySpecializedFunction
 from ctree.nodes import Project
+from ctree.templates.nodes import StringTemplate
 from ctree.transformations import PyBasicConversions
 from ctree.transforms.declaration_filler import DeclarationFiller
 from rebox.specializers.order import Ordering
@@ -342,7 +344,7 @@ class OclRebuildSpecializer(CRebuildSpecializer):
         ocl_file = DeclarationFiller().visit(ocl_file)
         global_size = reduce(operator.mul, target_level.interior_space, 1)
         local_size = compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], global_size)
-        control = new_generate_control("%s_control" % kernel.name, global_size, local_size, kernel.params, [kernel])
+        control = generate_rebuild_control("%s_control" % kernel.name, global_size, local_size, kernel.params, [kernel])
         kernel.name = "%s_kernel" % kernel.name
         return [control, ocl_file]
 
@@ -372,3 +374,74 @@ class OclRebuildSpecializer(CRebuildSpecializer):
         fn = fn.finalize(control.name, project, ctypes.CFUNCTYPE(*typesig),
                          target_level, [kernel], (final_mesh,))
         return fn
+
+
+def generate_rebuild_control(name, global_size, local_size, kernel_params, kernels):
+    defn = []
+    defn.append(ArrayDef(SymbolRef("global", ctypes.c_ulong()), 1, Array(body=[Constant(global_size)])))
+    defn.append(ArrayDef(SymbolRef("local", ctypes.c_ulong()), 1, Array(body=[Constant(local_size)])))
+    # defn.append(Assign(SymbolRef("error_code", ctypes.c_int()), Constant(0)))
+    for kernel in kernels:
+        kernel_name = kernel.find(FunctionDecl, kernel=True).name
+        for param, num in zip(kernel_params, range(len(kernel_params))):
+            if isinstance(param, ctypes.POINTER(ctypes.c_double)):
+                set_arg = FunctionCall(SymbolRef("clSetKernelArg"),
+                                     [SymbolRef(kernel_name),
+                                      Constant(num),
+                                      FunctionCall(SymbolRef("sizeof"), [SymbolRef("cl_mem")]),
+                                      Ref(SymbolRef(param.name))])
+            else:
+                set_arg = FunctionCall(SymbolRef("clSetKernelArg"),
+                                     [SymbolRef(kernel_name),
+                                      Constant(num),
+                                      Constant(ctypes.sizeof(param.type)),
+                                      Ref(SymbolRef(param.name))])
+            defn.append(set_arg)
+        enqueue_call = FunctionCall(SymbolRef("clEnqueueNDRangeKernel"), [
+            SymbolRef("queue"),
+            SymbolRef(kernel_name),
+            Constant(1),
+            NULL(),
+            SymbolRef("global"),
+            SymbolRef("local"),
+            Constant(0),
+            NULL(),
+            NULL()
+        ])
+        defn.append(enqueue_call)
+    defn.append(ArrayRef(SymbolRef("return_value", ctypes.c_double()), Constant(1)))
+    defn.append(StringTemplate("""clFinish(queue);"""))
+    defn.append(FunctionCall(SymbolRef("clEnqueueReadBuffer"),
+                             [
+                                 SymbolRef("queue"),
+                                 SymbolRef("final"),
+                                 SymbolRef("CL_TRUE"),
+                                 Constant(0),
+                                 Constant(8),
+                                 Ref(SymbolRef("return_value")),
+                                 Constant(0),
+                                 NULL(),
+                                 NULL()
+                             ]))
+    defn.append(Return(ArrayRef(SymbolRef("return_value"), Constant(0))))
+    params=[]
+    params.append(SymbolRef("queue", cl.cl_command_queue()))
+    for kernel in kernels:
+        params.append(SymbolRef(kernel.find(FunctionDecl, kernel=True).name, cl.cl_kernel()))
+    for param in kernel_params:
+        if isinstance(param.type, ctypes.POINTER(ctypes.c_double)):
+            params.append(SymbolRef(param.name, cl.cl_mem()))
+        else:
+            params.append(param)
+    func = FunctionDecl(ctypes.c_int(), name, params, defn)
+    ocl_include = StringTemplate("""
+            #include <stdio.h>
+            #ifdef __APPLE__
+            #include <OpenCL/opencl.h>
+            #else
+            #include <CL/cl.h>
+            #endif
+            """)
+    body = [ocl_include, func]
+    file = CFile(name=name, body=body, config_target='opencl')
+    return file

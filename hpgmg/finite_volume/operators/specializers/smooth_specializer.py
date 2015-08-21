@@ -453,16 +453,7 @@ class OclSmoothSpecializer(LazySpecializedFunction):
                            ])
 
         global_size = reduce(operator.mul, shape, 1)
-        control_func = new_generate_control("smooth_points_control", global_size, local_size, params, [ocl_file])
-
-        control = CFile(name="smooth_points_control",
-                        body=[
-                            ocl_include,
-                            control_func
-                        ])
-
-        control.config_target = 'opencl'
-
+        control = new_generate_control("smooth_points_control", global_size, local_size, params, [ocl_file])
         return [control, ocl_file]
 
     def finalize(self, transform_result, program_config):
@@ -499,27 +490,3 @@ class OclSmoothSpecializer(LazySpecializedFunction):
 
         fn = SmoothOclFunction()
         return fn.finalize("smooth_points_control", project, entry_type, level, [kernel])
-
-
-def check_ocl_error(code_block, message="kernel"):
-    return [
-        Assign(
-            SymbolRef("error_code"),
-            code_block
-        ),
-        If(
-            NotEq(SymbolRef("error_code"), SymbolRef("CL_SUCCESS")),
-            [
-                FunctionCall(
-                    SymbolRef("printf"),
-                    [
-                        String("OPENCL ERROR: {}:error code \
-                               %d\\n".format(message)),
-                        SymbolRef("error_code")
-                    ]
-                ),
-                Return(SymbolRef("error_code")),
-            ]
-        )
-    ]
-

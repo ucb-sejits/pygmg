@@ -3,7 +3,7 @@ from collections import OrderedDict
 import ctypes
 from ctree.c.macros import NULL
 from ctree.c.nodes import SymbolRef, Constant, PostInc, Lt, For, Assign, FunctionDecl, CFile, Return, FunctionCall, \
-    MultiNode, ArrayRef, Array, Ref, Mul, Add, If, Gt, AddAssign, Div
+    MultiNode, ArrayRef, Array, Ref, Mul, Add, If, Gt, AddAssign, Div, Eq, ArrayDef
 from ctree.cpp.nodes import CppInclude
 from ctree.jit import LazySpecializedFunction
 from ctree.nodes import Project
@@ -52,45 +52,15 @@ class MeshOpCFunction(PyGMGConcreteSpecializedFunction):
 
 class MeshOpOclFunction(PyGMGOclConcreteSpecializedFunction):
 
+    def __call__(self, *args, **kwargs):
+        return self.python_control(*args, **kwargs)
+        # return self.c_control(*args, **kwargs)
+
     def set_dirty_buffers(self, args):
         args[1].buffer.dirty = True
 
 
 class MeshReduceOpOclFunction(PyGMGOclConcreteSpecializedFunction):
-
-    def set_kernel_args(self, args, kwargs):
-        bufferized_args = []
-
-        for arg in args:
-            if isinstance(arg, Mesh):
-                mesh = arg
-                if mesh.fill_value is not None:
-                    if mesh.buffer is None:
-                        mesh.buffer = cl.clCreateBuffer(self.context, mesh.size * ctypes.sizeof(ctypes.c_double))
-                    lsize = compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], mesh.size)
-                    evt = self.target_level.solver.fill_kernel(mesh.buffer.buffer, ctypes.c_double(mesh.fill_value)).on(self.queue, gsize=mesh.size, lsize=lsize)
-                    mesh.buffer.evt = evt
-                    mesh.dirty = False
-                    mesh.fill_value = None
-                elif mesh.dirty:
-                    buffer = None if mesh.buffer is None else mesh.buffer.buffer
-                    # buf, evt = cl.buffer_from_ndarray(self.queue, mesh, buf=buffer)
-                    buf, evt = self.mesh_to_buffer(self.queue, mesh, buffer)
-                    mesh.buffer = buf
-                    mesh.buffer.evt = evt
-                    mesh.dirty = False
-
-                elif mesh.buffer is None:
-                    size = mesh.size * ctypes.sizeof(ctypes.c_double)
-                    mesh.buffer = cl.clCreateBuffer(self.context, size)
-
-                bufferized_args.append(mesh.buffer)
-
-            elif isinstance(arg, (int, float)):
-                bufferized_args.append(arg)
-
-        self.kernels[0].args = bufferized_args[:-1]
-        self.kernels[1].args = bufferized_args[-2:]
 
     def get_all_args(self, args, kwargs):
         return args + self.extra_args
@@ -492,8 +462,6 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
             f.body.pop(0)
         encode_func = f.body[0]
 
-        #always launching two kernels no matter what, for now at least
-
         first_reducer = f.find(FunctionDecl)
         # need to change return statement to assign statement
         first_reducer = DeclarationFiller().visit(first_reducer)
@@ -515,6 +483,13 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
                                                   FunctionCall(SymbolRef("get_global_id"), [Constant(0)])),
                                          SymbolRef(acc_name))
 
+        second_reduce = generate_second_reducer_func(first_reducer.name, interior_size, local_size)
+
+        first_reducer.defn.append(StringTemplate("""barrier(CLK_GLOBAL_MEM_FENCE);"""))
+
+        first_reducer.defn.append(If(cond=Eq(SymbolRef("global_offset"), Constant(0)),
+                                     then=second_reduce))
+
         # params for first_reducer
         params = []
         for param in first_reducer.params:
@@ -528,24 +503,25 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
                 param.set_global()
             params.append(param)
         params.append(SymbolRef("temp", ctypes.POINTER(ctypes.c_double)(), _global=True))
+        params.append(SymbolRef("final", ctypes.POINTER(ctypes.c_double)(), _global=True))
         # params[-1].set_restrict()
 
         first_reducer.params = params
         kernel_funcs.append(first_reducer)
 
-        # make the second reducer
-        second_reducer_defn = generate_second_reducer_func(first_reducer.name, interior_size, local_size)
-
-        second_reducer_params = [
-            SymbolRef("temp", ctypes.POINTER(ctypes.c_double)(), _global=True),
-            SymbolRef("final", ctypes.POINTER(ctypes.c_double)(), _global=True)
-        ]
-        for param in second_reducer_params:
-            param.set_global()
-        #     param.set_restrict()
-
-        second_reducer = FunctionDecl(name="%s_2"%first_reducer.name, params=second_reducer_params, defn=second_reducer_defn)
-        kernel_funcs.append(second_reducer)
+        # # make the second reducer
+        # second_reducer_defn = generate_second_reducer_func(first_reducer.name, interior_size, local_size)
+        #
+        # second_reducer_params = [
+        #     SymbolRef("temp", ctypes.POINTER(ctypes.c_double)(), _global=True),
+        #     SymbolRef("final", ctypes.POINTER(ctypes.c_double)(), _global=True)
+        # ]
+        # for param in second_reducer_params:
+        #     param.set_global()
+        # #     param.set_restrict()
+        #
+        # second_reducer = FunctionDecl(name="%s_2"%first_reducer.name, params=second_reducer_params, defn=second_reducer_defn)
+        # kernel_funcs.append(second_reducer)
         kernel_files = []
         double_include = StringTemplate("""#pragma OPENCL EXTENSION cl_khr_fp64: enable""")
 
@@ -557,12 +533,14 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
             kernel_files.append(OclFile(name=kernel.name, body=[double_include, kernel]))
         kernel_files[0].body.insert(0, encode_func)
 
-        control_file=generate_reduce_mesh_control(first_reducer.name,
-                                                [interior_size, local_size],
-                                                [local_size, 1],
-                                                first_reducer.params[:-1],
-                                                kernel_files)
+        # control_file=generate_reduce_mesh_control(first_reducer.name,
+        #                                         [local_size, local_size],
+        #                                         [local_size, 1],
+        #                                         first_reducer.params[:-1],
+        #                                         kernel_files)
 
+        control_file = generate_reducer_control("%s_control" % first_reducer.name,
+                                                local_size, local_size, first_reducer.params, [first_reducer])
         files = [control_file]
         files.extend(kernel_files)
         return files
@@ -585,13 +563,12 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
 
         project = Project(transform_result)
         control = transform_result[0]
-        kernels = transform_result[1:]
+        kernel = transform_result[1]
         retval = ctypes.c_double
         kernel_name = self.tree.body[0].name
         entry_point = kernel_name + "_control"
 
-        param_types = [cl.cl_command_queue]
-        param_types.extend(cl.cl_kernel for _ in range(len(kernels)))
+        param_types = [cl.cl_command_queue, cl.cl_kernel]
         for param, value in subconfig.items():
             if isinstance(subconfig[param], np.ndarray):
                 param_types.append(cl.cl_mem)
@@ -600,36 +577,148 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
         param_types.append(cl.cl_mem)  # temp
         param_types.append(cl.cl_mem)  # final
 
-        kernels = [cl.clCreateProgramWithSource(level.context, kernel.codegen()).build()[kernel.name] for kernel in kernels]
-        kernels[0].argtypes = tuple(param_types[len(kernels)+1:-1])
-        kernels[1].argtypes = tuple(param_types[-2:])
-        kernels[0] = KernelRunManager(kernels[0], local_size, local_size)
-        kernels[1] = KernelRunManager(kernels[1], local_size, 1)
+        name = kernel.name
+
+        kernel = cl.clCreateProgramWithSource(level.context, kernel.codegen()).build()[name]
+        kernel.argtypes = tuple(param_types[2:])
+        kernel = KernelRunManager(kernel, local_size, local_size)
+        # kernels[0].argtypes = tuple(param_types[len(kernels)+1:-1])
+        # kernels[1].argtypes = tuple(param_types[-2:])
+        # kernels[0] = KernelRunManager(kernels[0], local_size, local_size)
+        # kernels[1] = KernelRunManager(kernels[1], local_size, 1)
         extra_args = (temp_mesh, final_mesh)
         fn = MeshReduceOpOclFunction()
         fn = fn.finalize(entry_point, project, ctypes.CFUNCTYPE(retval, *param_types),
-                         level, kernels, extra_args)
+                         level, [kernel], extra_args)
         return fn
 
 
 
-def generate_reduce_mesh_control(name, global_sizes, local_sizes, original_params, kernels):
-    first_reducer_params = original_params[:]
-    first_reducer_params.append(SymbolRef("temp", ctypes.POINTER(ctypes.c_double)()))
-    second_reducer_params = [
-        SymbolRef("temp", ctypes.POINTER(ctypes.c_double)()),
-        SymbolRef("final", ctypes.POINTER(ctypes.c_double)())
-    ]
-    kernel_params = [first_reducer_params, second_reducer_params]
+# def generate_reduce_mesh_control(name, global_sizes, local_sizes, original_params, kernels):
+#     first_reducer_params = original_params[:]
+#     first_reducer_params.append(SymbolRef("temp", ctypes.POINTER(ctypes.c_double)()))
+#     second_reducer_params = [
+#         SymbolRef("temp", ctypes.POINTER(ctypes.c_double)()),
+#         SymbolRef("final", ctypes.POINTER(ctypes.c_double)())
+#     ]
+#     kernel_params = [first_reducer_params, second_reducer_params]
+#     defn = []
+#     defn.append(ArrayRef(SymbolRef("global", ctypes.c_ulong()), Constant(1)))
+#     defn.append(ArrayRef(SymbolRef("local", ctypes.c_ulong()), Constant(1)))
+#     defn.append(Assign(SymbolRef("error_code", ctypes.c_int()), Constant(0)))
+#     for gsize, lsize, param_set, kernel in zip(global_sizes, local_sizes, kernel_params, kernels):
+#         defn.append(Assign(ArrayRef(SymbolRef("global"), Constant(0)), Constant(gsize)))
+#         defn.append(Assign(ArrayRef(SymbolRef("local"), Constant(0)), Constant(lsize)))
+#         kernel_name = kernel.find(FunctionDecl, kernel=True).name
+#         for param, num in zip(param_set, range(len(param_set))):
+#             if isinstance(param, ctypes.POINTER(ctypes.c_double)):
+#                 set_arg = FunctionCall(SymbolRef("clSetKernelArg"),
+#                                      [SymbolRef(kernel_name),
+#                                       Constant(num),
+#                                       FunctionCall(SymbolRef("sizeof"), [SymbolRef("cl_mem")]),
+#                                       Ref(SymbolRef(param.name))])
+#             else:
+#                 set_arg = FunctionCall(SymbolRef("clSetKernelArg"),
+#                                      [SymbolRef(kernel_name),
+#                                       Constant(num),
+#                                       Constant(ctypes.sizeof(param.type)),
+#                                       Ref(SymbolRef(param.name))])
+#             defn.append(set_arg)
+#         enqueue_call = FunctionCall(SymbolRef("clEnqueueNDRangeKernel"), [
+#             SymbolRef("queue"),
+#             SymbolRef(kernel_name),
+#             Constant(1),
+#             NULL(),
+#             SymbolRef("global"),
+#             SymbolRef("local"),
+#             Constant(0),
+#             NULL(),
+#             NULL()
+#         ])
+#         defn.append(enqueue_call)
+#         defn.append(FunctionCall(SymbolRef("clFinish"), [SymbolRef("queue")]))
+#     defn.append(ArrayRef(SymbolRef("return_value", ctypes.c_double()), Constant(1)))
+#     defn.append(FunctionCall(SymbolRef("clEnqueueReadBuffer"),
+#                              [
+#                                  SymbolRef("queue"),
+#                                  SymbolRef("final"),
+#                                  SymbolRef("CL_TRUE"),
+#                                  Constant(0),
+#                                  Constant(8),
+#                                  Ref(SymbolRef("return_value")),
+#                                  Constant(0),
+#                                  NULL(),
+#                                  NULL()
+#                              ]))
+#
+#
+#     defn.append(Return(ArrayRef(SymbolRef("return_value"), Constant(0))))
+#     params=[]
+#     params.append(SymbolRef("queue", cl.cl_command_queue()))
+#     for kernel in kernels:
+#         params.append(SymbolRef(kernel.find(FunctionDecl, kernel=True).name, cl.cl_kernel()))
+#
+#     for param in original_params:
+#         if isinstance(param.type, ctypes.POINTER(ctypes.c_double)):
+#             params.append(SymbolRef(param.name, cl.cl_mem()))
+#         else:
+#             params.append(param)
+#     params.append(SymbolRef("temp", cl.cl_mem()))
+#     params.append(SymbolRef("final", cl.cl_mem()))
+#
+#     control_func = FunctionDecl(return_type=ctypes.c_double(), name="%s_control"%name, params=params, defn=defn)
+#     ocl_include = StringTemplate("""
+#             #include <stdio.h>
+#             #ifdef __APPLE__
+#             #include <OpenCL/opencl.h>
+#             #else
+#             #include <CL/cl.h>
+#             #endif
+#             """)
+#     return CFile("%s_control"%name, body=[ocl_include, control_func], config_target="opencl")
+
+def get_reduction_var_name(func_name):
+    if func_name == "norm_mesh":
+        return "max_norm"
+    if func_name == "dot_mesh" or func_name == "mean_mesh":
+        return "accumulator"
+
+def generate_second_reducer_func(func_name, interior_size, local_size):
+    loop_body = []
+    final_assignment = None
+    acc_name = get_reduction_var_name(func_name)
+    if func_name == "norm_mesh":
+        loop_body.append(If(cond=Gt(ArrayRef(SymbolRef("temp"), SymbolRef("i")), SymbolRef(acc_name)),
+                   then=Assign(SymbolRef(acc_name), ArrayRef(SymbolRef("temp"), SymbolRef("i")))))
+        final_assignment = Assign(ArrayRef(SymbolRef("final"), Constant(0)), SymbolRef(acc_name))
+    elif func_name == "dot_mesh":
+        loop_body.append(AddAssign(SymbolRef(acc_name), ArrayRef(SymbolRef("temp"), SymbolRef("i"))))
+        final_assignment = Assign(ArrayRef(SymbolRef("final"), Constant(0)), SymbolRef(acc_name))
+    elif func_name == "mean_mesh":
+        loop_body.append(AddAssign(SymbolRef(acc_name), ArrayRef(SymbolRef("temp"), SymbolRef("i"))))
+        final_assignment = Assign(ArrayRef(SymbolRef("final"), Constant(0)),
+                                  Div(SymbolRef(acc_name), Constant(interior_size)))
+
     defn = []
-    defn.append(ArrayRef(SymbolRef("global", ctypes.c_ulong()), Constant(1)))
-    defn.append(ArrayRef(SymbolRef("local", ctypes.c_ulong()), Constant(1)))
-    defn.append(Assign(SymbolRef("error_code", ctypes.c_int()), Constant(0)))
-    for gsize, lsize, param_set, kernel in zip(global_sizes, local_sizes, kernel_params, kernels):
-        defn.append(Assign(ArrayRef(SymbolRef("global"), Constant(0)), Constant(gsize)))
-        defn.append(Assign(ArrayRef(SymbolRef("local"), Constant(0)), Constant(lsize)))
+    defn.append(Assign(SymbolRef(acc_name), Constant(0.0)))
+    for_loop = For(init=Assign(SymbolRef("i", ctypes.c_int()), Constant(0)),
+                   test=Lt(SymbolRef("i"), Constant(local_size)),
+                   incr=PostInc(SymbolRef("i")),
+                   body=loop_body)
+    defn.append(for_loop)
+    defn.append(final_assignment)
+
+    return MultiNode(body=defn)
+
+
+def generate_reducer_control(name, global_size, local_size, kernel_params, kernels):
+    defn = []
+    defn.append(ArrayDef(SymbolRef("global", ctypes.c_ulong()), 1, Array(body=[Constant(global_size)])))
+    defn.append(ArrayDef(SymbolRef("local", ctypes.c_ulong()), 1, Array(body=[Constant(local_size)])))
+    # defn.append(Assign(SymbolRef("error_code", ctypes.c_int()), Constant(0)))
+    for kernel in kernels:
         kernel_name = kernel.find(FunctionDecl, kernel=True).name
-        for param, num in zip(param_set, range(len(param_set))):
+        for param, num in zip(kernel_params, range(len(kernel_params))):
             if isinstance(param, ctypes.POINTER(ctypes.c_double)):
                 set_arg = FunctionCall(SymbolRef("clSetKernelArg"),
                                      [SymbolRef(kernel_name),
@@ -655,8 +744,8 @@ def generate_reduce_mesh_control(name, global_sizes, local_sizes, original_param
             NULL()
         ])
         defn.append(enqueue_call)
-        defn.append(FunctionCall(SymbolRef("clFinish"), [SymbolRef("queue")]))
     defn.append(ArrayRef(SymbolRef("return_value", ctypes.c_double()), Constant(1)))
+    defn.append(StringTemplate("""clFinish(queue);"""))
     defn.append(FunctionCall(SymbolRef("clEnqueueReadBuffer"),
                              [
                                  SymbolRef("queue"),
@@ -669,23 +758,17 @@ def generate_reduce_mesh_control(name, global_sizes, local_sizes, original_param
                                  NULL(),
                                  NULL()
                              ]))
-
-
     defn.append(Return(ArrayRef(SymbolRef("return_value"), Constant(0))))
     params=[]
     params.append(SymbolRef("queue", cl.cl_command_queue()))
     for kernel in kernels:
         params.append(SymbolRef(kernel.find(FunctionDecl, kernel=True).name, cl.cl_kernel()))
-
-    for param in original_params:
+    for param in kernel_params:
         if isinstance(param.type, ctypes.POINTER(ctypes.c_double)):
             params.append(SymbolRef(param.name, cl.cl_mem()))
         else:
             params.append(param)
-    params.append(SymbolRef("temp", cl.cl_mem()))
-    params.append(SymbolRef("final", cl.cl_mem()))
-
-    control_func = FunctionDecl(return_type=ctypes.c_double(), name="%s_control"%name, params=params, defn=defn)
+    func = FunctionDecl(ctypes.c_int(), name, params, defn)
     ocl_include = StringTemplate("""
             #include <stdio.h>
             #ifdef __APPLE__
@@ -694,37 +777,6 @@ def generate_reduce_mesh_control(name, global_sizes, local_sizes, original_param
             #include <CL/cl.h>
             #endif
             """)
-    return CFile("%s_control"%name, body=[ocl_include, control_func], config_target="opencl")
-
-def get_reduction_var_name(func_name):
-    if func_name == "norm_mesh":
-        return "max_norm"
-    if func_name == "dot_mesh" or func_name == "mean_mesh":
-        return "accumulator"
-
-def generate_second_reducer_func(func_name, interior_size, local_size):
-    loop_body = []
-    final_assignment = None
-    acc_name = get_reduction_var_name(func_name)
-    if func_name == "norm_mesh":
-        loop_body.append(If(cond=Gt(ArrayRef(SymbolRef("temp"), SymbolRef("i")), SymbolRef(acc_name)),
-                   then=Assign(SymbolRef(acc_name), ArrayRef(SymbolRef("temp"), SymbolRef("i")))))
-        final_assignment = Assign(ArrayRef(SymbolRef("final"), Constant(0)), SymbolRef(acc_name))
-    elif func_name == "dot_mesh":
-        loop_body.append(AddAssign(SymbolRef(acc_name), ArrayRef(SymbolRef("temp"), SymbolRef("i"))))
-        final_assignment = Assign(ArrayRef(SymbolRef("final"), Constant(0)), SymbolRef(acc_name))
-    elif func_name == "mean_mesh":
-        loop_body.append(AddAssign(SymbolRef(acc_name), ArrayRef(SymbolRef("temp"), SymbolRef("i"))))
-        final_assignment = Assign(ArrayRef(SymbolRef("final"), Constant(0)),
-                                  Div(SymbolRef(acc_name), Constant(interior_size)))
-
-    defn = []
-    defn.append(Assign(SymbolRef(acc_name, ctypes.c_double()), Constant(0.0)))
-    for_loop = For(init=Assign(SymbolRef("i", ctypes.c_int()), Constant(0)),
-                   test=Lt(SymbolRef("i"), Constant(local_size)),
-                   incr=PostInc(SymbolRef("i")),
-                   body=loop_body)
-    defn.append(for_loop)
-    defn.append(final_assignment)
-
-    return defn
+    body = [ocl_include, func]
+    file = CFile(name=name, body=body, config_target='opencl')
+    return file
