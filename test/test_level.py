@@ -8,7 +8,7 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 class TestSimpleLevel(unittest.TestCase):
     def setUp(self):
-        self.solver = SimpleMultigridSolver.get_solver(["2", "-d", "2"])
+        self.solver = SimpleMultigridSolver.get_solver(["2", "-d", "2", "--backend", "c"])
 
     def test_basics(self):
         solver = self.solver
