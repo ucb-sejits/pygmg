@@ -16,32 +16,32 @@ class TestVariableBetaGenerators(unittest.TestCase):
         for coord in level.indices():
             point = level.coord_to_cell_center_point(coord)
 
-            a_beta_d, a_beta = variable_beta.evaluate_beta(point)
+            a_beta_d = variable_beta.evaluate_beta(point)
             b_beta_d, b_beta = variable_beta.evaluate_beta_3d(point)
 
             self.assertAlmostEqual(
                 a_beta_d, b_beta_d,
                 "at {} a_beta_d did not match b_beta_d {} != {}".format(point, a_beta_d, b_beta_d)
             )
-            self.assertTrue(
-                a_beta.near(b_beta),
-                "at {} a_beta_d did not match b_beta_d {} != {}".format(point, a_beta, b_beta)
-            )
+            # self.assertTrue(
+            #     a_beta.near(b_beta),
+            #     "at {} a_beta_d did not match b_beta_d {} != {}".format(point, a_beta, b_beta)
+            # )
 
             for d in range(solver.dimensions):
                 point_at_face_d = level.coord_to_face_center_point(coord, d)
 
                 b_beta_d, b_beta = variable_beta.evaluate_beta_3d(point_at_face_d)
-                a_beta_d, a_beta = variable_beta.evaluate_beta(point_at_face_d)
+                a_beta_d = variable_beta.evaluate_beta(point_at_face_d)
 
                 self.assertAlmostEqual(
                     a_beta_d, b_beta_d,
                     "at {} a_beta_d did not match b_beta_d {} != {}".format(point_at_face_d, a_beta_d, b_beta_d)
                 )
-                self.assertTrue(
-                    a_beta.near(b_beta),
-                    "at {} a_beta_d did not match b_beta_d {} != {}".format(point_at_face_d, a_beta, b_beta)
-                )
+                # self.assertTrue(
+                #     a_beta.near(b_beta),
+                #     "at {} a_beta_d did not match b_beta_d {} != {}".format(point_at_face_d, a_beta, b_beta)
+                # )
 
     def test_runs_at_2d(self):
         solver = SimpleMultigridSolver.get_solver(["3", "-d", "2", "-vc"])
@@ -57,7 +57,7 @@ class TestVariableBetaGenerators(unittest.TestCase):
 
             for dim in range(solver.dimensions):
                 face_point = level.coord_to_face_center_point(coord, dim)
-                beta_face, _ = variable_beta.evaluate_beta(face_point)
+                beta_face = variable_beta.evaluate_beta(face_point)
 
                 self.assertEqual(
                     beta_face, level.beta_face_values[dim][coord],
