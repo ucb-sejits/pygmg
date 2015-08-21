@@ -3,10 +3,9 @@ implement a simple single threaded, variable coefficient gmg solver
 """
 from __future__ import division, print_function
 import math
-import itertools
 from stencil_code.halo_enumerator import HaloEnumerator
 from hpgmg.finite_volume.iterator import RangeIterator
-from hpgmg.finite_volume.operators.specializers.mesh_op_specializers import MeshOpSpecializer, CFillMeshSpecializer, \
+from hpgmg.finite_volume.operators.specializers.mesh_op_specializers import CFillMeshSpecializer, \
     CGeneralizedSimpleMeshOpSpecializer
 from hpgmg.finite_volume.operators.specializers.util import time_this, specialized_func_dispatcher
 from hpgmg.finite_volume.timer import EventTimer
