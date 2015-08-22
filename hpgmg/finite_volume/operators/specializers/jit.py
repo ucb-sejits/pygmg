@@ -1,5 +1,6 @@
 import abc
 from ctree.jit import ConcreteSpecializedFunction
+from ctree.ocl.nodes import OclFile
 import pycl as cl
 from hpgmg.finite_volume.mesh import Buffer, Mesh
 import ctypes
@@ -9,7 +10,7 @@ __author__ = 'nzhang-dev'
 
 
 class PyGMGConcreteSpecializedFunction(ConcreteSpecializedFunction):
-
+    @time_this
     def finalize(self, entry_point_name, project_node, entry_point_typesig):
         self.entry_point_name = entry_point_name
         self.entry_point_typesig = entry_point_typesig
@@ -28,10 +29,11 @@ class PyGMGConcreteSpecializedFunction(ConcreteSpecializedFunction):
 
 class PyGMGOclConcreteSpecializedFunction(ConcreteSpecializedFunction):
 
-    def finalize(self, entry_point_name, project_node, entry_point_typesig, target_level, kernels, extra_args=None):
-        self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)
-        # self.context = context
-        # self.queue = queue
+    # def finalize(self, entry_point_name, project_node, entry_point_typesig, target_level, kernels, extra_args=None):
+    def finalize(self, project_node, target_level, kernels, extra_args=None):
+        # self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)
+        for f in project_node.files:
+            f._compile(f.codegen())
         self.target_level = target_level
         self.context = self.target_level.context
         self.queue = self.target_level.queue
@@ -50,7 +52,9 @@ class PyGMGOclConcreteSpecializedFunction(ConcreteSpecializedFunction):
                     if mesh.buffer is None:
                         mesh.buffer = cl.clCreateBuffer(self.context, mesh.size * ctypes.sizeof(ctypes.c_double))
                     lsize = compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], mesh.size)
-                    evt = self.target_level.solver.fill_kernel(mesh.buffer.buffer, ctypes.c_double(mesh.fill_value)).on(self.queue, gsize=mesh.size, lsize=lsize)
+                    filler = self.target_level.solver.fill_kernel
+                    evt = filler(mesh.buffer.buffer, ctypes.c_double(mesh.fill_value)).on(self.queue, gsize=mesh.size,
+                                                                                          lsize=lsize)
                     mesh.buffer.evt = evt
                     mesh.dirty = False
                     mesh.fill_value = None
@@ -75,8 +79,8 @@ class PyGMGOclConcreteSpecializedFunction(ConcreteSpecializedFunction):
             kernel.args = kernel_args
 
     def __call__(self, *args, **kwargs):
-        # return self.python_control(*args, **kwargs)
-        return self.c_control(*args, **kwargs)
+        return self.python_control(*args, **kwargs)
+        # return self.c_control(*args, **kwargs)
 
     # @time_this
     def python_control(self, *args, **kwargs):

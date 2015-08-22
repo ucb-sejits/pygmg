@@ -1,4 +1,5 @@
-from ctree.c.nodes import FunctionCall, SymbolRef, Assign, Constant, MultiNode, Add, ArrayDef, Array, CFile
+from ctree.c.nodes import FunctionCall, SymbolRef, Assign, Constant, MultiNode, Add, ArrayDef, Array, CFile, \
+    FunctionDecl
 from ctree.jit import LazySpecializedFunction
 from ctree.nodes import Project
 from ctree.ocl.nodes import OclFile
@@ -166,9 +167,12 @@ class OclApplyOpSpecializer(LazySpecializedFunction):
         ocl_file = OclFileWrapper("apply_op_kernel").visit(cfile)
         ocl_file = DeclarationFiller().visit(ocl_file)
 
-        control = new_generate_control("apply_op_control", global_size, local_size, params, [kernel])
+        # control = new_generate_control("apply_op_control", global_size, local_size, params, [kernel])
+        # control = CFile(name="apply_op_control", body=[FunctionDecl(name="apply_op_control",
+        #                                    defn=[Assign(SymbolRef("x", ctypes.c_int()), Constant(5))])])
 
-        return [control, ocl_file]
+        # return [control, ocl_file]
+        return [ocl_file]
 
     def finalize(self, transform_result, program_config):
         subconfig, tuner = program_config
@@ -187,15 +191,16 @@ class OclApplyOpSpecializer(LazySpecializedFunction):
         # alpha
         param_types.append(param_types[-1])
 
-        entry_type = [ctypes.c_int32, cl.cl_command_queue, cl.cl_kernel]
-        entry_type.extend(param_types)
-        entry_type = ctypes.CFUNCTYPE(*entry_type)
+        # entry_type = [ctypes.c_int32, cl.cl_command_queue, cl.cl_kernel]
+        # entry_type.extend(param_types)
+        # entry_type = ctypes.CFUNCTYPE(*entry_type)
 
         program = cl.clCreateProgramWithSource(level.context, kernel.codegen()).build()
         kernel = program["apply_op_kernel"]
-        kernel.argtypes = tuple(cl.cl_mem for _ in range(len(param_types)))
+        # kernel.argtypes = tuple(cl.cl_mem for _ in range(len(param_types)))
+        kernel.argtypes = param_types
 
         kernel = KernelRunManager(kernel, global_size, local_size)
 
         fn = OclApplyOpFunction()
-        return fn.finalize("apply_op_control", project, entry_type, level, [kernel])
+        return fn.finalize(project, level, [kernel])

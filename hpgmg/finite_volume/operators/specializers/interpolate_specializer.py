@@ -211,9 +211,12 @@ class OclInterpolateSpecializer(LazySpecializedFunction):
         ocl_file = DeclarationFiller().visit(ocl_file)
         global_size = reduce(operator.mul, target_level.interior_space, 1)
         local_size = compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], global_size)
-        control = new_generate_control("%s_control" % kernel.name, global_size, local_size, kernel.params, [kernel])
+        # control = new_generate_control("%s_control" % kernel.name, global_size, local_size, kernel.params, [kernel])
+        # control = CFile(name="%s_control" % kernel.name, body=[FunctionDecl(name="%s_control" % kernel.name,
+        #                                    defn=[Assign(SymbolRef("x", ctypes.c_int()), Constant(5))])])
         kernel.name = "%s_kernel" % kernel.name
-        return [control, ocl_file]
+        # return [control, ocl_file]
+        return [ocl_file]
 
     def finalize(self, transform_result, program_config):
         subconfig, tuner = program_config
@@ -222,16 +225,17 @@ class OclInterpolateSpecializer(LazySpecializedFunction):
         local_size = compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], global_size)
 
         project = Project(transform_result)
-        control = transform_result[0]
-        kernel = transform_result[1]
+        # control = transform_result[0]
+        kernel = transform_result[0]
 
         name = kernel.name
         kernel = cl.clCreateProgramWithSource(target_level.context, kernel.codegen()).build()[name]
         kernel.argtypes = (cl.cl_mem, cl.cl_mem)
         kernel = KernelRunManager(kernel, global_size, local_size)
 
-        typesig = [ctypes.c_int, cl.cl_command_queue, cl.cl_kernel, cl.cl_mem, cl.cl_mem]
+        # typesig = [ctypes.c_int, cl.cl_command_queue, cl.cl_kernel, cl.cl_mem, cl.cl_mem]
         fn = InterpolateOclFunction()
-        fn = fn.finalize(control.name, project, ctypes.CFUNCTYPE(*typesig),
-                         target_level, [kernel])
+        # fn = fn.finalize(control.name, project, ctypes.CFUNCTYPE(*typesig),
+        #                  target_level, [kernel])
+        fn.finalize(project, target_level, [kernel])
         return fn
