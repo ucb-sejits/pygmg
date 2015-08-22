@@ -1,6 +1,5 @@
 import abc
 from ctree.jit import ConcreteSpecializedFunction
-from ctree.ocl.nodes import OclFile
 import pycl as cl
 from hpgmg.finite_volume.mesh import Buffer, Mesh
 import ctypes
@@ -70,7 +69,8 @@ class PyGMGOclConcreteSpecializedFunction(ConcreteSpecializedFunction):
                     size = mesh.size * ctypes.sizeof(ctypes.c_double)
                     mesh.buffer = cl.clCreateBuffer(self.context, size)
 
-                kernel_args.append(mesh.buffer)
+                # kernel_args.append(mesh.buffer)
+                kernel_args.append(mesh.buffer.buffer)
 
             elif isinstance(arg, (int, float)):
                 kernel_args.append(arg)
@@ -78,38 +78,22 @@ class PyGMGOclConcreteSpecializedFunction(ConcreteSpecializedFunction):
         for kernel in self.kernels:
             kernel.args = kernel_args
 
-    def __call__(self, *args, **kwargs):
-        return self.python_control(*args, **kwargs)
+    # def __call__(self, *args, **kwargs):
+    #     return self.python_control(*args, **kwargs)
         # return self.c_control(*args, **kwargs)
 
     # @time_this
-    def python_control(self, *args, **kwargs):
+    def __call__(self, *args, **kwargs):
+        # boundary overrides to enqueue multiple kernels
         args_to_bufferize = self.get_all_args(args, kwargs)
 
-        self.set_kernel_args(args_to_bufferize, kwargs)  # can move this function inside for time
+        self.set_kernel_args(args_to_bufferize, kwargs)
 
-        for kernel in self.kernels:
-            kernel_args = []
-            # previous_events = []
-            for arg in kernel.args:
-                if isinstance(arg, Buffer):
-                    kernel_args.append(arg.buffer)
-                    # if arg.evt:
-                    #     previous_events.append(arg.evt)
-                else:
-                    kernel_args.append(arg)
-
-            # cl.clWaitForEvents(*previous_events)
-            run_evt = kernel.kernel(*kernel_args).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
-            # run_evt.wait()
-            # self.run_kernel(kernel, kernel_args)
-
-            # for arg in kernel.args:
-            #     if isinstance(arg, Buffer):
-            #         arg.evt = run_evt
-
-        self.set_dirty_buffers(args_to_bufferize)
-
+        kernel = self.kernels[0]
+        kernel.kernel(*kernel.args).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
+        # run_evt = kernel.kernel(*kernel_args).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
+        # run_evt.wait()
+        self.set_dirty_buffers(args)
         return self.reduced_value()
 
     # @time_this
@@ -146,11 +130,8 @@ class PyGMGOclConcreteSpecializedFunction(ConcreteSpecializedFunction):
                 bufferized_args.append(arg)
 
         control_args = [self.queue] + [kernel.kernel for kernel in self.kernels] + bufferized_args
-
         return_value = self._c_function(*control_args)
-
-        self.set_dirty_buffers(args_to_bufferize)
-
+        self.set_dirty_buffers(args)
         return return_value
 
     def get_all_args(self, args, kwargs):

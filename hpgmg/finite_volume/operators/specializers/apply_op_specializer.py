@@ -1,5 +1,4 @@
-from ctree.c.nodes import FunctionCall, SymbolRef, Assign, Constant, MultiNode, Add, ArrayDef, Array, CFile, \
-    FunctionDecl
+from ctree.c.nodes import FunctionCall, SymbolRef, Assign, Constant, MultiNode, Add, ArrayDef, Array, CFile
 from ctree.jit import LazySpecializedFunction
 from ctree.nodes import Project
 from ctree.ocl.nodes import OclFile
@@ -31,7 +30,7 @@ class OclApplyOpFunction(PyGMGOclConcreteSpecializedFunction):
         return args_to_bufferize
 
     def set_dirty_buffers(self, args):
-        args[0].buffer.dirty = True
+        args[1].buffer.dirty = True
 
 
 class OclApplyOpSpecializer(LazySpecializedFunction):

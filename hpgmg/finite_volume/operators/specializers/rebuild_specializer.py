@@ -69,7 +69,7 @@ class RebuildOclFunction(PyGMGOclConcreteSpecializedFunction):
 
     def reduced_value(self):
         kernel = self.kernels[0]
-        ary, evt = cl.buffer_to_ndarray(self.queue, kernel.args[-1].buffer, self.extra_args[-1])
+        ary, evt = cl.buffer_to_ndarray(self.queue, self.extra_args[-1].buffer.buffer, self.extra_args[-1])
         kernel.args[0].dirty = False
         evt.wait()
         return self.extra_args[-1][0]

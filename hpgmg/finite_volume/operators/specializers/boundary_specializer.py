@@ -14,7 +14,6 @@ from ctree.transformations import PyBasicConversions
 import math
 from rebox.specializers.order import Ordering
 from rebox.specializers.rm.encode import MultiplyEncode
-from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.operators.specializers.jit import PyGMGConcreteSpecializedFunction, KernelRunManager, \
     PyGMGOclConcreteSpecializedFunction
 from hpgmg.finite_volume.operators.specializers.util import apply_all_layers, include_mover, flattened_to_multi_index, \
@@ -23,7 +22,7 @@ from hpgmg.finite_volume.operators.transformers.semantic_transformer import Sema
 from hpgmg.finite_volume.operators.transformers.semantic_transformers.csemantics import CRangeTransformer
 from hpgmg.finite_volume.operators.transformers.transformer_util import nest_loops
 from hpgmg.finite_volume.operators.transformers.utility_transformers import AttributeRenamer, AttributeGetter, \
-    IndexTransformer, IndexOpTransformer, IndexDirectTransformer, ParamStripper, OclFileWrapper
+    IndexTransformer, IndexOpTransformer, IndexDirectTransformer, ParamStripper
 
 import numpy as np
 import operator
@@ -48,12 +47,24 @@ class BoundaryCFunction(PyGMGConcreteSpecializedFunction):
 
 class BoundaryOclFunction(PyGMGOclConcreteSpecializedFunction):
 
+    def __call__(self, *args, **kwargs):
+        args_to_bufferize = self.get_all_args(args, kwargs)
+
+        self.set_kernel_args(args_to_bufferize, kwargs)
+
+        for kernel in self.kernels:
+            kernel.kernel(*kernel.args).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
+            # run_evt = kernel.kernel(*kernel_args).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
+            # run_evt.wait()
+        self.set_dirty_buffers(args)
+        return self.reduced_value()
+
     def get_all_args(self, args, kwargs):
         mesh = args[2]
         return [mesh]
 
     def set_dirty_buffers(self, args):
-        args[0].buffer.dirty = True
+        args[2].buffer.dirty = True
 
 
 class CBoundarySpecializer(LazySpecializedFunction):
