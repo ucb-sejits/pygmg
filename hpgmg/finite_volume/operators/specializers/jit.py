@@ -109,7 +109,7 @@ class PyGMGOclConcreteSpecializedFunction(ConcreteSpecializedFunction):
 
         return self.reduced_value()
 
-    @time_this
+    # @time_this
     def c_control(self, *args, **kwargs):
         args_to_bufferize = self.get_all_args(args, kwargs)
         bufferized_args = []

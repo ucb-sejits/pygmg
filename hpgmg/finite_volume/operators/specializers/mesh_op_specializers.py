@@ -52,10 +52,6 @@ class MeshOpCFunction(PyGMGConcreteSpecializedFunction):
 
 class MeshOpOclFunction(PyGMGOclConcreteSpecializedFunction):
 
-    def __call__(self, *args, **kwargs):
-        return self.python_control(*args, **kwargs)
-        # return self.c_control(*args, **kwargs)
-
     def set_dirty_buffers(self, args):
         args[1].buffer.dirty = True
 
@@ -370,8 +366,8 @@ class OclGeneralizedSimpleMeshOpSpecializer(MeshOpOclSpecializer):
         while isinstance(f.body[0], CppInclude):
             f.body.pop(0)
         kernel = OclFileWrapper(name=func_decl.name).visit(f)
-        global_shape = tuple(dim + 2 * ghost for dim, ghost in zip(subconfig['self'].interior_space, subconfig['self'].ghost_zone))
-        global_size = reduce(operator.mul, global_shape, 1)
+        # global_shape = tuple(dim + 2 * ghost for dim, ghost in zip(subconfig['self'].interior_space, subconfig['self'].ghost_zone))
+        global_size = reduce(operator.mul, subconfig['self'].interior_space, 1)
         local_size = compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], global_size)
         while global_size % local_size != 0:
             local_size -= 1
@@ -453,8 +449,6 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
         interior_size = reduce(operator.mul, interior_space, 1)
         local_size = min(cl.clGetDeviceIDs()[-1].max_work_group_size, interior_size)
 
-        kernel_funcs = []
-
         f = super(OclGeneralizedSimpleMeshOpSpecializer, self).transform(f, program_config)[0]
         f = include_mover(f)
         # remove includes
@@ -462,14 +456,12 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
             f.body.pop(0)
         encode_func = f.body[0]
 
-        first_reducer = f.find(FunctionDecl)
-        # need to change return statement to assign statement
-        first_reducer = DeclarationFiller().visit(first_reducer)
-        acc_name = get_reduction_var_name(first_reducer.name)
+        kernel = f.find(FunctionDecl)
+        kernel = DeclarationFiller().visit(kernel)
+        acc_name = get_reduction_var_name(kernel.name)
 
-        # # if we are doing norm_mesh, need to remove if statement
-        if first_reducer.name == "norm_mesh":
-            for_loop = first_reducer.find(For)
+        if kernel.name == "norm_mesh":
+            for_loop = kernel.find(For)
             if_statement = for_loop.body.pop()
             temp_assign = if_statement.then[0].body[0]
             max_assign = Assign(SymbolRef("max_norm"),
@@ -478,21 +470,17 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
             for_loop.body.append(temp_assign)
             for_loop.body.append(max_assign)
 
-        # remove return statement and add assignment statement:
-        first_reducer.defn[-1] = Assign(ArrayRef(SymbolRef("temp"),
-                                                  FunctionCall(SymbolRef("get_global_id"), [Constant(0)])),
-                                         SymbolRef(acc_name))
+        # replace return statement with assignment
+        kernel.defn[-1] = Assign(ArrayRef(SymbolRef("temp"), FunctionCall(SymbolRef("get_global_id"), [Constant(0)])),
+                                 SymbolRef(acc_name))
 
-        second_reduce = generate_second_reducer_func(first_reducer.name, interior_size, local_size)
+        kernel.defn.append(StringTemplate("""barrier(CLK_GLOBAL_MEM_FENCE);"""))
 
-        first_reducer.defn.append(StringTemplate("""barrier(CLK_GLOBAL_MEM_FENCE);"""))
+        kernel.defn.append(If(cond=Eq(SymbolRef("global_offset"), Constant(0)),
+                              then=generate_final_reduction(kernel.name, interior_size, local_size)))
 
-        first_reducer.defn.append(If(cond=Eq(SymbolRef("global_offset"), Constant(0)),
-                                     then=second_reduce))
-
-        # params for first_reducer
         params = []
-        for param in first_reducer.params:
+        for param in kernel.params:
             if not isinstance(subconfig[param.name], (int, float, np.ndarray)):
                 continue
             if isinstance(subconfig[param.name], (int, float)):
@@ -506,43 +494,16 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
         params.append(SymbolRef("final", ctypes.POINTER(ctypes.c_double)(), _global=True))
         # params[-1].set_restrict()
 
-        first_reducer.params = params
-        kernel_funcs.append(first_reducer)
+        kernel.params = params
+        kernel.set_kernel()
+        for call in kernel.find_all(FunctionCall):
+            if call.func.name == 'abs':
+                call.func.name = 'fabs'
 
-        # # make the second reducer
-        # second_reducer_defn = generate_second_reducer_func(first_reducer.name, interior_size, local_size)
-        #
-        # second_reducer_params = [
-        #     SymbolRef("temp", ctypes.POINTER(ctypes.c_double)(), _global=True),
-        #     SymbolRef("final", ctypes.POINTER(ctypes.c_double)(), _global=True)
-        # ]
-        # for param in second_reducer_params:
-        #     param.set_global()
-        # #     param.set_restrict()
-        #
-        # second_reducer = FunctionDecl(name="%s_2"%first_reducer.name, params=second_reducer_params, defn=second_reducer_defn)
-        # kernel_funcs.append(second_reducer)
-        kernel_files = []
-        double_include = StringTemplate("""#pragma OPENCL EXTENSION cl_khr_fp64: enable""")
-
-        for kernel in kernel_funcs:
-            kernel.set_kernel()
-            for call in kernel.find_all(FunctionCall):
-                if call.func.name == 'abs':
-                    call.func.name = 'fabs'
-            kernel_files.append(OclFile(name=kernel.name, body=[double_include, kernel]))
-        kernel_files[0].body.insert(0, encode_func)
-
-        # control_file=generate_reduce_mesh_control(first_reducer.name,
-        #                                         [local_size, local_size],
-        #                                         [local_size, 1],
-        #                                         first_reducer.params[:-1],
-        #                                         kernel_files)
-
-        control_file = generate_reducer_control("%s_control" % first_reducer.name,
-                                                local_size, local_size, first_reducer.params, [first_reducer])
-        files = [control_file]
-        files.extend(kernel_files)
+        ocl_file = OclFileWrapper(kernel.name).visit(CFile(body=[encode_func, kernel]))
+        control_file = generate_reducer_control("%s_control" % kernel.name,
+                                                local_size, local_size, kernel.params, [kernel])
+        files = [control_file, ocl_file]
         return files
 
     def finalize(self, transform_result, program_config):
@@ -599,7 +560,7 @@ def get_reduction_var_name(func_name):
     if func_name == "dot_mesh" or func_name == "mean_mesh":
         return "accumulator"
 
-def generate_second_reducer_func(func_name, interior_size, local_size):
+def generate_final_reduction(func_name, interior_size, local_size):
     loop_body = []
     final_assignment = None
     acc_name = get_reduction_var_name(func_name)
@@ -631,7 +592,6 @@ def generate_reducer_control(name, global_size, local_size, kernel_params, kerne
     defn = []
     defn.append(ArrayDef(SymbolRef("global", ctypes.c_ulong()), 1, Array(body=[Constant(global_size)])))
     defn.append(ArrayDef(SymbolRef("local", ctypes.c_ulong()), 1, Array(body=[Constant(local_size)])))
-    # defn.append(Assign(SymbolRef("error_code", ctypes.c_int()), Constant(0)))
     for kernel in kernels:
         kernel_name = kernel.find(FunctionDecl, kernel=True).name
         for param, num in zip(kernel_params, range(len(kernel_params))):

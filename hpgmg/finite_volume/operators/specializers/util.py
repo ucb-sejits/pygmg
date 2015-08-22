@@ -420,7 +420,7 @@ def new_generate_control(name, global_size, local_size, kernel_params, kernels, 
             NULL()
         ])
         defn.append(enqueue_call)
-    defn.append(StringTemplate("""clFinish(queue);"""))
+    # defn.append(StringTemplate("""clFinish(queue);"""))
     defn.append(Return(SymbolRef("error_code")))
     params=[]
     params.append(SymbolRef("queue", cl.cl_command_queue()))
