@@ -4,7 +4,6 @@ import pycl as cl
 from hpgmg.finite_volume.mesh import Buffer, Mesh
 import ctypes
 from hpgmg.finite_volume.operators.specializers.util import time_this, compute_largest_local_work_size
-import time
 
 __author__ = 'nzhang-dev'
 
@@ -79,7 +78,7 @@ class PyGMGOclConcreteSpecializedFunction(ConcreteSpecializedFunction):
         # return self.python_control(*args, **kwargs)
         return self.c_control(*args, **kwargs)
 
-    @time_this
+    # @time_this
     def python_control(self, *args, **kwargs):
         args_to_bufferize = self.get_all_args(args, kwargs)
 
@@ -98,7 +97,7 @@ class PyGMGOclConcreteSpecializedFunction(ConcreteSpecializedFunction):
 
             # cl.clWaitForEvents(*previous_events)
             run_evt = kernel.kernel(*kernel_args).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
-            run_evt.wait()
+            # run_evt.wait()
             # self.run_kernel(kernel, kernel_args)
 
             # for arg in kernel.args:
@@ -113,6 +112,7 @@ class PyGMGOclConcreteSpecializedFunction(ConcreteSpecializedFunction):
     def c_control(self, *args, **kwargs):
         args_to_bufferize = self.get_all_args(args, kwargs)
         bufferized_args = []
+        # this is set_kernel_args moved inside
         for arg in args_to_bufferize:
             if isinstance(arg, Mesh):
                 mesh = arg
@@ -148,12 +148,6 @@ class PyGMGOclConcreteSpecializedFunction(ConcreteSpecializedFunction):
         self.set_dirty_buffers(args_to_bufferize)
 
         return return_value
-
-
-    @time_this
-    def run_kernel(self, kernel, kernel_args):
-        run_evt = kernel.kernel(*kernel_args).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
-        # run_evt.wait()
 
     def get_all_args(self, args, kwargs):
         return args
