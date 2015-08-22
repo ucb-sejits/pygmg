@@ -283,8 +283,6 @@ class OclBoundarySpecializer(LazySpecializedFunction):
             """)
 
         # c_file = CFile(name="boundary_control", body=[ocl_include, generate_control(subconfig['level'].interior_space)])
-        # c_file = CFile(name="boundary_control", body=[FunctionDecl(name="boundary_control",
-        #                                    defn=[Assign(SymbolRef("x", ctypes.c_int()), Constant(5))])])
         # c_file.config_target = 'opencl'
         # files = [c_file]
         # files.extend(ocl_files)

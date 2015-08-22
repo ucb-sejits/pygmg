@@ -168,9 +168,6 @@ class OclApplyOpSpecializer(LazySpecializedFunction):
         ocl_file = DeclarationFiller().visit(ocl_file)
 
         # control = new_generate_control("apply_op_control", global_size, local_size, params, [kernel])
-        # control = CFile(name="apply_op_control", body=[FunctionDecl(name="apply_op_control",
-        #                                    defn=[Assign(SymbolRef("x", ctypes.c_int()), Constant(5))])])
-
         # return [control, ocl_file]
         return [ocl_file]
 

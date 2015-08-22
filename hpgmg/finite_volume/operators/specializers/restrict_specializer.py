@@ -222,8 +222,6 @@ class OclRestrictSpecializer(LazySpecializedFunction):
         global_size = reduce(operator.mul, interior_space, 1)
         local_size = compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], global_size)
         # control = new_generate_control("%s_control" % kernel.name, global_size, local_size, kernel.params, [kernel])
-        # control = CFile(name="%s_control" % kernel.name,body=[FunctionDecl(name="%s_control" % kernel.name,
-        #                                    defn=[Assign(SymbolRef("x", ctypes.c_int()), Constant(5))])])
         kernel.name = "%s_kernel" % kernel.name
         # return [control, ocl_file]
         return [ocl_file]

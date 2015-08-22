@@ -454,8 +454,6 @@ class OclSmoothSpecializer(LazySpecializedFunction):
 
         global_size = reduce(operator.mul, shape, 1)
         # control = new_generate_control("smooth_points_control", global_size, local_size, params, [ocl_file])
-        # control = CFile(name="smooth_points_control",body=[FunctionDecl(name="smooth_points_control",
-        #                                    defn=[Assign(SymbolRef("x", ctypes.c_int()), Constant(5))])])
         # return [control, ocl_file]
         return [ocl_file]
 

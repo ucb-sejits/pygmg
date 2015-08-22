@@ -251,8 +251,6 @@ class OclInitializeMesh(LazySpecializedFunction):
         for param in kernel.params:
             param.set_global()
         # control = new_generate_control("%s_control" % kernel.name, global_size, local_size, kernel.params, [ocl_file])
-        # control = CFile(name="%s_control" % kernel.name, body=[FunctionDecl(name="%s_control" % kernel.name,
-        #                                    defn=[Assign(SymbolRef("x", ctypes.c_int()), Constant(5))])])
         kernel.name = "%s_kernel" % kernel.name
         # return [control, ocl_file]
         return [ocl_file]

@@ -222,8 +222,6 @@ class OclFillMeshSpecializer(MeshOpOclSpecializer):
         while global_size % local_size != 0:
             local_size -= 1
         # control = new_generate_control("%s_control" % func_name, global_size, local_size, func_decl.params, [func_decl])
-        # control = CFile(name="%s_control" % func_name, body=[FunctionDecl(name="%s_control" % func_name,
-        #                                    defn=[Assign(SymbolRef("x", ctypes.c_int()), Constant(5))])])
         # return [control, kernel]
         return [kernel]
 
@@ -377,8 +375,6 @@ class OclGeneralizedSimpleMeshOpSpecializer(MeshOpOclSpecializer):
         while global_size % local_size != 0:
             local_size -= 1
         # control = new_generate_control("%s_control" % func_name, global_size, local_size, func_decl.params, [func_decl])
-        # control = CFile(name="%s_control" % func_name, body=[FunctionDecl(name="%s_control" % func_name,
-        #                                    defn=[Assign(SymbolRef("x", ctypes.c_int()), Constant(5))])])
         # return [control, kernel]
         return [kernel]
 
@@ -513,8 +509,6 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
         ocl_file = OclFileWrapper(kernel.name).visit(CFile(body=[encode_func, kernel]))
         # control_file = generate_reducer_control("%s_control" % kernel.name,
         #                                         local_size, local_size, kernel.params, [kernel])
-        # control_file = CFile(name="%s_control" % kernel.name, body=[FunctionDecl(name="%s_control" % kernel.name,
-        #                                    defn=[Assign(SymbolRef("x", ctypes.c_int()), Constant(5))])])
         # files = [control_file, ocl_file]
         # return files
         return [ocl_file]
