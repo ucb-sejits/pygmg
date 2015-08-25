@@ -3,6 +3,7 @@ import functools
 from inspect import getargspec
 import itertools
 import numpy as np
+from stencil.nodes import StencilGroup
 
 from stencil_code.halo_enumerator import HaloEnumerator
 from hpgmg.finite_volume import compiler
@@ -49,9 +50,7 @@ class BoundaryUpdaterV1(object):
 
         self.kernels = [self.boundary.make_kernel(boundary) for boundary in self.boundary_cases()]
         self.stencil_kernels = [self.boundary.get_kernel(boundary) for boundary in self.boundary_cases()]
-        self.compiled_kernels = [
-            compiler.compile(kern) for kern in self.stencil_kernels
-        ]
+        self.compiled_kernel = compiler.compile(StencilGroup(self.stencil_kernels))
 
     # @time_this
     # @specialized_func_dispatcher({
@@ -63,8 +62,7 @@ class BoundaryUpdaterV1(object):
     #         kernel(level, mesh)
 
     def apply(self, level, mesh):
-        for kernel in self.compiled_kernels:
-            kernel(mesh)
+        self.compiled_kernel(mesh)
 
 
     # #@time_this

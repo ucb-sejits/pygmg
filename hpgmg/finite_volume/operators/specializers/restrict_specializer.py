@@ -113,11 +113,6 @@ class CRestrictSpecializer(LazySpecializedFunction):
         encode_func_target = ordering.generate(ndim, bits_per_dim, ctypes.c_uint64)
         cfile = CFile(body=[tree, encode_func_source, encode_func_target])
         cfile = include_mover(cfile)
-        #print(subconfig['self'].neighbor_offsets[subconfig['restriction_type']])
-        # if subconfig['restriction_type'] == 0:
-        #     print(cfile)
-        #print(subconfig['target'].shape, subconfig['source'].shape)
-        #print(cfile)
         return [cfile]
 
     def finalize(self, transform_result, program_config):
