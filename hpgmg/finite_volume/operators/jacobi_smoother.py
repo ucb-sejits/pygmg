@@ -1,7 +1,7 @@
 from __future__ import print_function
 import inspect
 from ctree.frontend import dump
-from snowflake.nodes import StencilComponent, SparseWeightArray, Stencil
+from snowflake.nodes import StencilComponent, SparseWeightArray, Stencil, StencilGroup, VariableUpdate
 from snowflake.vector import Vector
 from hpgmg.finite_volume import compiler
 
@@ -32,6 +32,7 @@ class JacobiSmoother(Smoother):
         self.weight = 1.0 if use_l1_jacobi else 2.0/3.0
         self.iterations = iterations
         self.__kernels = {}
+        self.__smooth_kernels = {}
 
     def get_stencil(self, level):
         #print("Rebuilding stencil")
@@ -40,13 +41,27 @@ class JacobiSmoother(Smoother):
         lambda_ref = StencilComponent('lambda_mesh', SparseWeightArray({Vector.zero_vector(self.operator.dimensions): 1}))
         working_ref = StencilComponent('mesh', SparseWeightArray({Vector.zero_vector(self.operator.dimensions): 1}))
         rhs = working_ref + (self.weight * lambda_ref * (b - a_x))
-        return Stencil(rhs, 'target', ((1, -1),) * self.operator.dimensions)
+        return Stencil(rhs, 'out', ((1, -1),) * self.operator.dimensions)
 
     def get_kernel(self, level):
         if level in self.__kernels:
             return self.__kernels[level]
         stencil = self.get_stencil(level)
         kernel = self.__kernels[level] = compiler.compile(stencil)
+        return kernel
+
+    def get_smooth_stencil(self, level):
+        stencil = self.get_stencil(level)
+        boundary_kernels = level.solver.boundary_updater.stencil_kernels
+        group = boundary_kernels + [stencil]
+        stencil_group = StencilGroup(group)
+        return stencil_group
+
+    def get_smooth_kernel(self, level):
+        if level in self.__smooth_kernels and False:
+            return self.__smooth_kernels[level]
+        stencil = self.get_smooth_stencil(level)
+        kernel = self.__smooth_kernels[level] = compiler.compile(stencil)
         return kernel
 
     #@time_this
@@ -64,11 +79,12 @@ class JacobiSmoother(Smoother):
 
         self.operator.set_scale(level.h)
         # print("\n\nSMOOTH PASS")
-        for i in range(self.iterations):
-            working_target, working_source = working_source, working_target
-            level.solver.boundary_updater.apply(level, working_source)
-            #self.kernel_smooth_points(level, working_source, working_target, rhs_mesh, lambda_mesh)
-            self.smooth_points(level, working_source, working_target, rhs_mesh, lambda_mesh)
+        # for i in range(self.iterations):
+        #     working_target, working_source = working_source, working_target
+        #     level.solver.boundary_updater.apply(level, working_source)
+        #     #self.kernel_smooth_points(level, working_source, working_target, rhs_mesh, lambda_mesh)
+        #     self.smooth_points(level, working_source, working_target, rhs_mesh, lambda_mesh)
+
 
     def kernel_smooth(self, level, mesh_to_smooth, rhs_mesh):
         """
@@ -78,16 +94,28 @@ class JacobiSmoother(Smoother):
         :return:
         """
         lambda_mesh = level.l1_inverse if self.use_l1_jacobi else level.d_inverse
+        mts = mesh_to_smooth
 
         working_target, working_source = mesh_to_smooth, level.temp
 
         self.operator.set_scale(level.h)
 
+        kernel = self.get_smooth_kernel(level)
+        # working_target, working_source = working_source, working_target
+        # use_kernel = True
+        # if use_kernel:
+        #     for i in range(self.iterations):
+        #         working_target, working_source = working_source, working_target
+        #         kernel(working_target, lambda_mesh, working_source, rhs_mesh)
+        #         print(level.norm_mesh(working_target))
+        #
+        # else:
         for i in range(self.iterations):
             working_target, working_source = working_source, working_target
             level.solver.boundary_updater.apply(level, working_source)
             self.kernel_smooth_points(level, working_source, working_target, rhs_mesh, lambda_mesh)
 
+            
     smooth = kernel_smooth
 
     @time_this
@@ -104,3 +132,4 @@ class JacobiSmoother(Smoother):
     def kernel_smooth_points(self, level, working_source, working_target, rhs_mesh, lambda_mesh):
         if not self.operator.is_variable_coefficient:
             self.get_kernel(level)(working_target, lambda_mesh, working_source, rhs_mesh)
+            #print(self.get_kernel(level).arg_spec)
