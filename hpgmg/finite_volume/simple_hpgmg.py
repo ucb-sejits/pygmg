@@ -293,7 +293,6 @@ class SimpleMultigridSolver(object):
         for level in self.all_levels:
             self.smoother.get_kernel(level)
 
-    @time_this
     def v_cycle(self, level, target_mesh, residual_mesh):
         if min(level.space) <= 3:
             with level.timer('total cycles'):
