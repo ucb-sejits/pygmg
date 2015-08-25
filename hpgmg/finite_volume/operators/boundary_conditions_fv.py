@@ -3,8 +3,7 @@ import functools
 from inspect import getargspec
 import itertools
 import numpy as np
-from stencil.nodes import StencilGroup
-
+from snowflake.nodes import StencilGroup
 from stencil_code.halo_enumerator import HaloEnumerator
 from hpgmg.finite_volume import compiler
 

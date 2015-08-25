@@ -1,7 +1,6 @@
 from __future__ import print_function
-
-from stencil.nodes import StencilComponent, SparseWeightArray
-from stencil.vector import Vector
+from snowflake.nodes import StencilComponent, SparseWeightArray
+from snowflake.vector import Vector
 from hpgmg.finite_volume.operators.kernels.base_kernel import BaseKernel
 
 __author__ = 'nzhang-dev'

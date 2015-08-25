@@ -1,9 +1,8 @@
 from __future__ import print_function
 import inspect
 from ctree.frontend import dump
-from stencil.nodes import StencilComponent, SparseWeightArray, Stencil
-from stencil.stencil_compiler import CCompiler
-from stencil.vector import Vector
+from snowflake.nodes import StencilComponent, SparseWeightArray, Stencil
+from snowflake.vector import Vector
 from hpgmg.finite_volume import compiler
 
 from hpgmg.finite_volume.operators.base_operator import BaseOperator

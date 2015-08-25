@@ -23,6 +23,6 @@ setup(
         'ctree',
         'stencil_code',
         'rebox',
-        'stencil'
+        'snowflake'
     ]
 )

@@ -8,7 +8,7 @@ import os
 import sys
 import logging
 import time
-from stencil.stencil_compiler import CCompiler
+from snowflake.stencil_compiler import CCompiler
 import sympy
 from hpgmg import finite_volume
 from hpgmg.finite_volume.mesh import Mesh

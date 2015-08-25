@@ -1,6 +1,6 @@
 from ctree.frontend import dump
-from stencil.nodes import StencilComponent, SparseWeightArray, Stencil
-from stencil.vector import Vector
+from snowflake.nodes import StencilComponent, SparseWeightArray, Stencil
+from snowflake.vector import Vector
 from hpgmg.finite_volume.operators.boundary_kernels.kernel_generator import KernelGenerator
 import numpy as np
 import functools
