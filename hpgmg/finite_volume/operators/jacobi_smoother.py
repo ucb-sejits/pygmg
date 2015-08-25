@@ -64,7 +64,7 @@ class JacobiSmoother(Smoother):
         kernel = self.__smooth_kernels[level] = compiler.compile(stencil)
         return kernel
 
-    #@time_this
+    @time_this
     def std_smooth(self, level, mesh_to_smooth, rhs_mesh):
         """
 
@@ -79,13 +79,13 @@ class JacobiSmoother(Smoother):
 
         self.operator.set_scale(level.h)
         # print("\n\nSMOOTH PASS")
-        # for i in range(self.iterations):
-        #     working_target, working_source = working_source, working_target
-        #     level.solver.boundary_updater.apply(level, working_source)
-        #     #self.kernel_smooth_points(level, working_source, working_target, rhs_mesh, lambda_mesh)
-        #     self.smooth_points(level, working_source, working_target, rhs_mesh, lambda_mesh)
+        for i in range(self.iterations):
+            working_target, working_source = working_source, working_target
+            level.solver.boundary_updater.apply(level, working_source)
+            #self.kernel_smooth_points(level, working_source, working_target, rhs_mesh, lambda_mesh)
+            self.smooth_points(level, working_source, working_target, rhs_mesh, lambda_mesh)
 
-
+    @time_this
     def kernel_smooth(self, level, mesh_to_smooth, rhs_mesh):
         """
         :param level: the level being smoothed
