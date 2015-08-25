@@ -588,7 +588,10 @@ class SimpleMultigridSolver(object):
                     Restriction.RESTRICT_CELL)
             level.fill_mesh(level.cell_values, 0.0)
 
-            self.solve(start_level=level_number)
+            if self.do_f_cycle:
+                self.solve_with_f_cycle(0, 0.0, 1.0e-10)
+            else:
+                self.solve(start_level=level_number)
         self.richardson_error()
 
     def calculate_error(self, mesh1, mesh2):
@@ -670,6 +673,7 @@ class SimpleMultigridSolver(object):
         else:
             min_solves = 10
             number_passes = 1
+
         for pass_num in range(number_passes):
             if pass_num == 0:
                 if self.backend == 'python':
@@ -684,7 +688,8 @@ class SimpleMultigridSolver(object):
 
                 if self.do_f_cycle:
                     self.solve_with_f_cycle(0, 0.0, 1.0e-10)
-                self.solve(start_level=start_level)
+                else:
+                    self.solve(start_level=start_level)
 
         print("===== Timing Breakdown ==============================================")
         self.show_timing_information()
