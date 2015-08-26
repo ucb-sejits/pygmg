@@ -1,5 +1,5 @@
 from __future__ import print_function
-from hpgmg.finite_volume.operators.specializers.apply_op_specializer import OclApplyOpSpecializer
+from hpgmg.finite_volume.operators.specializers.apply_op_specializer import OclApplyOpSpecializer, CApplyOpSpecializer
 from hpgmg.finite_volume.operators.specializers.util import specialized_func_dispatcher
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
@@ -19,7 +19,8 @@ class ApplyOp(object):
 
     @staticmethod
     @specialized_func_dispatcher({
-        'ocl': OclApplyOpSpecializer
+        'ocl': OclApplyOpSpecializer,
+        'c': CApplyOpSpecializer
     })
     def apply_interior(level, target_mesh, source_mesh):
         for index in level.interior_points():

@@ -4,10 +4,12 @@ from ctree.nodes import Project
 from ctree.ocl.nodes import OclFile
 from ctree.transformations import PyBasicConversions
 from ctree.transforms.declaration_filler import DeclarationFiller
-from hpgmg.finite_volume.operators.specializers.jit import PyGMGOclConcreteSpecializedFunction, KernelRunManager
+from hpgmg.finite_volume.operators.specializers.jit import PyGMGOclConcreteSpecializedFunction, KernelRunManager, \
+    PyGMGConcreteSpecializedFunction
 from hpgmg.finite_volume.operators.specializers.util import apply_all_layers, compute_local_work_size, \
     flattened_to_multi_index, to_macro_function, new_generate_control, include_mover
 from hpgmg.finite_volume.operators.transformers.semantic_transformer import SemanticFinder
+from hpgmg.finite_volume.operators.transformers.semantic_transformers.csemantics import CRangeTransformer
 from hpgmg.finite_volume.operators.transformers.utility_transformers import ParamStripper, AttributeRenamer, \
     AttributeGetter, ArrayRefIndexTransformer, OclFileWrapper
 from rebox.specializers.order import Ordering
@@ -18,8 +20,16 @@ import math
 import pycl as cl
 import ctypes
 import operator
+import numpy as np
 
 __author__ = 'dorthyluu'
+
+class CApplyOpFunction(PyGMGConcreteSpecializedFunction):
+    @staticmethod
+    def pyargs_to_cargs(args, kwargs):
+        level, target_mesh, source_mesh = args
+        c_args = [target_mesh, source_mesh] + level.beta_face_values + [level.alpha]
+        return c_args, {}
 
 
 class OclApplyOpFunction(PyGMGOclConcreteSpecializedFunction):
@@ -31,6 +41,121 @@ class OclApplyOpFunction(PyGMGOclConcreteSpecializedFunction):
 
     def set_dirty_buffers(self, args):
         args[1].buffer.dirty = True
+
+
+class CApplyOpSpecializer(LazySpecializedFunction):
+
+    class ApplyOpSubconfig(dict):
+        def __hash__(self):
+            operator = self['level'].solver.problem_operator
+            hashed = [
+                operator.a, operator.b, operator.h2inv,
+                operator.dimensions, operator.is_variable_coefficient,
+                operator.ghost_zone, tuple(operator.neighborhood_offsets)
+            ]
+            for i in ('target_mesh', 'source_mesh'):
+                hashed.append(self[i].shape)
+            return hash(tuple(hashed))
+
+    def args_to_subconfig(self, args):
+        params = ('level', 'target_mesh', 'source_mesh')
+        return self.ApplyOpSubconfig({
+            param: arg for param, arg in zip(params, args)
+        })
+
+    def transform(self, tree, program_config):
+        func = tree.body[0]
+        subconfig, tuner = program_config
+        ndim = subconfig['level'].solver.problem_operator.dimensions
+        # shape = subconfig['level'].interior_space
+        # global_size = reduce(operator.mul, shape, 1)
+        # ghost_zone = subconfig['level'].solver.problem_operator.ghost_zone
+        #
+        # device = cl.clGetDeviceIDs()[-1]
+        # local_size = compute_local_work_size(device, shape)
+        # single_work_dim = int(round(local_size ** (1/float(ndim))))
+        # local_work_shape = tuple(single_work_dim for _ in range(ndim))
+        #
+        layers = [
+            ParamStripper(('level')),
+            AttributeRenamer({'level.solver.problem_operator.apply_op': Name('apply_op', ast.Load())}),
+            SemanticFinder(subconfig),
+            CRangeTransformer(),
+            AttributeGetter({'level': subconfig['level']}),
+            ArrayRefIndexTransformer(
+                encode_map={'index': 'encode'},
+                ndim=ndim),
+            PyBasicConversions(),
+        ]
+        func = apply_all_layers(layers, func)
+
+        defn = []
+
+        beta_def = ArrayDef(
+            SymbolRef("beta_face_values", sym_type=ctypes.POINTER(ctypes.c_double)()),
+            size=ndim,
+            body=Array(
+                body=[
+                    SymbolRef("beta_face_values_{}".format(i)) for i in range(ndim)
+                ]
+            )
+        )
+
+        defn.append(beta_def)
+        defn.extend(func.defn)
+        func.defn = defn
+        for call in func.find_all(FunctionCall):
+            if call.func.name == 'apply_op':
+                call.args.pop()  #remove level
+
+        macro_func = to_macro_function(subconfig['level'].solver.problem_operator.apply_op,
+                                       rename={"level.beta_face_values": SymbolRef("beta_face_values"),
+                                               "level.alpha": SymbolRef("alpha")})
+
+        macro_func.params = [
+            param for param in macro_func.params if param.name != 'level'
+        ]
+
+        ordering = Ordering([MultiplyEncode()])
+        bits_per_dim = min([math.log(i, 2) for i in subconfig['level'].space]) + 1
+        encode_func = ordering.generate(ndim, bits_per_dim, ctypes.c_uint64)
+
+        params = func.params
+        params.extend([
+            SymbolRef("beta_face_values_{}".format(i), sym_type=ctypes.POINTER(ctypes.c_double)())
+            for i in range(ndim)
+        ])
+        params.append(
+            SymbolRef("alpha", sym_type=ctypes.POINTER(ctypes.c_double)())
+        )
+
+        for param in params:
+            param.type = ctypes.POINTER(ctypes.c_double)()
+
+        cfile = CFile(body=[encode_func, macro_func, func])
+        cfile = include_mover(cfile)
+        return [cfile]
+
+    def finalize(self, transform_result, program_config):
+        subconfig, tuner = program_config
+        param_types = [np.ctypeslib.ndpointer(thing.dtype, len(thing.shape), thing.shape) for thing in
+        [
+            subconfig[key] for key in ('target_mesh', 'source_mesh')
+        ]]
+        beta_sample = subconfig['level'].beta_face_values[0]
+        beta_type = np.ctypeslib.ndpointer(
+            beta_sample.dtype,
+            len(beta_sample.shape),
+            beta_sample.shape
+        )
+        param_types.extend(
+            [beta_type]*subconfig['level'].solver.problem_operator.dimensions
+        )
+        param_types.append(
+            param_types[-1]
+        )  # add 1 more for alpha
+        fn = CApplyOpFunction()
+        return fn.finalize(self.tree.body[0].name, Project(transform_result), ctypes.CFUNCTYPE(None, *param_types))
 
 
 class OclApplyOpSpecializer(LazySpecializedFunction):
