@@ -114,7 +114,7 @@ class JacobiSmoother(Smoother):
             working_target, working_source = working_source, working_target
             level.solver.boundary_updater.apply(level, working_source)
             self.kernel_smooth_points(level, working_source, working_target, rhs_mesh, lambda_mesh)
-
+            # kernel(working_target, lambda_mesh, working_source, rhs_mesh)
 
     smooth = kernel_smooth
 

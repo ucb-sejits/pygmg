@@ -572,13 +572,47 @@ class SimpleMultigridSolver(object):
         config = SimpleMultigridSolver.get_configuration(args=args)
         return SimpleMultigridSolver(config)
 
+
+    @time_this
+    @profile
+    def benchmark_hpgmg(self, start_level=0):
+        if self.backend == 'python':
+            min_solves = 1
+            number_passes = 1
+        else:
+            min_solves = 1
+            number_passes = 1
+        for pass_num in range(number_passes):
+            if pass_num == 0:
+                if self.backend == 'python':
+                    print("===== Running python, no warm-up, one pass ============================".format(min_solves))
+                else:
+                    print("===== Warming up by running {:d} solves ===============================".format(min_solves))
+            else:
+                print("===== Running {:d} solves =============================================".format(min_solves))
+
+            for solve_pass in range(min_solves):
+                self.all_levels[start_level].fill_mesh(self.all_levels[start_level].cell_values, 0.0)
+
+                self.solve(start_level=start_level)
+
+        print("===== Timing Breakdown ==============================================")
+        self.show_timing_information()
+        self.show_error_information()
+        if self.compute_richardson_error:
+            self.run_richardson_test()
+        if self.configuration.verbose:
+            print('Backend: {}'.format(self.configuration.backend))
+
     @staticmethod
     @time_this
     @profile
     def main():
         configuration = SimpleMultigridSolver.get_configuration()
         solver = SimpleMultigridSolver(configuration)
-        solver.solve()
+        solver.backend = configuration.backend
+        # solver.solve()
+        solver.benchmark_hpgmg()
         solver.show_timing_information()
         solver.show_error_information()
         if solver.compute_richardson_error:

@@ -48,7 +48,7 @@ class BoundaryUpdaterV1(object):
             self.boundary = PeriodicBoundary()
 
         self.kernels = [self.boundary.make_kernel(boundary) for boundary in self.boundary_cases()]
-        self.stencil_kernels = [self.boundary.get_kernel(boundary) for boundary in self.boundary_cases()]
+        self.stencil_kernels = [self.boundary.get_stencil(boundary) for boundary in self.boundary_cases()]
         self.compiled_kernel = compiler.compile(StencilGroup(self.stencil_kernels))
 
     # @time_this
@@ -59,7 +59,7 @@ class BoundaryUpdaterV1(object):
     # def apply(self, level, mesh):
     #     for kernel in self.kernels:
     #         kernel(level, mesh)
-
+    #
     def apply(self, level, mesh):
         self.compiled_kernel(mesh)
 

@@ -17,7 +17,7 @@ class DirichletBoundary(KernelGenerator):
         kernel.multiplier = (-1.0)**sum(abs(i) for i in boundary)
         return kernel
 
-    def get_kernel(self, boundary):
+    def get_stencil(self, boundary):
         #print(boundary)
         vec = -1*Vector(boundary)
         weight = (-1.0)**sum(abs(i) for i in boundary)
