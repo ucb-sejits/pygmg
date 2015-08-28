@@ -581,7 +581,7 @@ class SimpleMultigridSolver(object):
             number_passes = 1
         else:
             min_solves = 1
-            number_passes = 1
+            number_passes = 10
         for pass_num in range(number_passes):
             if pass_num == 0:
                 if self.backend == 'python':
