@@ -16,6 +16,7 @@ from hpgmg.finite_volume.operators.specializers.util import profile, time_this, 
 from hpgmg.finite_volume.operators.stencil_von_neumann_r1 import StencilVonNeumannR1
 from hpgmg.finite_volume.operators.interpolation import InterpolatorPC
 from hpgmg.finite_volume.operators.jacobi_smoother import JacobiSmoother
+from hpgmg.finite_volume.problems.problem_fv import ProblemFV
 from hpgmg.finite_volume.problems.problem_p4 import ProblemP4
 from hpgmg.finite_volume.problems.problem_p6 import ProblemP6
 from hpgmg.finite_volume.problems.problem_sine_n_dim import SineProblemND
@@ -51,7 +52,7 @@ class SimpleMultigridSolver(object):
         parser.add_argument('-pn', '--problem-name',
                             help="math problem name to use for initialization",
                             default='sine',
-                            choices=['sine', 'p4', 'p6'], )
+                            choices=['sine', 'p4', 'p6', 'fv'], )
         parser.add_argument('-bc', '--boundary-condition',
                             help="Type of boundary condition. Use p for Periodic and d for Dirichlet. Default is d",
                             default=('p' if os.environ.get('USE_PERIODIC_BC', 0) else 'd'),
@@ -180,6 +181,8 @@ class SimpleMultigridSolver(object):
 
         if configuration.problem_name == 'sine':
             self.problem = SineProblemND(dimensions=self.dimensions)
+        elif configuration.problem_name == 'fv':
+            self.problem = ProblemFV(dimensions=self.dimensions)
         elif configuration.problem_name == 'p4':
             self.problem = ProblemP4(dimensions=self.dimensions)
         elif configuration.problem_name == 'p6':
@@ -187,6 +190,7 @@ class SimpleMultigridSolver(object):
                 dimensions=self.dimensions,
                 shift=0.0 if not self.boundary_is_periodic else 1.0/21.0
             )
+        print("Using problem initializer {}".format(configuration.problem_name))
 
         self.compute_richardson_error = not configuration.disable_richardson_error
 
@@ -248,9 +252,14 @@ class SimpleMultigridSolver(object):
         'c': CInitializeMesh,
         'omp': CInitializeMesh
     })
-    def initialize_mesh(self, level, mesh, exp, coord_transform):  # TODO: Handle variable coefficient shifts
+    def initialize_mesh(self, level, mesh, exp, coord_transform, dump=False):  # TODO: Handle variable coefficient shifts
         func = self.problem.get_func(exp, self.problem.symbols)
-        for coord in level.indices():
+        print("expression {}".format(exp))
+        for coord in level.interior_points():
+            if dump:
+                x, y, z = coord_transform(coord)
+                f = func(*coord_transform(coord))
+                print("Coordinate ({:12.10f},{:12.10f},{:12.10f}) -> {:10.6g}".format(x, y, z, f))
             mesh[coord] = func(*coord_transform(coord))
 
     @time_this
@@ -278,8 +287,7 @@ class SimpleMultigridSolver(object):
         level.alpha.fill(alpha)
 
         #fill U
-        self.initialize_mesh(level, level.exact_solution, problem.expression, level.coord_to_cell_center_point)
-
+        self.initialize_mesh(level, level.right_hand_side, problem.expression, level.coord_to_cell_center_point, dump=True)
         # beta stuff
         if level.is_variable_coefficient:
             # beta_values = np.fromfunction(
@@ -331,7 +339,9 @@ class SimpleMultigridSolver(object):
         #F = a*A*U - b*( (Bx*Ux + By*Uy + Bz*Uz)  +  B*(Uxx + Uyy + Uzz) );
         #print(f_exp)
         # rhs = np.zeros_like(level.right_hand_side)
-        self.initialize_mesh(level, level.right_hand_side, f_exp, level.coord_to_cell_center_point)
+        self.initialize_mesh(level, level.right_hand_side, f_exp, level.coord_to_cell_center_point, dump=False)
+        level.right_hand_side.dump("VECTOR_F:right_hand_side", force_dump=True)
+        exit(0)
         #
         # print(rhs.ravel()[:10])
         # print(level.right_hand_side.ravel()[:10])
@@ -476,6 +486,10 @@ class SimpleMultigridSolver(object):
             start_level.multiply_meshes(start_level.temp, 1.0, start_level.right_hand_side, start_level.d_inverse)
             norm_of_d_inv_f = start_level.norm_mesh(start_level.temp)  # ||D^{-1}F||
         if r_tolerance:
+            Mesh.dump_mesh_enabled = True
+            start_level.right_hand_side.dump("F_id:right_hand_side")
+            Mesh.dump_mesh_enabled = False
+            print("XXXXXXXXXXXX norm_of_F {:10.6f}".format(norm_of_f))
             norm_of_f = start_level.norm_mesh(start_level.right_hand_side)  # ||F||
 
         # initialize the RHS for the f-cycle to f...
