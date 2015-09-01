@@ -182,7 +182,7 @@ class SimpleMultigridSolver(object):
         if configuration.problem_name == 'sine':
             self.problem = SineProblemND(dimensions=self.dimensions)
         elif configuration.problem_name == 'fv':
-            self.problem = ProblemFV(dimensions=self.dimensions)
+            self.problem = ProblemFV(dimensions=self.dimensions, add_4th_order_correction=True)
         elif configuration.problem_name == 'p4':
             self.problem = ProblemP4(dimensions=self.dimensions)
         elif configuration.problem_name == 'p6':
@@ -287,7 +287,7 @@ class SimpleMultigridSolver(object):
         level.alpha.fill(alpha)
 
         #fill U
-        self.initialize_mesh(level, level.right_hand_side, problem.expression, level.coord_to_cell_center_point, dump=True)
+        self.initialize_mesh(level, level.right_hand_side, problem.expression, level.coord_to_cell_center_point, dump=False)
         # beta stuff
         if level.is_variable_coefficient:
             # beta_values = np.fromfunction(
@@ -340,8 +340,8 @@ class SimpleMultigridSolver(object):
         #print(f_exp)
         # rhs = np.zeros_like(level.right_hand_side)
         self.initialize_mesh(level, level.right_hand_side, f_exp, level.coord_to_cell_center_point, dump=False)
-        level.right_hand_side.dump("VECTOR_F:right_hand_side", force_dump=True)
-        exit(0)
+        # level.right_hand_side.dump("VECTOR_F:right_hand_side", force_dump=True)
+        # exit(0)
         #
         # print(rhs.ravel()[:10])
         # print(level.right_hand_side.ravel()[:10])

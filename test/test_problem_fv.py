@@ -5,6 +5,7 @@ import numpy as np
 from math import sin, cos, pow
 
 from hpgmg.finite_volume.problems.problem_fv import ProblemFV
+from hpgmg.finite_volume.simple_hpgmg import SimpleMultigridSolver
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
@@ -13,6 +14,7 @@ class TestProblemFV(unittest.TestCase):
     def setUp(self):
         self.a = 2.0 * np.pi
         self.power = 7.0
+        self.solver = SimpleMultigridSolver.get_solver(["2", "--problem", "fv", "--backend", "python"])
 
     @staticmethod
     def pow(value, exponent):
@@ -69,6 +71,7 @@ class TestProblemFV(unittest.TestCase):
 
     def test_fv_correction_values(self):
         problem = ProblemFV(dimensions=3, cell_size=1/128.0, add_4th_order_correction=True)
+        problem = self.solver.problem
         sample_point = (0.1, 0.1, 0.1)
 
         print("problem expression {}".format(problem.expression))
@@ -90,6 +93,16 @@ class TestProblemFV(unittest.TestCase):
         for dim in range(3):
             print("{:12.8f} -- {:12.8f}".format(williams_corrections[dim], pygmg_corrections[dim]))
             self.assertAlmostEqual(williams_corrections[dim], pygmg_corrections[dim])
+
+        for point in self.solver.fine_level.indices():
+            williams_corrections = list(self.fv_correction(point))
+
+            pygmg_corrections = [
+                problem.get_func(problem.second_derivatives[dim], problem.symbols)(*point)
+                for dim in range(3)
+            ]
+            for dim in range(3):
+                self.assertAlmostEqual(williams_corrections[dim], pygmg_corrections[dim])
 
     def test_basics_with_correction(self):
         problem = ProblemFV(dimensions=3, cell_size=1/128.0, add_4th_order_correction=True)
