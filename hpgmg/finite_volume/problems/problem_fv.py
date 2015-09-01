@@ -17,11 +17,13 @@ class ProblemFV(SymmetricAlgebraicProblem):
         super(ProblemFV, self).__init__(expr, dimensions)
 
         if add_4th_order_correction:
-            # for current_dim in range(dimensions):
-            #     second_derivative = self.get_derivative(current_dim, derivative=2)
-            #     self.expression = sympy.sympify(self.expression.__repr__() + " + {}*{}/24.0*{}".format(
-            #         cell_size, cell_size, second_derivative))
-            pass
+            self.second_derivatives = []
+            # requires two loops so original expression is available for derivative
+            for current_dim in range(dimensions):
+                self.second_derivatives.append(self.get_derivative(current_dim, derivative=2))
 
-        print("ProblemFV, expression {}".format(self.expression))
+            for current_dim in range(dimensions):
+                self.expression = self.expression + sympy.sympify("{}*{}/24.0*{}".format(
+                    cell_size, cell_size, self.second_derivatives[current_dim]))
 
+        # print("ProblemFV, expression {}".format(self.expression))
