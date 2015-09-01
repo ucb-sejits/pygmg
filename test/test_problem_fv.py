@@ -14,14 +14,6 @@ class TestProblemFV(unittest.TestCase):
         self.a = 2.0 * np.pi
         self.power = 7.0
 
-    def test_generators_for_other_dimensions(self):
-        for d in range(1, 5):
-            problem = ProblemFV(d)
-            print("Dimensions {}".format(d))
-            print("    {}".format(problem.expression))
-            # following is crude test that we have the right number of terms
-            self.assertEqual(d-1, problem.expression.__str__().count(')*('))
-
     @staticmethod
     def pow(value, exponent):
         return pow(value, exponent)
@@ -92,6 +84,8 @@ class TestProblemFV(unittest.TestCase):
             problem.get_func(problem.second_derivatives[dim], problem.symbols)(*sample_point)
             for dim in range(3)
         ]
+
+        print("{:>12s} -- {:>12s}".format("williams", "pygmg"))
 
         for dim in range(3):
             print("{:12.8f} -- {:12.8f}".format(williams_corrections[dim], pygmg_corrections[dim]))
