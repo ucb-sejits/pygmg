@@ -179,10 +179,15 @@ class SimpleMultigridSolver(object):
 
         self.minimum_coarse_dimension = configuration.minimum_coarse_dimension
 
+        self.fine_level = SimpleLevel(solver=self, space=self.global_size, level_number=0)
+        self.all_levels = [self.fine_level]
+
         if configuration.problem_name == 'sine':
             self.problem = SineProblemND(dimensions=self.dimensions)
         elif configuration.problem_name == 'fv':
-            self.problem = ProblemFV(dimensions=self.dimensions, add_4th_order_correction=True)
+            self.problem = ProblemFV(dimensions=self.dimensions,
+                                     cell_size=self.fine_level.cell_size,
+                                     add_4th_order_correction=True)
         elif configuration.problem_name == 'p4':
             self.problem = ProblemP4(dimensions=self.dimensions)
         elif configuration.problem_name == 'p6':
@@ -200,9 +205,6 @@ class SimpleMultigridSolver(object):
             self.beta_generator = None
 
         self.timer = EventTimer(self)
-
-        self.fine_level = SimpleLevel(solver=self, space=self.global_size, level_number=0)
-        self.all_levels = [self.fine_level]
 
         self.initialize(self.fine_level)
 
