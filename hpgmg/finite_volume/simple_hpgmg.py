@@ -624,7 +624,7 @@ class SimpleMultigridSolver(object):
         configuration = SimpleMultigridSolver.get_configuration()
         solver = SimpleMultigridSolver(configuration)
         solver.benchmark_hpgmg(start_level=0)
-        solver.benchmark_hpgmg(start_level=0)
+        # solver.benchmark_hpgmg(start_level=0)
         return
 
 if __name__ == '__main__':

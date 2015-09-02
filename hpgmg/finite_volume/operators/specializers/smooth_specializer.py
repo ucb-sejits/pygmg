@@ -91,6 +91,26 @@ class SmoothOclFunction(PyGMGOclConcreteSpecializedFunction):
     def set_dirty_buffers(self, args):
         args[3].buffer.dirty = True
 
+class ResidualOclFunction(PyGMGOclConcreteSpecializedFunction):
+
+    def get_all_args(self, args, kwargs):
+        thing, level, working_source, working_target, rhs_mesh, lambda_mesh = args
+        args_to_bufferize = [
+            working_source, working_target,
+            rhs_mesh, lambda_mesh
+        ] + level.beta_face_values + [level.alpha]
+
+        for m in range(len(args_to_bufferize)):
+            mesh = args_to_bufferize[m]
+            if isinstance(mesh, np.ndarray) and not isinstance(mesh, Mesh):
+                mesh = Mesh(mesh.shape)
+                mesh.fill(0)
+                args_to_bufferize[m] = mesh
+        return args_to_bufferize
+
+    def set_dirty_buffers(self, args):
+        args[3].buffer.dirty = True
+
 
 class CSmoothSpecializer(LazySpecializedFunction):
 
@@ -489,5 +509,214 @@ class OclSmoothSpecializer(LazySpecializedFunction):
         kernel = KernelRunManager(kernel, global_size, local_size)
 
         fn = SmoothOclFunction()
+        # return fn.finalize("smooth_points_control", project, entry_type, level, [kernel])
+        return fn.finalize(project, level, [kernel])
+
+class OclResidualSpecializer(LazySpecializedFunction):
+
+    class RangeTransformer(ast.NodeTransformer):
+
+        def __init__(self, shape, ghost_zone, local_work_shape):
+            self.shape = shape
+            self.ghost_zone = ghost_zone
+            self.local_work_shape = local_work_shape
+
+        def visit_RangeNode(self, node):
+            ndim = len(self.shape)
+            global_work_dims = tuple(global_dim // work_dim for
+                                     global_dim, work_dim in zip(self.shape, self.local_work_shape))
+
+            body = []
+            body.append(Assign(SymbolRef("group_id", ctypes.c_int()),
+                               FunctionCall(SymbolRef("get_group_id"), [Constant(0)])))
+            body.append(Assign(SymbolRef("local_id", ctypes.c_int()),
+                               FunctionCall(SymbolRef("get_local_id"), [Constant(0)])))
+
+            global_indices = flattened_to_multi_index(SymbolRef("group_id"), global_work_dims,
+                                                      self.local_work_shape, self.ghost_zone)
+            local_indices = flattened_to_multi_index(SymbolRef("local_id"), self.local_work_shape)
+            for d in range(ndim):
+                body.append(Assign(SymbolRef("index_%d"%d, ctypes.c_int()), Add(global_indices[d], local_indices[d])))
+
+            body.extend(node.body)
+            return MultiNode(body=body)
+
+    def args_to_subconfig(self, args):
+        params = (
+            'self', 'level', 'source',
+            'target', 'rhs_mesh', 'lambda_mesh'
+        )
+        return CSmoothSpecializer.SmoothSubconfig({
+                param: arg for param, arg in zip(params, args)
+            })
+
+    def transform(self, tree, program_config):
+        kernel = tree.body[0]
+
+        subconfig, tuner = program_config
+
+        ndim = subconfig['self'].operator.solver.dimensions
+        shape = subconfig['level'].interior_space
+        ghost_zone = subconfig['self'].operator.ghost_zone
+        entire_shape = tuple(dim + g*2 for dim, g in zip(shape, ghost_zone))
+
+        device = cl.clGetDeviceIDs()[-1]
+        local_size = compute_local_work_size(device, shape)
+        single_work_dim = int(round(local_size ** (1/float(ndim))))
+        local_work_shape = tuple(single_work_dim for _ in range(ndim))
+
+        # transform to get the kernel function
+
+        layers = [
+            ParamStripper(('self', 'level')),
+            AttributeRenamer({
+                'self.operator.apply_op': Name('apply_op', ast.Load())
+            }),
+            SemanticFinder(subconfig),
+            self.RangeTransformer(shape, ghost_zone, local_work_shape),
+            AttributeGetter({'self': subconfig['self']}),
+            ArrayRefIndexTransformer(
+                encode_map={
+                    'index': 'encode'
+                },
+                ndim=ndim
+            ),
+            PyBasicConversions(),
+        ]
+
+        kernel = apply_all_layers(layers, kernel)
+
+        params = kernel.params
+
+        defn = [
+            SymbolRef('a_x', sym_type=ctypes.c_double()),
+            SymbolRef('b', sym_type=ctypes.c_double())
+        ]
+
+        beta_def = ArrayDef(
+            SymbolRef("beta_face_values", sym_type=ctypes.POINTER(ctypes.c_double)()),
+            size=ndim,
+            body=Array(
+                body=[
+                    SymbolRef("beta_face_values_{}".format(i)) for i in range(ndim)
+                ]
+            )
+        )
+        defn.append(beta_def)
+        defn.extend(kernel.defn)
+
+        kernel.defn = defn
+
+        kernel.set_kernel()
+        kernel.name = "smooth_points_kernel"
+
+        for call in kernel.find_all(FunctionCall):
+            if call.func.name == 'apply_op':
+                call.args.pop()  #remove level
+
+        beta_face_values = kernel.find(SymbolRef, name='beta_face_values')
+        beta_face_values.set_global()
+
+        # need this because DeclarationFiller does not visit Ocl files
+
+        symbols_to_declare_double = [
+            kernel.find(SymbolRef, name='____temp__a_x'),
+            kernel.find(SymbolRef, name='____temp__b')
+        ]
+
+        for symbol in symbols_to_declare_double:
+            if symbol:
+                symbol.type = ctypes.c_double()
+
+        # macros and defines
+
+        double_enabler = StringTemplate("""
+            #pragma OPENCL EXTENSION cl_khr_fp64 : enable
+            """)
+
+        macro_func = to_macro_function(subconfig['self'].operator.apply_op,
+                                       rename={"level.beta_face_values": SymbolRef("beta_face_values"),
+                                               "level.alpha": SymbolRef("alpha")})
+        macro_func.params = [
+            param for param in macro_func.params if param.name != 'level'
+        ]
+        ordering = Ordering([MultiplyEncode()])
+        bits_per_dim = min([math.log(i, 2) for i in subconfig['level'].space]) + 1
+        encode_func = ordering.generate(ndim, bits_per_dim, ctypes.c_uint64)
+        encode_func = encode_func.body[-1]
+
+        ocl_include = StringTemplate("""
+            #include <stdio.h>
+            #ifdef __APPLE__
+            #include <OpenCL/opencl.h>
+            #else
+            #include <CL/cl.h>
+            #endif
+            """)
+
+        # parameter management
+
+        params.extend([
+            SymbolRef("beta_face_values_{}".format(i), sym_type=ctypes.POINTER(ctypes.c_double)())
+            for i in range(ndim)
+        ])
+        params.append(
+            SymbolRef("alpha", sym_type=ctypes.POINTER(ctypes.c_double)())
+        )
+
+        for param in params:
+            param.type = ctypes.POINTER(ctypes.c_double)()
+            param.set_global()  # this is not safe
+            # if param.name != 'working_target':
+            #     param.set_const()
+
+        # file creation
+
+        ocl_file = OclFile(name="smooth_points_kernel",
+                           body=[
+                               double_enabler,
+                               encode_func,
+                               macro_func,
+                               kernel,
+                           ])
+
+        global_size = reduce(operator.mul, shape, 1)
+        # control = new_generate_control("smooth_points_control", global_size, local_size, params, [ocl_file])
+        # return [control, ocl_file]
+        return [ocl_file]
+
+    def finalize(self, transform_result, program_config):
+
+        subconfig, tuner = program_config
+        device = cl.clGetDeviceIDs()[-1]
+        level = subconfig['level']
+        local_size = compute_local_work_size(device, level.interior_space)
+        global_size = reduce(operator.mul, level.interior_space, 1)
+
+        project = Project(transform_result)
+        kernel = transform_result[0]
+        # control = project.find(CFile)
+
+        param_types = [cl.cl_mem for _ in
+        [
+            subconfig[key] for key in ('source', 'target', 'rhs_mesh', 'lambda_mesh')
+        ]]
+        # beta face values
+        param_types.extend([cl.cl_mem]*subconfig['self'].operator.dimensions)
+        # alpha
+        param_types.append(param_types[-1])
+
+
+        # entry_type = [ctypes.c_int32, cl.cl_command_queue, cl.cl_kernel]
+        # entry_type.extend(param_types)
+        # entry_type = ctypes.CFUNCTYPE(*entry_type)
+
+        program = cl.clCreateProgramWithSource(level.context, kernel.codegen()).build()
+        kernel = program["smooth_points_kernel"]
+        kernel.argtypes = param_types
+
+        kernel = KernelRunManager(kernel, global_size, local_size)
+
+        fn = ResidualOclFunction()
         # return fn.finalize("smooth_points_control", project, entry_type, level, [kernel])
         return fn.finalize(project, level, [kernel])

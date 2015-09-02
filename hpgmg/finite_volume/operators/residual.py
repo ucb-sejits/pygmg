@@ -3,8 +3,8 @@ from __future__ import print_function
 import numpy as np
 
 from hpgmg.finite_volume.operators.specializers.smooth_specializer import CSmoothSpecializer, OmpSmoothSpecializer, \
-    OclSmoothSpecializer
-from hpgmg.finite_volume.operators.specializers.util import specialized_func_dispatcher
+    OclSmoothSpecializer, OclResidualSpecializer
+from hpgmg.finite_volume.operators.specializers.util import specialized_func_dispatcher, time_this
 
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
@@ -25,7 +25,7 @@ class Residual(object):
     @specialized_func_dispatcher({
         'c': CSmoothSpecializer,
         'omp': OmpSmoothSpecializer,
-        'ocl': OclSmoothSpecializer
+        'ocl': OclResidualSpecializer
     })
     def residue(self, level, target_mesh, source_mesh, right_hand_side, lambda_mesh):
         for index in level.interior_points():
