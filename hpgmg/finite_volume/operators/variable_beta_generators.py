@@ -1,10 +1,15 @@
 from __future__ import print_function
-import sympy
-
-__author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 from math import tanh
+import numpy as np
+import functools
+import operator
+import sympy
+
+from hpgmg.finite_volume.hpgmg_exception import HpgmgException
 from hpgmg.finite_volume.space import Vector
+
+__author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 
 class VariableBeta(object):
@@ -48,6 +53,44 @@ class VariableBeta(object):
         symbols = [sympy.Symbol("x{}".format(i)) for i in range(self.dimensions)]
         distance = sum((sym - d)**2 for sym, d in zip(symbols, self.center)) ** 0.5
         return c1 + c2 * sympy.tanh(c3 * (distance - 0.25))
+
+    def get_beta_fv_expression(self, add_4th_order_correction=False, cell_size=None):
+        if add_4th_order_correction and cell_size is None:
+            raise HpgmgException("ProblemFv requires cells size")
+
+        b = 0.25
+        a = 2.0 * np.pi
+
+        symbols = [sympy.Symbol("x{}".format(i)) for i in range(self.dimensions)]
+        expression_1d = sympy.sympify("sin({period}*x)".format(period=a))
+        symbols = expression_1d.free_symbols
+        symbol = symbols.pop()
+
+        expression_nd = functools.reduce(
+            operator.mul,
+            (expression_1d.xreplace({symbol: sympy.Symbol("x{}".format(i))}) for i in range(self.dimensions))
+        )
+
+        expression_nd *= sympy.sympify("{}".format(b))
+        expression_nd += sympy.sympify("1.0")
+
+        # print("Uncorrected expression for beta fv {}".format(expression_nd))
+
+        if add_4th_order_correction:
+            second_derivatives = []
+            symbols = [sympy.Symbol("x{}".format(d)) for d in range(self.dimensions)]
+            # requires two loops so original expression is available for derivative
+            for current_dim in range(self.dimensions):
+                second_derivatives.append(expression_nd.diff(symbols[current_dim-1], 2))
+
+            # print("using cell_size {}".format(cell_size))
+            for current_dim in range(self.dimensions):
+                expression_nd = expression_nd + sympy.sympify("{}*{}/24.0*{}".format(
+                    cell_size, cell_size, second_derivatives[current_dim]))
+            # print("Corrected expression for beta fv {}".format(expression_nd))
+
+        return expression_nd
+
 
     def evaluate_beta_vector(self, vector):
         b_min = 1.0

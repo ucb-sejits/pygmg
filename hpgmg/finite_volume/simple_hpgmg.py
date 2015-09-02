@@ -256,7 +256,7 @@ class SimpleMultigridSolver(object):
     })
     def initialize_mesh(self, level, mesh, exp, coord_transform, dump=False):  # TODO: Handle variable coefficient shifts
         func = self.problem.get_func(exp, self.problem.symbols)
-        print("expression {}".format(exp))
+        # print("expression {}".format(exp))
         for coord in level.interior_points():
             if dump:
                 x, y, z = coord_transform(coord)
@@ -279,7 +279,6 @@ class SimpleMultigridSolver(object):
         # face_betas = [1.0 for _ in range(self.dimensions)]
 
         problem = self.problem
-        print(self.problem.expression)
 
         beta_generator = self.beta_generator
 

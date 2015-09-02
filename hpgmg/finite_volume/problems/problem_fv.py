@@ -2,6 +2,7 @@ from __future__ import print_function
 import numpy as np
 import sympy
 from hpgmg.finite_volume.hpgmg_exception import HpgmgException
+from hpgmg.finite_volume.operators.specializers.util import time_this, profile
 
 from hpgmg.finite_volume.problems.algebraic_problem import SymmetricAlgebraicProblem
 
@@ -9,8 +10,8 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 
 class ProblemFV(SymmetricAlgebraicProblem):
-    def __init__(self, dimensions=3, cell_size=None, add_4th_order_correction=False):
-        if cell_size is None:
+    def __init__(self, dimensions=3, add_4th_order_correction=False, cell_size=None):
+        if add_4th_order_correction and cell_size is None:
             raise HpgmgException("ProblemFv requires cells size")
 
         period = 2.0 * np.pi
@@ -33,8 +34,12 @@ class ProblemFV(SymmetricAlgebraicProblem):
 
         # print("ProblemFV, expression {}".format(self.expression))
 
-    def initialize_problem(self, level):
+    @time_this
+    @profile
+    def initialize_problem(self, solver, level):
         if level.cell_size != self.cell_size:
             raise HpgmgException("Initialize ProblemFV cell size of level {} does not match problem {}".format(
                 level.cell_size, self.cell_size
             ))
+
+        solver.initialize_mesh(level, level.right_hand_side, self.expression)
