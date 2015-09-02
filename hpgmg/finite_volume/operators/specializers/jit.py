@@ -28,11 +28,15 @@ class PyGMGConcreteSpecializedFunction(ConcreteSpecializedFunction):
 
 class PyGMGOclConcreteSpecializedFunction(ConcreteSpecializedFunction):
 
-    # def finalize(self, entry_point_name, project_node, entry_point_typesig, target_level, kernels, extra_args=None):
-    def finalize(self, project_node, target_level, kernels, extra_args=None):
-        # self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)
-        for f in project_node.files:
-            f._compile(f.codegen())
+    def __init__(self):
+        self.running_time = ctypes.c_double(0.0)
+        super(PyGMGOclConcreteSpecializedFunction, self).__init__()
+
+    def finalize(self, entry_point_name, project_node, entry_point_typesig, target_level, kernels, extra_args=None):
+    # def finalize(self, project_node, target_level, kernels, extra_args=None):
+        self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)
+        # for f in project_node.files:
+        #     f._compile(f.codegen())
         self.target_level = target_level
         self.context = self.target_level.context
         self.queue = self.target_level.queue
@@ -78,23 +82,23 @@ class PyGMGOclConcreteSpecializedFunction(ConcreteSpecializedFunction):
         for kernel in self.kernels:
             kernel.args = kernel_args
 
-    # def __call__(self, *args, **kwargs):
-    #     return self.python_control(*args, **kwargs)
-        # return self.c_control(*args, **kwargs)
+    def __call__(self, *args, **kwargs):
+        # return self.python_control(*args, **kwargs)
+        return self.c_control(*args, **kwargs)
 
     # @time_this
-    def __call__(self, *args, **kwargs):
-        # boundary overrides to enqueue multiple kernels
-        args_to_bufferize = self.get_all_args(args, kwargs)
-
-        self.set_kernel_args(args_to_bufferize, kwargs)
-
-        kernel = self.kernels[0]
-        kernel.kernel(*kernel.args).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
-        # run_evt = kernel.kernel(*kernel_args).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
-        # run_evt.wait()
-        self.set_dirty_buffers(args)
-        return self.reduced_value()
+    # def __call__(self, *args, **kwargs):
+    #     # boundary overrides to enqueue multiple kernels
+    #     args_to_bufferize = self.get_all_args(args, kwargs)
+    #
+    #     self.set_kernel_args(args_to_bufferize, kwargs)
+    #
+    #     kernel = self.kernels[0]
+    #     kernel.kernel(*kernel.args).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
+    #     # run_evt = kernel.kernel(*kernel_args).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
+    #     # run_evt.wait()
+    #     self.set_dirty_buffers(args)
+    #     return self.reduced_value()
 
     # @time_this
     def c_control(self, *args, **kwargs):

@@ -291,9 +291,11 @@ class OclApplyOpSpecializer(LazySpecializedFunction):
         ocl_file = OclFileWrapper("apply_op_kernel").visit(cfile)
         ocl_file = DeclarationFiller().visit(ocl_file)
 
-        # control = new_generate_control("apply_op_control", global_size, local_size, params, [kernel])
-        # return [control, ocl_file]
-        return [ocl_file]
+        control = new_generate_control("apply_op_control", global_size, local_size, params, [kernel])
+        # print(control)
+        # raise TypeError
+        return [control, ocl_file]
+        # return [ocl_file]
 
     def finalize(self, transform_result, program_config):
         subconfig, tuner = program_config
@@ -305,16 +307,16 @@ class OclApplyOpSpecializer(LazySpecializedFunction):
         project = Project(transform_result)
         kernel = project.find(OclFile)
         control = project.find(CFile)
-        
+
         param_types = [cl.cl_mem for _ in ('target_mesh', 'source_mesh')]
         # beta face values
         param_types.extend([cl.cl_mem]*subconfig['level'].solver.problem_operator.dimensions)
         # alpha
         param_types.append(param_types[-1])
 
-        # entry_type = [ctypes.c_int32, cl.cl_command_queue, cl.cl_kernel]
-        # entry_type.extend(param_types)
-        # entry_type = ctypes.CFUNCTYPE(*entry_type)
+        entry_type = [ctypes.c_int32, cl.cl_command_queue, cl.cl_kernel]
+        entry_type.extend(param_types)
+        entry_type = ctypes.CFUNCTYPE(*entry_type)
 
         program = cl.clCreateProgramWithSource(level.context, kernel.codegen()).build()
         kernel = program["apply_op_kernel"]
@@ -324,4 +326,4 @@ class OclApplyOpSpecializer(LazySpecializedFunction):
         kernel = KernelRunManager(kernel, global_size, local_size)
 
         fn = OclApplyOpFunction()
-        return fn.finalize(project, level, [kernel])
+        return fn.finalize("apply_op_control", project, entry_type, level, [kernel])

@@ -221,14 +221,16 @@ class OclFillMeshSpecializer(MeshOpOclSpecializer):
         local_size = compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], global_size)
         while global_size % local_size != 0:
             local_size -= 1
-        # control = new_generate_control("%s_control" % func_name, global_size, local_size, func_decl.params, [func_decl])
-        # return [control, kernel]
-        return [kernel]
+        control = new_generate_control("%s_control" % func_name, global_size, local_size, func_decl.params, [func_decl])
+        # print(control)
+        # raise TypeError
+        return [control, kernel]
+        # return [kernel]
 
     def finalize(self, transform_result, program_config):
         subconfig, tuner_config = program_config
         project = Project(transform_result)
-        kernel = transform_result[0]
+        kernel = transform_result[1]
         level = subconfig['self']
 
         global_shape = tuple(dim + 2 * ghost for dim, ghost in zip(level.interior_space, level.ghost_zone))
@@ -237,9 +239,9 @@ class OclFillMeshSpecializer(MeshOpOclSpecializer):
         while global_size % local_size != 0:
             local_size -= 1
 
-        # retval = ctypes.c_int
+        retval = ctypes.c_int
         kernel_name = self.tree.body[0].name
-        # entry_point = kernel_name + "_control"
+        entry_point = kernel_name + "_control"
         # param_types = [cl.cl_command_queue, cl.cl_kernel]
         param_types = []
         for param, value in subconfig.items():
@@ -247,16 +249,19 @@ class OclFillMeshSpecializer(MeshOpOclSpecializer):
                 param_types.append(cl.cl_mem)
             elif isinstance(subconfig[param], (int, float)):
                 param_types.append(ctypes.c_double)
+        entry_type = [ctypes.c_int32, cl.cl_command_queue, cl.cl_kernel]
+        entry_type.extend(param_types)
         level = subconfig['self']
         kernel = cl.clCreateProgramWithSource(level.context, kernel.codegen()).build()[kernel_name + "_kernel"]
         kernel.argtypes = param_types
         kernel = KernelRunManager(kernel, global_size, local_size)
         fn = MeshOpOclFunction()
-        # return fn.finalize(
-        #     entry_point, project, ctypes.CFUNCTYPE(retval, *param_types),
-        #     level, [kernel]
-        # )
-        return fn.finalize(project, level, [kernel])
+
+        return fn.finalize(
+            entry_point, project, ctypes.CFUNCTYPE(*entry_type),
+            level, [kernel]
+        )
+        # return fn.finalize(project, level, [kernel])
 
 
 class CGeneralizedSimpleMeshOpSpecializer(MeshOpSpecializer):
@@ -374,41 +379,43 @@ class OclGeneralizedSimpleMeshOpSpecializer(MeshOpOclSpecializer):
         local_size = compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], global_size)
         while global_size % local_size != 0:
             local_size -= 1
-        # control = new_generate_control("%s_control" % func_name, global_size, local_size, func_decl.params, [func_decl])
-        # return [control, kernel]
-        return [kernel]
+        control = new_generate_control("%s_control" % func_name, global_size, local_size, func_decl.params, [func_decl])
+        # print(control)
+        # raise TypeError
+        return [control, kernel]
+        # return [kernel]
 
     def finalize(self, transform_result, program_config):
         subconfig, tuner_config = program_config
         level = subconfig['self']
         project = Project(transform_result)
-        # control = transform_result[0]
-        kernel = transform_result[0]
+        control = transform_result[0]
+        kernel = transform_result[1]
 
         global_size = reduce(operator.mul, level.interior_space, 1)
         local_size = compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], global_size)
         while global_size % local_size != 0:
             local_size -= 1
 
-        # retval = ctypes.c_int
+        retval = ctypes.c_int
         kernel_name = self.tree.body[0].name  # refers to original FunctionDef
-        # entry_point = kernel_name + "_control"
-        # param_types = [cl.cl_command_queue, cl.cl_kernel]
-        param_types = []
+        entry_point = kernel_name + "_control"
+        param_types = [cl.cl_command_queue, cl.cl_kernel]
+        # param_types = []
         for param, value in subconfig.items():
             if isinstance(subconfig[param], np.ndarray):
                 param_types.append(cl.cl_mem)
             elif isinstance(subconfig[param], (int, float)):
                 param_types.append(ctypes.c_double)
         kernel = cl.clCreateProgramWithSource(level.context, kernel.codegen()).build()[kernel_name + "_kernel"]
-        kernel.argtypes = param_types
+        kernel.argtypes = param_types[2:]
         kernel = KernelRunManager(kernel, global_size, local_size)
         fn = MeshOpOclFunction()
-        # return fn.finalize(
-        #     entry_point, project, ctypes.CFUNCTYPE(retval, *param_types),
-        #     level, [kernel]
-        # )
-        return fn.finalize(project, level, [kernel])
+        return fn.finalize(
+            entry_point, project, ctypes.CFUNCTYPE(retval, *param_types),
+            level, [kernel]
+        )
+        # return fn.finalize(project, level, [kernel])
 
 
 class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
@@ -507,11 +514,13 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
                 call.func.name = 'fabs'
 
         ocl_file = OclFileWrapper(kernel.name).visit(CFile(body=[encode_func, kernel]))
-        # control_file = generate_reducer_control("%s_control" % kernel.name,
-        #                                         local_size, local_size, kernel.params, [kernel])
-        # files = [control_file, ocl_file]
-        # return files
-        return [ocl_file]
+        control_file = generate_reducer_control("%s_control" % kernel.name,
+                                                local_size, local_size, kernel.params, [kernel])
+        files = [control_file, ocl_file]
+        # print(control_file)
+        # raise TypeError
+        return files
+        # return [ocl_file]
 
     def finalize(self, transform_result, program_config):
         subconfig, tuner_config = program_config
@@ -530,14 +539,14 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
         final_mesh = level.reducer_meshes[(1,)]
 
         project = Project(transform_result)
-        # control = transform_result[0]
-        kernel = transform_result[0]
-        # retval = ctypes.c_double
+        control = transform_result[0]
+        kernel = transform_result[1]
+        retval = ctypes.c_double
         kernel_name = self.tree.body[0].name
-        # entry_point = kernel_name + "_control"
+        entry_point = kernel_name + "_control"
 
-        # param_types = [cl.cl_command_queue, cl.cl_kernel]
-        param_types = []
+        param_types = [cl.cl_command_queue, cl.cl_kernel]
+        # param_types = []
         for param, value in subconfig.items():
             if isinstance(subconfig[param], np.ndarray):
                 param_types.append(cl.cl_mem)
@@ -549,7 +558,7 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
         name = kernel.name
 
         kernel = cl.clCreateProgramWithSource(level.context, kernel.codegen()).build()[name]
-        kernel.argtypes = param_types
+        kernel.argtypes = param_types[2:]
         kernel = KernelRunManager(kernel, local_size, local_size)
         # kernels[0].argtypes = tuple(param_types[len(kernels)+1:-1])
         # kernels[1].argtypes = tuple(param_types[-2:])
@@ -557,9 +566,9 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
         # kernels[1] = KernelRunManager(kernels[1], local_size, 1)
         extra_args = (temp_mesh, final_mesh)
         fn = MeshReduceOpOclFunction()
-        # fn = fn.finalize(entry_point, project, ctypes.CFUNCTYPE(retval, *param_types),
-        #                  level, [kernel], extra_args)
-        fn = fn.finalize(project, level, [kernel], extra_args)
+        fn = fn.finalize(entry_point, project, ctypes.CFUNCTYPE(retval, *param_types),
+                         level, [kernel], extra_args)
+        # fn = fn.finalize(project, level, [kernel], extra_args)
         return fn
 
 

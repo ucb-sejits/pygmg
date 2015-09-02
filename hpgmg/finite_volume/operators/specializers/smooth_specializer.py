@@ -472,9 +472,9 @@ class OclSmoothSpecializer(LazySpecializedFunction):
                            ])
 
         global_size = reduce(operator.mul, shape, 1)
-        # control = new_generate_control("smooth_points_control", global_size, local_size, params, [ocl_file])
-        # return [control, ocl_file]
-        return [ocl_file]
+        control = new_generate_control("smooth_points_control", global_size, local_size, params, [ocl_file])
+        return [control, ocl_file]
+        # return [ocl_file]
 
     def finalize(self, transform_result, program_config):
 
@@ -485,8 +485,8 @@ class OclSmoothSpecializer(LazySpecializedFunction):
         global_size = reduce(operator.mul, level.interior_space, 1)
 
         project = Project(transform_result)
-        kernel = transform_result[0]
-        # control = project.find(CFile)
+        kernel = transform_result[1]
+        control = project.find(CFile)
 
         param_types = [cl.cl_mem for _ in
         [
@@ -498,9 +498,9 @@ class OclSmoothSpecializer(LazySpecializedFunction):
         param_types.append(param_types[-1])
 
 
-        # entry_type = [ctypes.c_int32, cl.cl_command_queue, cl.cl_kernel]
-        # entry_type.extend(param_types)
-        # entry_type = ctypes.CFUNCTYPE(*entry_type)
+        entry_type = [ctypes.c_int32, cl.cl_command_queue, cl.cl_kernel]
+        entry_type.extend(param_types)
+        entry_type = ctypes.CFUNCTYPE(*entry_type)
 
         program = cl.clCreateProgramWithSource(level.context, kernel.codegen()).build()
         kernel = program["smooth_points_kernel"]
@@ -509,8 +509,8 @@ class OclSmoothSpecializer(LazySpecializedFunction):
         kernel = KernelRunManager(kernel, global_size, local_size)
 
         fn = SmoothOclFunction()
-        # return fn.finalize("smooth_points_control", project, entry_type, level, [kernel])
-        return fn.finalize(project, level, [kernel])
+        return fn.finalize("smooth_points_control", project, entry_type, level, [kernel])
+        # return fn.finalize(project, level, [kernel])
 
 class OclResidualSpecializer(LazySpecializedFunction):
 
@@ -681,9 +681,9 @@ class OclResidualSpecializer(LazySpecializedFunction):
                            ])
 
         global_size = reduce(operator.mul, shape, 1)
-        # control = new_generate_control("smooth_points_control", global_size, local_size, params, [ocl_file])
-        # return [control, ocl_file]
-        return [ocl_file]
+        control = new_generate_control("smooth_points_control", global_size, local_size, params, [ocl_file])
+        return [control, ocl_file]
+        # return [ocl_file]
 
     def finalize(self, transform_result, program_config):
 
@@ -694,8 +694,8 @@ class OclResidualSpecializer(LazySpecializedFunction):
         global_size = reduce(operator.mul, level.interior_space, 1)
 
         project = Project(transform_result)
-        kernel = transform_result[0]
-        # control = project.find(CFile)
+        kernel = transform_result[1]
+        control = project.find(CFile)
 
         param_types = [cl.cl_mem for _ in
         [
@@ -707,9 +707,9 @@ class OclResidualSpecializer(LazySpecializedFunction):
         param_types.append(param_types[-1])
 
 
-        # entry_type = [ctypes.c_int32, cl.cl_command_queue, cl.cl_kernel]
-        # entry_type.extend(param_types)
-        # entry_type = ctypes.CFUNCTYPE(*entry_type)
+        entry_type = [ctypes.c_int32, cl.cl_command_queue, cl.cl_kernel]
+        entry_type.extend(param_types)
+        entry_type = ctypes.CFUNCTYPE(*entry_type)
 
         program = cl.clCreateProgramWithSource(level.context, kernel.codegen()).build()
         kernel = program["smooth_points_kernel"]
@@ -718,5 +718,5 @@ class OclResidualSpecializer(LazySpecializedFunction):
         kernel = KernelRunManager(kernel, global_size, local_size)
 
         fn = ResidualOclFunction()
-        # return fn.finalize("smooth_points_control", project, entry_type, level, [kernel])
-        return fn.finalize(project, level, [kernel])
+        return fn.finalize("smooth_points_control", project, entry_type, level, [kernel])
+        # return fn.finalize(project, level, [kernel])

@@ -221,17 +221,19 @@ class OclRestrictSpecializer(LazySpecializedFunction):
         ocl_file = OclFileWrapper("%s_kernel" % kernel.name).visit(cfile)
         global_size = reduce(operator.mul, interior_space, 1)
         local_size = compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], global_size)
-        # control = new_generate_control("%s_control" % kernel.name, global_size, local_size, kernel.params, [kernel])
+        control = new_generate_control("%s_control" % kernel.name, global_size, local_size, kernel.params, [kernel])
         kernel.name = "%s_kernel" % kernel.name
-        # return [control, ocl_file]
-        return [ocl_file]
+        # print(control)
+        # raise TypeError
+        return [control, ocl_file]
+        # return [ocl_file]
 
     def finalize(self, transform_result, program_config):
         subconfig, tuner = program_config
         level = subconfig['level']
         project = Project(transform_result)
-        kernel = transform_result[0]
-        # control = transform_result[0]
+        kernel = transform_result[1]
+        control = transform_result[0]
         name = kernel.name
         kernel = cl.clCreateProgramWithSource(level.context, kernel.codegen()).build()[name]
         kernel.argtypes = (cl.cl_mem, cl.cl_mem)
@@ -239,10 +241,10 @@ class OclRestrictSpecializer(LazySpecializedFunction):
         local_size = compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], global_size)
         kernel = KernelRunManager(kernel, global_size, local_size)
 
-        # typesig = [ctypes.c_int, cl.cl_command_queue, cl.cl_kernel, cl.cl_mem, cl.cl_mem]
+        typesig = [ctypes.c_int, cl.cl_command_queue, cl.cl_kernel, cl.cl_mem, cl.cl_mem]
         fn = RestrictOclFunction()
-        # fn.finalize(control.name, project, ctypes.CFUNCTYPE(*typesig),
-        #             level, [kernel])
-        fn.finalize(project, level, [kernel])
+        fn.finalize(control.name, project, ctypes.CFUNCTYPE(*typesig),
+                    level, [kernel])
+        # fn.finalize(project, level, [kernel])
         return fn
 

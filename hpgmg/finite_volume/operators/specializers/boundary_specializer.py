@@ -47,17 +47,17 @@ class BoundaryCFunction(PyGMGConcreteSpecializedFunction):
 
 class BoundaryOclFunction(PyGMGOclConcreteSpecializedFunction):
 
-    def __call__(self, *args, **kwargs):
-        args_to_bufferize = self.get_all_args(args, kwargs)
-
-        self.set_kernel_args(args_to_bufferize, kwargs)
-
-        for kernel in self.kernels:
-            kernel.kernel(*kernel.args).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
-            # run_evt = kernel.kernel(*kernel_args).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
-            # run_evt.wait()
-        self.set_dirty_buffers(args)
-        return self.reduced_value()
+    # def __call__(self, *args, **kwargs):
+    #     args_to_bufferize = self.get_all_args(args, kwargs)
+    #
+    #     self.set_kernel_args(args_to_bufferize, kwargs)
+    #
+    #     for kernel in self.kernels:
+    #         kernel.kernel(*kernel.args).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
+    #         # run_evt = kernel.kernel(*kernel_args).on(self.queue, gsize=kernel.gsize, lsize=kernel.lsize)
+    #         # run_evt.wait()
+    #     self.set_dirty_buffers(args)
+    #     return self.reduced_value()
 
     def get_all_args(self, args, kwargs):
         mesh = args[2]
@@ -293,12 +293,14 @@ class OclBoundarySpecializer(LazySpecializedFunction):
             #endif
             """)
 
-        # c_file = CFile(name="boundary_control", body=[ocl_include, generate_control(subconfig['level'].interior_space)])
-        # c_file.config_target = 'opencl'
-        # files = [c_file]
-        # files.extend(ocl_files)
-        # return files
-        return ocl_files
+        c_file = CFile(name="boundary_control", body=[ocl_include, generate_control(subconfig['level'].interior_space)])
+        c_file.config_target = 'opencl'
+        files = [c_file]
+        # print(c_file)
+        # raise TypeError
+        files.extend(ocl_files)
+        return files
+        # return ocl_files
 
     def finalize(self, transform_result, program_config):
         subconfig, tuner = program_config
@@ -306,15 +308,16 @@ class OclBoundarySpecializer(LazySpecializedFunction):
         interior_space = level.interior_space
         ndim = len(interior_space)
         project = Project(transform_result)
-        kernels = project.files
+        control = project.files[0]
+        kernels = project.files[1:]
 
         global_sizes = [reduce(operator.mul, interior_space[dim+1:], 1) for dim in range(ndim)]
         local_sizes = [compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], gsize) for gsize in global_sizes]
 
-        # entry_type = [ctypes.c_int32, cl.cl_command_queue]
-        # entry_type.extend(cl.cl_kernel for _ in range(ndim))
-        # entry_type.append(cl.cl_mem)
-        # entry_type = ctypes.CFUNCTYPE(*entry_type)
+        entry_type = [ctypes.c_int32, cl.cl_command_queue]
+        entry_type.extend(cl.cl_kernel for _ in range(ndim))
+        entry_type.append(cl.cl_mem)
+        entry_type = ctypes.CFUNCTYPE(*entry_type)
 
         kernels = [cl.clCreateProgramWithSource(level.context, kernel.codegen()).build() for kernel in kernels]
         kernels = [kernel["kernel_%d" % k_idx] for kernel, k_idx in zip(kernels, range(len(kernels)))]
@@ -323,8 +326,8 @@ class OclBoundarySpecializer(LazySpecializedFunction):
             kernels[dim] = KernelRunManager(kernels[dim], global_sizes[dim], local_sizes[dim])
 
         fn = BoundaryOclFunction()
-        # fn = fn.finalize("boundary_control", project, entry_type, level, kernels)
-        fn = fn.finalize(project, level, kernels)
+        fn = fn.finalize("boundary_control", project, entry_type, level, kernels)
+        # fn = fn.finalize(project, level, kernels)
         return fn
 
 
