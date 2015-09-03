@@ -59,9 +59,9 @@ class TestVariableBetaGenerators(unittest.TestCase):
                 face_point = level.coord_to_face_center_point(coord, dim)
                 beta_face = variable_beta.evaluate_beta(face_point)
 
-                self.assertEqual(
+                self.assertAlmostEqual(
                     beta_face, level.beta_face_values[dim][coord],
-                    "beta face point wrong index {} face_point {}, calc {}, in level {}".format(
+                    msg="beta face point wrong index {} face_point {}, calc {}, in level {}".format(
                         coord, face_point, beta_face, level.beta_face_values[dim][coord]
                     ))
 

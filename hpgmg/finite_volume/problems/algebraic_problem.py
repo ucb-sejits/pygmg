@@ -44,7 +44,7 @@ class SymmetricAlgebraicProblem(AlgebraicProblem):
 
     def get_derivative(self, dim, derivative=0):
         #print(self.expression.diff(self.symbols[dim-1], derivative))
-        return self.expression.diff(self.symbols[dim-1], derivative)
+        return self.expression.diff(self.symbols[dim], derivative)
 
     @staticmethod
     def get_func(func, symbols=None):
@@ -71,26 +71,40 @@ class SymmetricAlgebraicProblem(AlgebraicProblem):
         'c': CInitializeMesh,
         'omp': CInitializeMesh
     })
-    def initialize_face_mesh(self, level, mesh, exp, dimension, dump=False):
+    def initialize_face_mesh(self, level, mesh, exp, dimension):
         func = self.get_func(exp, self.symbols)
         # print("expression {}".format(exp))
         for coord in level.indices():
-            # if dump:
-            #     x, y, z = level.coord_to_face_center_point(coord, dimension)
-            #     f = func(*level.coord_to_face_center_point(coord, dimension))
-            #     print("Coordinate ({:12.10f},{:12.10f},{:12.10f}) -> {:10.6g}".format(x, y, z, f))
             mesh[coord] = func(*level.coord_to_face_center_point(coord, dimension))
 
     @time_this
     @profile
     def initialize_problem(self, solver, level):
-        solver.initialize_mesh(level, level.exact_solution, self.expression)
-        level.exact_solution.fill(0.0)
+        alpha = 1.0
+        beta = 1.0
+        self.initialize_mesh(level, level.exact_solution, self.expression)
+
+        beta_expression = solver.beta_generator.get_beta_expression() if solver.is_variable_coefficient else beta
+        beta_first_derivative = [sympy.diff(beta_expression, sym) for sym in self.symbols]
+        u_first_derivative = [sympy.diff(self.expression, sym) for sym in self.symbols]
+        bu_derivative_1 = sum(a * b for a, b in zip(beta_first_derivative, u_first_derivative))
+        u_derivative_2 = [sympy.diff(self.expression, sym, 2) for sym in self.symbols]
+        f_exp = solver.a * alpha * self.expression - solver.b * (
+            bu_derivative_1 + beta_expression * sum(u_derivative_2))
+
+        self.initialize_mesh(level, level.right_hand_side, f_exp)
 
         level.alpha.fill(1.0)
 
         for dim in range(self.dimensions):
-            if self.use_variable_coefficient:
-                self.initialize_face_mesh(level, level.beta_face_values[dim], self.beta_expression, dim)
+            if solver.is_variable_coefficient:
+                self.initialize_face_mesh(level, level.beta_face_values[dim], beta_expression, dim)
             else:
                 level.beta_face_values[dim].fill(1.0)
+
+    def initialize_problem_one_pass(self, solver, level):
+        alpha = 1.0
+        beta = 1.0
+        return len(self.dimensions) * alpha * beta
+
+

@@ -206,10 +206,11 @@ class SimpleMultigridSolver(object):
 
         self.timer = EventTimer(self)
 
-        self.initialize(self.fine_level)
+        # self.initialize(self.fine_level)
+        self.problem.initialize_problem(self, self.fine_level)
 
         self.fine_level.exact_solution.dump("VECTOR_UTRUE")
-        self.fine_level.right_hand_side.dump("VECTOR_F")
+        self.fine_level.right_hand_side.dump("VECTOR_F", force_dump=True)
 
         if self.dimensions == 3:
             self.fine_level.beta_face_values[2].dump("VECTOR_BETA_I")
