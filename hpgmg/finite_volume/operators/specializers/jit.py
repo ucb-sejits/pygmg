@@ -1,9 +1,11 @@
 import abc
+import atexit
 from ctree.jit import ConcreteSpecializedFunction
 import pycl as cl
 from hpgmg.finite_volume.mesh import Buffer, Mesh
 import ctypes
 from hpgmg.finite_volume.operators.specializers.util import time_this, compute_largest_local_work_size
+import numpy as np
 
 __author__ = 'nzhang-dev'
 
@@ -29,11 +31,13 @@ class PyGMGConcreteSpecializedFunction(ConcreteSpecializedFunction):
 class PyGMGOclConcreteSpecializedFunction(ConcreteSpecializedFunction):
 
     def __init__(self):
-        self.running_time = ctypes.c_double(0.0)
+        self.running_time = np.zeros((1,), dtype=np.float32)
         super(PyGMGOclConcreteSpecializedFunction, self).__init__()
+        atexit.register(self.print_final_time, self)
 
     def finalize(self, entry_point_name, project_node, entry_point_typesig, target_level, kernels, extra_args=None):
     # def finalize(self, project_node, target_level, kernels, extra_args=None):
+        self.name = project_node.files[0].name
         self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)
         # for f in project_node.files:
         #     f._compile(f.codegen())
@@ -133,7 +137,7 @@ class PyGMGOclConcreteSpecializedFunction(ConcreteSpecializedFunction):
             elif isinstance(arg, (int, float)):
                 bufferized_args.append(arg)
 
-        control_args = [self.queue] + [kernel.kernel for kernel in self.kernels] + bufferized_args
+        control_args = [self.queue] + [kernel.kernel for kernel in self.kernels] + bufferized_args + [self.running_time]
         return_value = self._c_function(*control_args)
         self.set_dirty_buffers(args)
         return return_value
@@ -154,6 +158,11 @@ class PyGMGOclConcreteSpecializedFunction(ConcreteSpecializedFunction):
         buf, evt = cl.buffer_from_ndarray(queue, mesh, buffer)
         evt.wait()
         return buf, evt
+
+    @staticmethod
+    def print_final_time(self):
+        # print("{} {}".format(self.name, self.running_time[0])
+        return
 
 
 class KernelRunManager(object):

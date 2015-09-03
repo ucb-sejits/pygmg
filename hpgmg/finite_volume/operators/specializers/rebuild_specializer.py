@@ -371,6 +371,7 @@ class OclRebuildSpecializer(CRebuildSpecializer):
         kernel = KernelRunManager(kernel, global_size, local_size)
 
         typesig = [ctypes.c_int, cl.cl_command_queue, cl.cl_kernel, cl.cl_mem, cl.cl_mem, cl.cl_mem, cl.cl_mem]
+        typesig.append(np.ctypeslib.ndpointer(np.float32, 1, (1,)))
         fn = RebuildOclFunction()
         fn = fn.finalize(control.name, project, ctypes.CFUNCTYPE(*typesig),
                          target_level, [kernel], (final_mesh,))
@@ -382,6 +383,7 @@ def generate_rebuild_control(name, global_size, local_size, kernel_params, kerne
     defn = []
     defn.append(ArrayDef(SymbolRef("global", ctypes.c_ulong()), 1, Array(body=[Constant(global_size)])))
     defn.append(ArrayDef(SymbolRef("local", ctypes.c_ulong()), 1, Array(body=[Constant(local_size)])))
+    defn.append(StringTemplate("""clock_t start, diff;"""))
     # defn.append(Assign(SymbolRef("error_code", ctypes.c_int()), Constant(0)))
     for kernel in kernels:
         kernel_name = kernel.find(FunctionDecl, kernel=True).name
@@ -399,6 +401,9 @@ def generate_rebuild_control(name, global_size, local_size, kernel_params, kerne
                                       Constant(ctypes.sizeof(param.type)),
                                       Ref(SymbolRef(param.name))])
             defn.append(set_arg)
+    defn.append(StringTemplate("""start = clock();"""))
+    for kernel in kernels:
+        kernel_name = kernel.find(FunctionDecl, kernel=True).name
         enqueue_call = FunctionCall(SymbolRef("clEnqueueNDRangeKernel"), [
             SymbolRef("queue"),
             SymbolRef(kernel_name),
@@ -411,8 +416,10 @@ def generate_rebuild_control(name, global_size, local_size, kernel_params, kerne
             NULL()
         ])
         defn.append(enqueue_call)
-    defn.append(ArrayRef(SymbolRef("return_value", ctypes.c_double()), Constant(1)))
     defn.append(StringTemplate("""clFinish(queue);"""))
+    defn.append(StringTemplate("""diff = clock() - start;"""))
+    defn.append(StringTemplate("""total_time[0] = total_time[0] + (diff / CLOCKS_PER_SEC);"""))
+    defn.append(ArrayRef(SymbolRef("return_value", ctypes.c_double()), Constant(1)))
     defn.append(FunctionCall(SymbolRef("clEnqueueReadBuffer"),
                              [
                                  SymbolRef("queue"),
@@ -435,9 +442,11 @@ def generate_rebuild_control(name, global_size, local_size, kernel_params, kerne
             params.append(SymbolRef(param.name, cl.cl_mem()))
         else:
             params.append(param)
+    params.append(SymbolRef("total_time", ctypes.POINTER(ctypes.c_float)()))
     func = FunctionDecl(ctypes.c_int(), name, params, defn)
     ocl_include = StringTemplate("""
             #include <stdio.h>
+            #include <time.h>
             #ifdef __APPLE__
             #include <OpenCL/opencl.h>
             #else

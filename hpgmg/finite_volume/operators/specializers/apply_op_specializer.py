@@ -222,7 +222,7 @@ class OclApplyOpSpecializer(LazySpecializedFunction):
             ParamStripper(('level')),
             AttributeRenamer({'level.solver.problem_operator.apply_op': Name('apply_op', ast.Load())}),
             SemanticFinder(subconfig),
-            self.RangeTransformer(shape, ghost_zone, local_work_shape),  # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            self.RangeTransformer(shape, ghost_zone, local_work_shape),
             AttributeGetter({'level': subconfig['level']}),
             ArrayRefIndexTransformer(
                 encode_map={'index': 'encode'},
@@ -316,6 +316,7 @@ class OclApplyOpSpecializer(LazySpecializedFunction):
 
         entry_type = [ctypes.c_int32, cl.cl_command_queue, cl.cl_kernel]
         entry_type.extend(param_types)
+        entry_type.append(np.ctypeslib.ndpointer(np.float32, 1, (1,)))
         entry_type = ctypes.CFUNCTYPE(*entry_type)
 
         program = cl.clCreateProgramWithSource(level.context, kernel.codegen()).build()

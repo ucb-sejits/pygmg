@@ -91,6 +91,10 @@ class SmoothOclFunction(PyGMGOclConcreteSpecializedFunction):
     def set_dirty_buffers(self, args):
         args[3].buffer.dirty = True
 
+    @staticmethod
+    def print_final_time(self):
+        print("{} {}".format(self.name, self.running_time[0]))
+
 class ResidualOclFunction(PyGMGOclConcreteSpecializedFunction):
 
     def get_all_args(self, args, kwargs):
@@ -473,6 +477,7 @@ class OclSmoothSpecializer(LazySpecializedFunction):
 
         global_size = reduce(operator.mul, shape, 1)
         control = new_generate_control("smooth_points_control", global_size, local_size, params, [ocl_file])
+        # print(control)
         return [control, ocl_file]
         # return [ocl_file]
 
@@ -500,6 +505,7 @@ class OclSmoothSpecializer(LazySpecializedFunction):
 
         entry_type = [ctypes.c_int32, cl.cl_command_queue, cl.cl_kernel]
         entry_type.extend(param_types)
+        entry_type.append(np.ctypeslib.ndpointer(np.float32, 1, (1,)))
         entry_type = ctypes.CFUNCTYPE(*entry_type)
 
         program = cl.clCreateProgramWithSource(level.context, kernel.codegen()).build()
@@ -709,6 +715,7 @@ class OclResidualSpecializer(LazySpecializedFunction):
 
         entry_type = [ctypes.c_int32, cl.cl_command_queue, cl.cl_kernel]
         entry_type.extend(param_types)
+        entry_type.append(np.ctypeslib.ndpointer(np.float32, 1, (1,)))
         entry_type = ctypes.CFUNCTYPE(*entry_type)
 
         program = cl.clCreateProgramWithSource(level.context, kernel.codegen()).build()

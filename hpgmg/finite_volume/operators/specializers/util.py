@@ -12,7 +12,7 @@ from ctree.c.macros import NULL
 from ctree.cpp.nodes import CppDefine
 from ctree.frontend import dump
 from ctree.c.nodes import SymbolRef, MultiNode, Constant, Add, Mul, FunctionCall, Div, Mod, Ref, FunctionDecl, ArrayDef, \
-    Assign, Return, Array, CFile
+    Assign, Return, Array, CFile, Sub, Deref, Literal
 from ctree.templates.nodes import StringTemplate
 from ctree.transformations import PyBasicConversions
 import itertools
@@ -389,9 +389,11 @@ def flattened_to_multi_index(flattened_id_symbol, shape, multipliers=None, offse
 def new_generate_control(name, global_size, local_size, kernel_params, kernels, other=None):
     # assumes that all kernels take the same arguments and that they all use the same global and local size!
     defn = []
+    defn.append(StringTemplate("""clock_t start, diff;"""))
     defn.append(ArrayDef(SymbolRef("global", ctypes.c_ulong()), 1, Array(body=[Constant(global_size)])))
     defn.append(ArrayDef(SymbolRef("local", ctypes.c_ulong()), 1, Array(body=[Constant(local_size)])))
     defn.append(Assign(SymbolRef("error_code", ctypes.c_int()), Constant(0)))
+    defn.append(StringTemplate("""start = clock();"""))
     for kernel in kernels:
         kernel_name = kernel.find(FunctionDecl, kernel=True).name
         for param, num in zip(kernel_params, range(len(kernel_params))):
@@ -420,7 +422,9 @@ def new_generate_control(name, global_size, local_size, kernel_params, kernels, 
             NULL()
         ])
         defn.append(enqueue_call)
-    # defn.append(StringTemplate("""clFinish(queue);"""))
+    defn.append(StringTemplate("""clFinish(queue);"""))
+    defn.append(StringTemplate("""diff = clock() - start;"""))
+    defn.append(StringTemplate("""total_time[0] = total_time[0] + (diff / (float) CLOCKS_PER_SEC);"""))
     defn.append(Return(SymbolRef("error_code")))
     params=[]
     params.append(SymbolRef("queue", cl.cl_command_queue()))
@@ -431,9 +435,11 @@ def new_generate_control(name, global_size, local_size, kernel_params, kernels, 
             params.append(SymbolRef(param.name, cl.cl_mem()))
         else:
             params.append(param)
+    params.append(SymbolRef("total_time", ctypes.POINTER(ctypes.c_float)()))
     func = FunctionDecl(ctypes.c_int(), name, params, defn)
     ocl_include = StringTemplate("""
             #include <stdio.h>
+            #include <time.h>
             #ifdef __APPLE__
             #include <OpenCL/opencl.h>
             #else

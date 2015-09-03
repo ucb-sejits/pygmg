@@ -242,6 +242,7 @@ class OclRestrictSpecializer(LazySpecializedFunction):
         kernel = KernelRunManager(kernel, global_size, local_size)
 
         typesig = [ctypes.c_int, cl.cl_command_queue, cl.cl_kernel, cl.cl_mem, cl.cl_mem]
+        typesig.append(np.ctypeslib.ndpointer(np.float32, 1, (1,)))
         fn = RestrictOclFunction()
         fn.finalize(control.name, project, ctypes.CFUNCTYPE(*typesig),
                     level, [kernel])

@@ -251,6 +251,7 @@ class OclFillMeshSpecializer(MeshOpOclSpecializer):
                 param_types.append(ctypes.c_double)
         entry_type = [ctypes.c_int32, cl.cl_command_queue, cl.cl_kernel]
         entry_type.extend(param_types)
+        entry_type.append(np.ctypeslib.ndpointer(np.float32, 1, (1,)))
         level = subconfig['self']
         kernel = cl.clCreateProgramWithSource(level.context, kernel.codegen()).build()[kernel_name + "_kernel"]
         kernel.argtypes = param_types
@@ -400,19 +401,21 @@ class OclGeneralizedSimpleMeshOpSpecializer(MeshOpOclSpecializer):
         retval = ctypes.c_int
         kernel_name = self.tree.body[0].name  # refers to original FunctionDef
         entry_point = kernel_name + "_control"
-        param_types = [cl.cl_command_queue, cl.cl_kernel]
-        # param_types = []
+        entry_type = [cl.cl_command_queue, cl.cl_kernel]
+        param_types = []
         for param, value in subconfig.items():
             if isinstance(subconfig[param], np.ndarray):
                 param_types.append(cl.cl_mem)
             elif isinstance(subconfig[param], (int, float)):
                 param_types.append(ctypes.c_double)
+        entry_type.extend(param_types)
+        entry_type.append(np.ctypeslib.ndpointer(np.float32, 1, (1,)))
         kernel = cl.clCreateProgramWithSource(level.context, kernel.codegen()).build()[kernel_name + "_kernel"]
-        kernel.argtypes = param_types[2:]
+        kernel.argtypes = param_types
         kernel = KernelRunManager(kernel, global_size, local_size)
         fn = MeshOpOclFunction()
         return fn.finalize(
-            entry_point, project, ctypes.CFUNCTYPE(retval, *param_types),
+            entry_point, project, ctypes.CFUNCTYPE(retval, *entry_type),
             level, [kernel]
         )
         # return fn.finalize(project, level, [kernel])
@@ -545,8 +548,8 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
         kernel_name = self.tree.body[0].name
         entry_point = kernel_name + "_control"
 
-        param_types = [cl.cl_command_queue, cl.cl_kernel]
-        # param_types = []
+        entry_type = [cl.cl_command_queue, cl.cl_kernel]
+        param_types = []
         for param, value in subconfig.items():
             if isinstance(subconfig[param], np.ndarray):
                 param_types.append(cl.cl_mem)
@@ -555,10 +558,13 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
         param_types.append(cl.cl_mem)  # temp
         param_types.append(cl.cl_mem)  # final
 
+        entry_type.extend(param_types)
+        entry_type.append(np.ctypeslib.ndpointer(np.float32, 1, (1,)))
+
         name = kernel.name
 
         kernel = cl.clCreateProgramWithSource(level.context, kernel.codegen()).build()[name]
-        kernel.argtypes = param_types[2:]
+        kernel.argtypes = param_types
         kernel = KernelRunManager(kernel, local_size, local_size)
         # kernels[0].argtypes = tuple(param_types[len(kernels)+1:-1])
         # kernels[1].argtypes = tuple(param_types[-2:])
@@ -566,7 +572,7 @@ class OclMeshReduceOpSpecializer(OclGeneralizedSimpleMeshOpSpecializer):
         # kernels[1] = KernelRunManager(kernels[1], local_size, 1)
         extra_args = (temp_mesh, final_mesh)
         fn = MeshReduceOpOclFunction()
-        fn = fn.finalize(entry_point, project, ctypes.CFUNCTYPE(retval, *param_types),
+        fn = fn.finalize(entry_point, project, ctypes.CFUNCTYPE(retval, *entry_type),
                          level, [kernel], extra_args)
         # fn = fn.finalize(project, level, [kernel], extra_args)
         return fn
@@ -608,6 +614,7 @@ def generate_final_reduction(func_name, interior_size, local_size):
 
 def generate_reducer_control(name, global_size, local_size, kernel_params, kernels):
     defn = []
+    defn.append(StringTemplate("""clock_t start, diff;"""))
     defn.append(ArrayDef(SymbolRef("global", ctypes.c_ulong()), 1, Array(body=[Constant(global_size)])))
     defn.append(ArrayDef(SymbolRef("local", ctypes.c_ulong()), 1, Array(body=[Constant(local_size)])))
     for kernel in kernels:
@@ -626,6 +633,9 @@ def generate_reducer_control(name, global_size, local_size, kernel_params, kerne
                                       Constant(ctypes.sizeof(param.type)),
                                       Ref(SymbolRef(param.name))])
             defn.append(set_arg)
+    defn.append(StringTemplate("""start = clock();"""))
+    for kernel in kernels:
+        kernel_name = kernel.find(FunctionDecl, kernel=True).name
         enqueue_call = FunctionCall(SymbolRef("clEnqueueNDRangeKernel"), [
             SymbolRef("queue"),
             SymbolRef(kernel_name),
@@ -638,8 +648,11 @@ def generate_reducer_control(name, global_size, local_size, kernel_params, kerne
             NULL()
         ])
         defn.append(enqueue_call)
-    defn.append(ArrayRef(SymbolRef("return_value", ctypes.c_double()), Constant(1)))
     defn.append(StringTemplate("""clFinish(queue);"""))
+    defn.append(StringTemplate("""diff = clock() - start;"""))
+    defn.append(StringTemplate("""total_time[0] = total_time[0] + (diff / CLOCKS_PER_SEC);"""))
+    defn.append(ArrayRef(SymbolRef("return_value", ctypes.c_double()), Constant(1)))
+    # defn.append(StringTemplate("""clFinish(queue);"""))
     defn.append(FunctionCall(SymbolRef("clEnqueueReadBuffer"),
                              [
                                  SymbolRef("queue"),
@@ -662,9 +675,11 @@ def generate_reducer_control(name, global_size, local_size, kernel_params, kerne
             params.append(SymbolRef(param.name, cl.cl_mem()))
         else:
             params.append(param)
+    params.append(SymbolRef("total_time", ctypes.POINTER(ctypes.c_float)()))
     func = FunctionDecl(ctypes.c_int(), name, params, defn)
     ocl_include = StringTemplate("""
             #include <stdio.h>
+            #include <time.h>
             #ifdef __APPLE__
             #include <OpenCL/opencl.h>
             #else

@@ -286,6 +286,7 @@ class OclBoundarySpecializer(LazySpecializedFunction):
 
         ocl_include = StringTemplate("""
             #include <stdio.h>
+            #include <time.h>
             #ifdef __APPLE__
             #include <OpenCL/opencl.h>
             #else
@@ -308,7 +309,7 @@ class OclBoundarySpecializer(LazySpecializedFunction):
         interior_space = level.interior_space
         ndim = len(interior_space)
         project = Project(transform_result)
-        control = project.files[0]
+        control = project.find(CFile)
         kernels = project.files[1:]
 
         global_sizes = [reduce(operator.mul, interior_space[dim+1:], 1) for dim in range(ndim)]
@@ -317,6 +318,7 @@ class OclBoundarySpecializer(LazySpecializedFunction):
         entry_type = [ctypes.c_int32, cl.cl_command_queue]
         entry_type.extend(cl.cl_kernel for _ in range(ndim))
         entry_type.append(cl.cl_mem)
+        entry_type.append(np.ctypeslib.ndpointer(np.float32, 1, (1,)))
         entry_type = ctypes.CFUNCTYPE(*entry_type)
 
         kernels = [cl.clCreateProgramWithSource(level.context, kernel.codegen()).build() for kernel in kernels]
@@ -350,12 +352,15 @@ def generate_control(interior_space, params=None):
     control_params.append(SymbolRef("queue", cl.cl_command_queue()))
     control_params.extend(SymbolRef("kernel_%d"%k_idx, cl.cl_kernel()) for k_idx in range(ndim))
     control_params.append(SymbolRef("working_source", cl.cl_mem()))
+    control_params.append(SymbolRef("total_time", ctypes.POINTER(ctypes.c_float)()))
 
     #definition
     defn = [
         ArrayRef(SymbolRef("global", ctypes.c_ulong()), Constant(1)),
         ArrayRef(SymbolRef("local", ctypes.c_ulong()), Constant(1))
     ]
+
+    defn.append(StringTemplate("""clock_t start, diff;"""))
 
     for k_idx in range(ndim):
         set_arg = FunctionCall(SymbolRef("clSetKernelArg"),
@@ -366,7 +371,8 @@ def generate_control(interior_space, params=None):
                                    Ref(SymbolRef("working_source"))
                                ])
         defn.append(set_arg)
-
+    defn.append(StringTemplate("""start = clock();"""))
+    for k_idx in range(ndim):
         global_size = reduce(operator.mul, interior_space[k_idx + 1:], 1)
         local_size = compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], global_size)
         defn.append(Assign((ArrayRef(SymbolRef("global"), Constant(0))), Constant(global_size)))
@@ -383,6 +389,8 @@ def generate_control(interior_space, params=None):
             NULL()
         ])
         defn.append(enqueue_call)
+    defn.append(StringTemplate("""clFinish(queue);"""))
+    defn.append(StringTemplate("""total_time[0] = total_time[0] + (diff / CLOCKS_PER_SEC);"""))
 
     defn.append(Return(Constant(0)))
     func = FunctionDecl(return_type=ctypes.c_int(), name="boundary_control", params=control_params, defn=defn)
