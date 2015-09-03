@@ -91,7 +91,6 @@ class VariableBeta(object):
 
         return expression_nd
 
-
     def evaluate_beta_vector(self, vector):
         b_min = 1.0
         b_max = 10.0

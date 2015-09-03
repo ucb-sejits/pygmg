@@ -122,3 +122,12 @@ class TestProblemFV(unittest.TestCase):
         print("williams_value {}".format(williams_value))
 
         self.assertAlmostEqual(pygmg_value, williams_value)
+
+    def test_initialize_level(self):
+        solver = SimpleMultigridSolver.get_solver(
+            ["2", "--problem", "fv", "--dimensions", "2", "-vc", "--backend", "python"])
+
+        solver.problem.initialize_problem(solver, solver.fine_level)
+        solver.fine_level.right_hand_side.print("right_hand_side")
+        solver.fine_level.beta_face_values[0].print("beta_face_values[0]")
+

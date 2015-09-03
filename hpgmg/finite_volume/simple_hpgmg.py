@@ -288,7 +288,7 @@ class SimpleMultigridSolver(object):
         level.alpha.fill(alpha)
 
         #fill U
-        self.initialize_mesh(level, level.right_hand_side, problem.expression, level.coord_to_cell_center_point, dump=False)
+        self.initialize_mesh(level, level.exact_solution, problem.expression, level.coord_to_cell_center_point)
         # beta stuff
         if level.is_variable_coefficient:
             # beta_values = np.fromfunction(

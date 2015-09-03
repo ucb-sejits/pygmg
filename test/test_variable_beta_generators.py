@@ -55,8 +55,6 @@ class TestVariableBetaGenerators(unittest.TestCase):
             level.beta_face_values[dim].print("beta_face_values[{}]".format(dim))
 
         for coord in level.indices():
-            point = level.coord_to_cell_center_point(coord)
-
             for dim in range(solver.dimensions):
                 face_point = level.coord_to_face_center_point(coord, dim)
                 beta_face = variable_beta.evaluate_beta(face_point)
@@ -101,5 +99,3 @@ class TestVariableBetaGenerators(unittest.TestCase):
                     pygmg_value = func(x, y, z)
 
                     self.assertAlmostEqual(williams_beta_value, pygmg_value)
-
-        print("williams {} pygmg {}".format(williams_beta_value, pygmg_value))
