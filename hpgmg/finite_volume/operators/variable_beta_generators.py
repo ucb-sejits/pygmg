@@ -61,10 +61,9 @@ class VariableBeta(object):
         b = 0.25
         a = 2.0 * np.pi
 
-        symbols = [sympy.Symbol("x{}".format(i)) for i in range(self.dimensions)]
         expression_1d = sympy.sympify("sin({period}*x)".format(period=a))
-        symbols = expression_1d.free_symbols
-        symbol = symbols.pop()
+        free_symbols = expression_1d.free_symbols
+        symbol = free_symbols.pop()
 
         expression_nd = functools.reduce(
             operator.mul,
