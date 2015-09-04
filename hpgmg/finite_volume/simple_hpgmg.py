@@ -147,7 +147,10 @@ class SimpleMultigridSolver(object):
 
         self.do_f_cycle = configuration.do_f_cycles
         self.unlimited_fmg_cycles = configuration.unlimited_fmg_cycles
-
+        if self.do_f_cycle:
+            print("Running using f-cycles")
+        else:
+            print("Running without f-cycles")
         self.problem_operator = StencilVonNeumannR1(solver=self)
         self.ghost_zone = self.problem_operator.ghost_zone
 
@@ -255,7 +258,11 @@ class SimpleMultigridSolver(object):
         'c': CInitializeMesh,
         'omp': CInitializeMesh
     })
-    def initialize_mesh(self, level, mesh, exp, coord_transform, dump=False):  # TODO: Handle variable coefficient shifts
+    def initialize_mesh(self, level, mesh, exp, coord_transform, dump=False):
+        """
+        DEPRECATED: TODO REMOVE THIS FUNCTION ASAP, replaced in AlgebraicProblem
+        WARNING: This function does not handle variable coefficient shifts
+        """
         func = self.problem.get_func(exp, self.problem.symbols)
         # print("expression {}".format(exp))
         for coord in level.interior_points():
@@ -269,6 +276,7 @@ class SimpleMultigridSolver(object):
     @profile
     def initialize(self, level):
         """
+        DEPRECATED: TODO REMOVE THIS FUNCTION ASAP, replaced in problem definitions
         Initialize the right_hand_side(VECTOR_F), exact_solution(VECTOR_UTRUE)
         alpha, and possibly the beta_faces
         :param level:

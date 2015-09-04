@@ -2,8 +2,8 @@ import sympy
 import operator
 import functools
 import numpy as np
-from hpgmg.finite_volume.operators.specializers.initialize_mesh_specializer import CInitializeMesh
 
+from hpgmg.finite_volume.operators.specializers.initialize_mesh_specializer import CInitializeMesh
 from hpgmg.finite_volume.operators.specializers.util import time_this, profile, specialized_func_dispatcher
 from hpgmg.finite_volume.problems.problem import Problem
 
@@ -60,7 +60,8 @@ class SymmetricAlgebraicProblem(AlgebraicProblem):
     def initialize_mesh(self, level, mesh, exp, dump=False):
         func = self.get_func(exp, self.symbols)
         # print("expression {}".format(exp))
-        for coord in level.interior_points():
+        # for coord in level.interior_points():
+        for coord in level.indices():
             if dump:
                 x, y, z = level.coord_to_cell_center_point(coord)
                 f = func(*level.coord_to_cell_center_point(coord))
@@ -101,10 +102,3 @@ class SymmetricAlgebraicProblem(AlgebraicProblem):
                 self.initialize_face_mesh(level, level.beta_face_values[dim], beta_expression, dim)
             else:
                 level.beta_face_values[dim].fill(1.0)
-
-    def initialize_problem_one_pass(self, solver, level):
-        alpha = 1.0
-        beta = 1.0
-        return len(self.dimensions) * alpha * beta
-
-
