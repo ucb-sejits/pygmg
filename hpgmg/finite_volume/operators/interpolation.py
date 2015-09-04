@@ -1,6 +1,10 @@
 from __future__ import print_function
 from abc import ABCMeta, abstractmethod
+from hpgmg.finite_volume.operators.specializers.interpolate_specializer import CInterpolateSpecializer
+from hpgmg.finite_volume.operators.specializers.util import time_this, specialized_func_dispatcher
+
 from hpgmg.finite_volume.space import Space, Coord
+
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
@@ -22,9 +26,14 @@ class InterpolatorPC(Interpolator):
         self.dimensions = solver.dimensions
         self.pre_scale = pre_scale
 
-    def interpolate(self, finer_level, target_mesh, source_mesh):
-        for target_index in finer_level.interior_points():
-            source_index = ((target_index - finer_level.ghost_zone) // 2) + finer_level.ghost_zone
+    @time_this
+    @specialized_func_dispatcher({
+        'c': CInterpolateSpecializer,
+        'omp': CInterpolateSpecializer
+    })
+    def interpolate(self, target_level, target_mesh, source_mesh):
+        for target_index in target_level.interior_points():
+            source_index = ((target_index - target_level.ghost_zone) // 2) + target_level.ghost_zone
             target_mesh[target_index] *= self.pre_scale
             target_mesh[target_index] += source_mesh[source_index]
 
@@ -87,6 +96,7 @@ class InterpolatorPQ(Interpolator):
     def compute_neighbor_index(vector):
             return (vector.i % 2) * 4 + (vector.j % 2) * 2 + (vector.k % 2)
 
+    @time_this
     def interpolate(self, target_level, target_mesh, source_level, source_mesh, ):
         for target_index in target_mesh.space.points:
             source_index = target_index // 2
