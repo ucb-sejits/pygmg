@@ -4,6 +4,11 @@ from hpgmg.finite_volume.operators.specializers.interpolate_specializer import C
 from hpgmg.finite_volume.operators.specializers.util import time_this, specialized_func_dispatcher
 
 from hpgmg.finite_volume.space import Space, Coord
+import sympy
+import numpy as np
+from sympy import *
+from sympy.abc import x
+import itertools
 
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
@@ -37,8 +42,16 @@ class InterpolatorPC(Interpolator):
             target_mesh[target_index] *= self.pre_scale
             target_mesh[target_index] += source_mesh[source_index]
 
+def to_coeff_array(expressions):
+    symbols = list(sorted(set(itertools.chain(*[i.free_symbols for i in expressions])), key=str))
+    coeff_array = np.zeros((len(expressions), len(symbols)))
+    for index, expression in enumerate(expressions):
+        coeff_dict = expression.as_coefficients_dict()
+        coeff_array[index] = [coeff_dict[sym] for sym in symbols]
+    return coeff_array
 
 class InterpolatorPQ(Interpolator):
+
     def __init__(self, solver, prescale=1.0):
         self.solver = solver
         self.pre_scale = prescale
@@ -47,35 +60,40 @@ class InterpolatorPQ(Interpolator):
         #
         # the interpolation is based on by associating a coefficient with a neighbor of
         # a position in the grid being interpolated
-        self.convolution = [
-            [-27.0, Coord(-1, -1, -1)],
-            [270.0, Coord(0, -1, -1)],
-            [45.0, Coord(+1, -1, -1)],
-            [270.0, Coord(-1, 0, -1)],
-            [-2700.0, Coord(0, 0, -1)],
-            [-450.0, Coord(+1, 0, -1)],
-            [45.0, Coord(-1, +1, -1)],
-            [-450.0, Coord(0, +1, -1)],
-            [-75.0, Coord(+1, +1, -1)],
-            [270.0, Coord(-1, -1, 0)],
-            [-2700.0, Coord(0, -1, 0)],
-            [-450.0, Coord(+1, -1, 0)],
-            [-2700.0, Coord(-1, 0, 0)],
-            [27000.0, Coord(0, 0, 0)],
-            [4500.0, Coord(+1, 0, 0)],
-            [-450.0, Coord(-1, +1, 0)],
-            [4500.0, Coord(0, +1, 0)],
-            [750.0, Coord(+1, +1, 0)],
-            [45.0, Coord(-1, -1, +1)],
-            [-450.0, Coord(0, -1, +1)],
-            [-75.0, Coord(+1, -1, +1)],
-            [-450.0, Coord(-1, 0, +1)],
-            [4500.0, Coord(0, 0, +1)],
-            [750.0, Coord(+1, 0, +1)],
-            [-75.0, Coord(-1, +1, +1)],
-            [750.0, Coord(0, +1, +1)],
-            [125.0, Coord(+1, +1, +1)],
-        ]
+
+        #evaluate 2d polynomial u(x)=ax^2+bx+c algebraically at u(-1),u(0),u(1)
+        #and store results in l
+        # creating a system of equations where u(-1),u(0),u(1) are in terms of a,b, and c
+        a, b, c= symbols("a, b, c")
+        u = Poly(a*x**2 + b*x + c, x)
+        l = [u(i) for i in range(-1,2)]
+
+        #convert system of equations to matrix and "solve" by inverting matrix
+        #to express a,b,c in terms of  u(-1), u(0) and u(1)
+        B = np.linalg.inv(to_coeff_array(l))
+
+        #express u(1/4) in terms of a, b and c
+        uonefourth = to_coeff_array([f(.25)])[0]
+
+        #express u(1/4) in terms of (-1), u(0) and u(1) via substitution
+        #coeffs represent the coefficients in corresponding linear combination
+        #and define the interpolating stencil
+        coeffs=np.zeros(3)
+        for i in range(3):
+            coeffs += B[i]*uonefourth[i]
+            #print(B[i], uonefourth[i])
+        coeffs = [coeff*32 for coeff in coeffs]
+
+        #compose coeffs to generate coefficients for higher order 3d interpolating stencil
+        tup = [-1,0,1]
+        self.convolution = []
+        for i in itertools.product(tup, tup, tup):
+            coord = Coord(i)
+            shifted = [cc+1 for cc in coord] #convert from -1 indexed to zero indexed coordinate
+            entry =  coeffs[shifted[0]]*coeffs[shifted[1]]*coeffs[shifted[2]], coord
+            #print (entry)
+            self.convolution.append(entry)
+
         # but we want the given neighbor coord to be either backward or forward looking depending on whether
         # the grid index for that dimension is odd or even respectively
         # to do this we we convert each coord above into an array of 8 coords where each index is flipped
