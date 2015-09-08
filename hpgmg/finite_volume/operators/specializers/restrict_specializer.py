@@ -147,20 +147,6 @@ class CRestrictSpecializer(LazySpecializedFunction):
 
 class OclRestrictSpecializer(LazySpecializedFunction):
 
-    class RangeTransformer(ast.NodeTransformer):
-        def visit_RangeNode(self, node):
-            body=[
-                Assign(SymbolRef("global_id", ctypes.c_ulong()), FunctionCall(SymbolRef("get_global_id"), [Constant(0)]))
-            ]
-            ranges = node.iterator.ranges
-            offsets = tuple(r[0] for r in ranges)
-            shape = tuple(r[1] - r[0] for r in ranges)
-            indices = flattened_to_multi_index(SymbolRef("global_id"), shape, offsets=offsets)
-            for d in range(len(shape)):
-                body.append(Assign(SymbolRef("target_point_%d"%d, ctypes.c_ulong()), indices[d]))
-            body.extend(node.body)
-            return MultiNode(body=body)
-
     def args_to_subconfig(self, args):
         return CRestrictSpecializer.RestrictSubconfig({
             'self': args[0],
@@ -190,7 +176,6 @@ class OclRestrictSpecializer(LazySpecializedFunction):
             IndexOpTransformer(ndim=ndim, encode_func_names={'target_point': 'target_encode', 'source_point': 'source_encode'}),
             IndexDirectTransformer(ndim=ndim, encode_func_names={'source_point': 'source_encode', 'target_point': 'target_encode'}),
             IndexOpTransformBugfixer(func_names=('target_encode', 'source_encode')),
-            # self.RangeTransformer(),
             OclRangeTransformer(),
             PyBasicConversions(),
         ]

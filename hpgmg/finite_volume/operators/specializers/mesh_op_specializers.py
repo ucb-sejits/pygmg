@@ -109,20 +109,6 @@ class MeshOpSpecializer(LazySpecializedFunction):
 
 class MeshOpOclSpecializer(LazySpecializedFunction):
 
-    # class RangeTransformer(ast.NodeTransformer):
-    #     def visit_RangeNode(self, node):
-    #         body=[
-    #             Assign(SymbolRef("global_id", ctypes.c_int()), FunctionCall(SymbolRef("get_global_id"), [Constant(0)]))
-    #         ]
-    #         ranges = node.iterator.ranges
-    #         offsets = tuple(r[0] for r in ranges)
-    #         shape = tuple(r[1] - r[0] for r in ranges)
-    #         indices = flattened_to_multi_index(SymbolRef("global_id"), shape, offsets=offsets)
-    #         for d in range(len(shape)):
-    #             body.append(Assign(SymbolRef("index_%d"%d, ctypes.c_int()), indices[d]))
-    #         body.extend(node.body)
-    #         return MultiNode(body=body)
-    #
     RangeTransformer = OclRangeTransformer
 
     def transform(self, tree, program_config):

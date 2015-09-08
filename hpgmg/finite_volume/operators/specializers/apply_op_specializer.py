@@ -68,15 +68,6 @@ class CApplyOpSpecializer(LazySpecializedFunction):
         func = tree.body[0]
         subconfig, tuner = program_config
         ndim = subconfig['level'].solver.problem_operator.dimensions
-        # shape = subconfig['level'].interior_space
-        # global_size = reduce(operator.mul, shape, 1)
-        # ghost_zone = subconfig['level'].solver.problem_operator.ghost_zone
-        #
-        # device = cl.clGetDeviceIDs()[-1]
-        # local_size = compute_local_work_size(device, shape)
-        # single_work_dim = int(round(local_size ** (1/float(ndim))))
-        # local_work_shape = tuple(single_work_dim for _ in range(ndim))
-        #
         layers = [
             ParamStripper(('level')),
             AttributeRenamer({'level.solver.problem_operator.apply_op': Name('apply_op', ast.Load())}),
@@ -161,33 +152,6 @@ class CApplyOpSpecializer(LazySpecializedFunction):
 
 class OclApplyOpSpecializer(LazySpecializedFunction):
 
-    class RangeTransformer(ast.NodeTransformer):
-
-        def __init__(self, shape, ghost_zone, local_work_shape):
-            self.shape = shape
-            self.ghost_zone = ghost_zone
-            self.local_work_shape = local_work_shape
-
-        def visit_RangeNode(self, node):
-            ndim = len(self.shape)
-            global_work_dims = tuple(global_dim // work_dim for
-                                     global_dim, work_dim in zip(self.shape, self.local_work_shape))
-
-            body = []
-            body.append(Assign(SymbolRef("group_id", ctypes.c_int()),
-                               FunctionCall(SymbolRef("get_group_id"), [Constant(0)])))
-            body.append(Assign(SymbolRef("local_id", ctypes.c_int()),
-                               FunctionCall(SymbolRef("get_local_id"), [Constant(0)])))
-
-            global_indices = flattened_to_multi_index(SymbolRef("group_id"), global_work_dims,
-                                                      self.local_work_shape, self.ghost_zone)
-            local_indices = flattened_to_multi_index(SymbolRef("local_id"), self.local_work_shape)
-            for d in range(ndim):
-                body.append(Assign(SymbolRef("index_%d"%d, ctypes.c_int()), Add(global_indices[d], local_indices[d])))
-
-            body.extend(node.body)
-            return MultiNode(body=body)
-
     class ApplyOpSubconfig(dict):
         def __hash__(self):
             operator = self['level'].solver.problem_operator
@@ -212,18 +176,14 @@ class OclApplyOpSpecializer(LazySpecializedFunction):
         ndim = subconfig['level'].solver.problem_operator.dimensions
         shape = subconfig['level'].interior_space
         global_size = reduce(operator.mul, shape, 1)
-        ghost_zone = subconfig['level'].solver.problem_operator.ghost_zone
 
         device = cl.clGetDeviceIDs()[-1]
         local_size = compute_local_work_size(device, shape)
-        single_work_dim = int(round(local_size ** (1/float(ndim))))
-        local_work_shape = tuple(single_work_dim for _ in range(ndim))
 
         layers = [
             ParamStripper(('level')),
             AttributeRenamer({'level.solver.problem_operator.apply_op': Name('apply_op', ast.Load())}),
             SemanticFinder(subconfig),
-            # self.RangeTransformer(shape, ghost_zone, local_work_shape),
             OclRangeTransformer(),
             AttributeGetter({'level': subconfig['level']}),
             ArrayRefIndexTransformer(
@@ -294,8 +254,6 @@ class OclApplyOpSpecializer(LazySpecializedFunction):
         ocl_file = DeclarationFiller().visit(ocl_file)
 
         control = new_generate_control("apply_op_control", global_size, local_size, params, [kernel])
-        # print(kernel)
-        # raise TypeError()
         return [control, ocl_file]
         # return [ocl_file]
 

@@ -13,7 +13,7 @@ class OclRangeTransformer(ast.NodeTransformer):
         ndim = len(node.iterator.ranges)
         ranges = node.iterator.ranges
         shape = tuple(r[1] - r[0] for r in ranges)
-        offsets = tuple(r[0] for r in ranges)  # corresponds to ghost zone if there is one
+        offsets = tuple(r[0] for r in ranges)
 
 
         body = []
@@ -33,15 +33,15 @@ class OclTilingRangeTransformer(ast.NodeTransformer):
         # note: tried to set global size = local size and have one thread do as much work as possible, was slower
         ndim = len(node.iterator.ranges)
         ranges = node.iterator.ranges
-        interior_space = tuple(r[1] - r[0] for r in ranges)
-        ghost_zone = tuple(r[0] for r in ranges)
+        shape = tuple(r[1] - r[0] for r in ranges)
+        offsets = tuple(r[0] for r in ranges)
 
         device = cl.clGetDeviceIDs()[-1]
-        local_size = compute_local_work_size(device, interior_space)
+        local_size = compute_local_work_size(device, shape)
         single_work_dim = int(round(local_size ** (1/float(ndim))))  # maximize V to SA ratio of block
         local_work_shape = tuple(single_work_dim for _ in range(ndim))  # something like (8, 8, 8) if lws = 512
-        global_work_dims = [interior_space[d] / local_work_shape[d] for d in range(ndim)]
-        local_indices = flattened_to_multi_index(SymbolRef("local_id"), local_work_shape, None, ghost_zone)
+        global_work_dims = [shape[d] / local_work_shape[d] for d in range(ndim)]
+        local_indices = flattened_to_multi_index(SymbolRef("local_id"), local_work_shape, None, offsets)
         global_indices = flattened_to_multi_index(SymbolRef("group_id"), global_work_dims, local_work_shape, None)
 
         body = [

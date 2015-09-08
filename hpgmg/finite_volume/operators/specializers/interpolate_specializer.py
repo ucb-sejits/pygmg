@@ -138,20 +138,6 @@ class CInterpolateSpecializer(LazySpecializedFunction):
 
 class OclInterpolateSpecializer(LazySpecializedFunction):
 
-    class RangeTransformer(ast.NodeTransformer):
-        def visit_RangeNode(self, node):
-            body=[
-                Assign(SymbolRef("global_id", ctypes.c_ulong()), FunctionCall(SymbolRef("get_global_id"), [Constant(0)]))
-            ]
-            ranges = node.iterator.ranges
-            offsets = tuple(r[0] for r in ranges)
-            shape = tuple(r[1] - r[0] for r in ranges)
-            indices = flattened_to_multi_index(SymbolRef("global_id"), shape, offsets=offsets)
-            for d in range(len(shape)):
-                body.append(Assign(SymbolRef("target_index_%d"%d, ctypes.c_ulong()), indices[d]))
-            body.extend(node.body)
-            return MultiNode(body=body)
-
     def args_to_subconfig(self, args):
         return {
             'self': args[0],
@@ -170,7 +156,6 @@ class OclInterpolateSpecializer(LazySpecializedFunction):
             ParamStripper(('self', 'target_level')),
             SemanticFinder(subconfig),
             AttributeGetter(subconfig),
-            # self.RangeTransformer(),
             OclRangeTransformer(),
             IndexTransformer(('target_index', 'source_index')),
             IndexOpTransformer(ndim, {'target_index': 'target_encode', 'source_index': 'source_encode'}),

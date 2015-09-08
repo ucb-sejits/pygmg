@@ -145,19 +145,6 @@ class CInitializeMesh(LazySpecializedFunction):
 
 class OclInitializeMesh(LazySpecializedFunction):
 
-    class RangeTransformer(ast.NodeTransformer):
-        def visit_RangeNode(self, node):
-            body=[
-                Assign(SymbolRef("global_id", ctypes.c_ulong()), FunctionCall(SymbolRef("get_global_id"), [Constant(0)]))
-            ]
-            ranges = node.iterator.ranges
-            shape = tuple(r[1] - r[0] for r in ranges)
-            indices = flattened_to_multi_index(SymbolRef("global_id"), shape)
-            for d in range(len(shape)):
-                body.append(Assign(SymbolRef("coord_%d"%d), indices[d]))
-            body.extend(node.body)
-            return MultiNode(body=body)
-
     class InitializeMeshSubconfig(dict):
         def __hash__(self):
             to_hash = (
@@ -217,7 +204,6 @@ class OclInitializeMesh(LazySpecializedFunction):
             CallReplacer({
                 'func': expr
             }),
-            # self.RangeTransformer(),
             OclRangeTransformer(),
             IndexTransformer(('coord',)),
             IndexDirectTransformer(ndim=ndim, encode_func_names={'coord': 'encode'}),
@@ -254,9 +240,6 @@ class OclInitializeMesh(LazySpecializedFunction):
             param.set_global()
         control = new_generate_control("%s_control" % kernel.name, global_size, local_size, kernel.params, [ocl_file])
         kernel.name = "%s_kernel" % kernel.name
-        # print(control)
-        # print(ocl_file)
-        # raise TypeError
         return [control, ocl_file]
         # return [ocl_file]
 
