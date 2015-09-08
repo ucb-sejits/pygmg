@@ -15,6 +15,7 @@ from hpgmg.finite_volume.operators.specializers.util import apply_all_layers, in
     compute_largest_local_work_size, flattened_to_multi_index
 from hpgmg.finite_volume.operators.transformers.semantic_transformer import SemanticFinder
 from hpgmg.finite_volume.operators.transformers.semantic_transformers.csemantics import CRangeTransformer
+from hpgmg.finite_volume.operators.transformers.semantic_transformers.oclsemantics import OclRangeTransformer
 from hpgmg.finite_volume.operators.transformers.transformer_util import nest_loops
 from hpgmg.finite_volume.operators.transformers.utility_transformers import AttributeRenamer, AttributeGetter, \
     ParamStripper, ArrayRefIndexTransformer, IndexOpTransformer, IndexTransformer, IndexDirectTransformer, \
@@ -169,7 +170,8 @@ class OclInterpolateSpecializer(LazySpecializedFunction):
             ParamStripper(('self', 'target_level')),
             SemanticFinder(subconfig),
             AttributeGetter(subconfig),
-            self.RangeTransformer(),
+            # self.RangeTransformer(),
+            OclRangeTransformer(),
             IndexTransformer(('target_index', 'source_index')),
             IndexOpTransformer(ndim, {'target_index': 'target_encode', 'source_index': 'source_encode'}),
             ArrayRefIndexTransformer(

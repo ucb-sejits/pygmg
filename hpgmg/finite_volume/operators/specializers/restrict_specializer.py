@@ -17,6 +17,7 @@ from hpgmg.finite_volume.operators.specializers.util import apply_all_layers, in
     flattened_to_multi_index, new_generate_control, compute_largest_local_work_size
 from hpgmg.finite_volume.operators.transformers.semantic_transformer import SemanticFinder
 from hpgmg.finite_volume.operators.transformers.semantic_transformers.csemantics import CRangeTransformer
+from hpgmg.finite_volume.operators.transformers.semantic_transformers.oclsemantics import OclRangeTransformer
 from hpgmg.finite_volume.operators.transformers.transformer_util import nest_loops
 from hpgmg.finite_volume.operators.transformers.utility_transformers import ParamStripper, AttributeGetter, \
     LookupSimplificationTransformer, AttributeRenamer, FunctionCallSimplifier, IndexTransformer, LoopUnroller, \
@@ -189,7 +190,8 @@ class OclRestrictSpecializer(LazySpecializedFunction):
             IndexOpTransformer(ndim=ndim, encode_func_names={'target_point': 'target_encode', 'source_point': 'source_encode'}),
             IndexDirectTransformer(ndim=ndim, encode_func_names={'source_point': 'source_encode', 'target_point': 'target_encode'}),
             IndexOpTransformBugfixer(func_names=('target_encode', 'source_encode')),
-            self.RangeTransformer(),
+            # self.RangeTransformer(),
+            OclRangeTransformer(),
             PyBasicConversions(),
         ]
         tree = apply_all_layers(layers, tree)
@@ -223,7 +225,7 @@ class OclRestrictSpecializer(LazySpecializedFunction):
         local_size = compute_largest_local_work_size(cl.clGetDeviceIDs()[-1], global_size)
         control = new_generate_control("%s_control" % kernel.name, global_size, local_size, kernel.params, [kernel])
         kernel.name = "%s_kernel" % kernel.name
-        # print(control)
+        # print(ocl_file)
         # raise TypeError
         return [control, ocl_file]
         # return [ocl_file]

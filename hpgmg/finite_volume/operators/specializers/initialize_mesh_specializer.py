@@ -17,6 +17,7 @@ from hpgmg.finite_volume.operators.transformers.semantic_transformer import Sema
 
 from ctree.frontend import dump, get_ast
 from hpgmg.finite_volume.operators.transformers.semantic_transformers.csemantics import CRangeTransformer
+from hpgmg.finite_volume.operators.transformers.semantic_transformers.oclsemantics import OclRangeTransformer
 from hpgmg.finite_volume.operators.transformers.transformer_util import nest_loops
 from hpgmg.finite_volume.operators.transformers.utility_transformers import ParamStripper, AttributeGetter, \
     IndexOpTransformer, AttributeRenamer, CallReplacer, IndexDirectTransformer, IndexTransformer, OclFileWrapper
@@ -216,7 +217,8 @@ class OclInitializeMesh(LazySpecializedFunction):
             CallReplacer({
                 'func': expr
             }),
-            self.RangeTransformer(),
+            # self.RangeTransformer(),
+            OclRangeTransformer(),
             IndexTransformer(('coord',)),
             IndexDirectTransformer(ndim=ndim, encode_func_names={'coord': 'encode'}),
             PyBasicConversions(),

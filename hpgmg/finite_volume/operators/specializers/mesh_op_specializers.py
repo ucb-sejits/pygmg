@@ -22,6 +22,7 @@ from hpgmg.finite_volume.operators.specializers.util import include_mover, flatt
     new_generate_control, compute_largest_local_work_size
 from hpgmg.finite_volume.operators.transformers.semantic_transformer import SemanticFinder
 from hpgmg.finite_volume.operators.transformers.semantic_transformers.csemantics import CRangeTransformer
+from hpgmg.finite_volume.operators.transformers.semantic_transformers.oclsemantics import OclRangeTransformer
 from hpgmg.finite_volume.operators.transformers.transformer_util import nest_loops
 
 from ctree.frontend import dump
@@ -108,19 +109,21 @@ class MeshOpSpecializer(LazySpecializedFunction):
 
 class MeshOpOclSpecializer(LazySpecializedFunction):
 
-    class RangeTransformer(ast.NodeTransformer):
-        def visit_RangeNode(self, node):
-            body=[
-                Assign(SymbolRef("global_id", ctypes.c_int()), FunctionCall(SymbolRef("get_global_id"), [Constant(0)]))
-            ]
-            ranges = node.iterator.ranges
-            offsets = tuple(r[0] for r in ranges)
-            shape = tuple(r[1] - r[0] for r in ranges)
-            indices = flattened_to_multi_index(SymbolRef("global_id"), shape, offsets=offsets)
-            for d in range(len(shape)):
-                body.append(Assign(SymbolRef("index_%d"%d, ctypes.c_int()), indices[d]))
-            body.extend(node.body)
-            return MultiNode(body=body)
+    # class RangeTransformer(ast.NodeTransformer):
+    #     def visit_RangeNode(self, node):
+    #         body=[
+    #             Assign(SymbolRef("global_id", ctypes.c_int()), FunctionCall(SymbolRef("get_global_id"), [Constant(0)]))
+    #         ]
+    #         ranges = node.iterator.ranges
+    #         offsets = tuple(r[0] for r in ranges)
+    #         shape = tuple(r[1] - r[0] for r in ranges)
+    #         indices = flattened_to_multi_index(SymbolRef("global_id"), shape, offsets=offsets)
+    #         for d in range(len(shape)):
+    #             body.append(Assign(SymbolRef("index_%d"%d, ctypes.c_int()), indices[d]))
+    #         body.extend(node.body)
+    #         return MultiNode(body=body)
+    #
+    RangeTransformer = OclRangeTransformer
 
     def transform(self, tree, program_config):
         subconfig, tuner_config = program_config
@@ -129,6 +132,7 @@ class MeshOpOclSpecializer(LazySpecializedFunction):
             ParamStripper(('self')),
             SemanticFinder(subconfig),
             self.RangeTransformer(),
+            # OclRangeTransformer(),
             IndexTransformer(('index')),
             IndexDirectTransformer(ndim, {'index': 'encode'}),
             PyBasicConversions()

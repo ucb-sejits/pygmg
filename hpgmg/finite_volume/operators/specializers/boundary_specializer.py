@@ -20,6 +20,7 @@ from hpgmg.finite_volume.operators.specializers.util import apply_all_layers, in
     time_this, compute_largest_local_work_size
 from hpgmg.finite_volume.operators.transformers.semantic_transformer import SemanticFinder
 from hpgmg.finite_volume.operators.transformers.semantic_transformers.csemantics import CRangeTransformer
+from hpgmg.finite_volume.operators.transformers.semantic_transformers.oclsemantics import OclRangeTransformer
 from hpgmg.finite_volume.operators.transformers.transformer_util import nest_loops
 from hpgmg.finite_volume.operators.transformers.utility_transformers import AttributeRenamer, AttributeGetter, \
     IndexTransformer, IndexOpTransformer, IndexDirectTransformer, ParamStripper
@@ -227,8 +228,8 @@ class OclBoundarySpecializer(LazySpecializedFunction):
         for dim in range(ndim):
             body = []
             defn = []
-            defn.append(SymbolRef("global_id", ctypes.c_int()))
-            defn.extend(SymbolRef("index_%d"%d, ctypes.c_int()) for d in range(ndim))
+            defn.append(SymbolRef("global_id", ctypes.c_ulong()))
+            defn.extend(SymbolRef("index_%d"%d, ctypes.c_ulong()) for d in range(ndim))
             func = FunctionDecl(name="kernel_%d"%dim, params=[], defn=defn)
             body.append(func)
             ocl_file_bodies.append(body)
@@ -260,6 +261,7 @@ class OclBoundarySpecializer(LazySpecializedFunction):
                 IndexOpTransformer(ndim=ndim, encode_func_names={'index': 'encode'}),
                 IndexDirectTransformer(ndim=ndim),
                 self.RangeTransformer(),
+                # OclRangeTransformer(),
                 ParamStripper(('level',)),
                 PyBasicConversions(),
             ]

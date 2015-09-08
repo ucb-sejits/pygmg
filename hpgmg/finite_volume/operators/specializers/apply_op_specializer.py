@@ -10,6 +10,7 @@ from hpgmg.finite_volume.operators.specializers.util import apply_all_layers, co
     flattened_to_multi_index, to_macro_function, new_generate_control, include_mover
 from hpgmg.finite_volume.operators.transformers.semantic_transformer import SemanticFinder
 from hpgmg.finite_volume.operators.transformers.semantic_transformers.csemantics import CRangeTransformer
+from hpgmg.finite_volume.operators.transformers.semantic_transformers.oclsemantics import OclRangeTransformer
 from hpgmg.finite_volume.operators.transformers.utility_transformers import ParamStripper, AttributeRenamer, \
     AttributeGetter, ArrayRefIndexTransformer, OclFileWrapper
 from rebox.specializers.order import Ordering
@@ -222,7 +223,8 @@ class OclApplyOpSpecializer(LazySpecializedFunction):
             ParamStripper(('level')),
             AttributeRenamer({'level.solver.problem_operator.apply_op': Name('apply_op', ast.Load())}),
             SemanticFinder(subconfig),
-            self.RangeTransformer(shape, ghost_zone, local_work_shape),
+            # self.RangeTransformer(shape, ghost_zone, local_work_shape),
+            OclRangeTransformer(),
             AttributeGetter({'level': subconfig['level']}),
             ArrayRefIndexTransformer(
                 encode_map={'index': 'encode'},
@@ -292,8 +294,8 @@ class OclApplyOpSpecializer(LazySpecializedFunction):
         ocl_file = DeclarationFiller().visit(ocl_file)
 
         control = new_generate_control("apply_op_control", global_size, local_size, params, [kernel])
-        # print(control)
-        # raise TypeError
+        # print(kernel)
+        # raise TypeError()
         return [control, ocl_file]
         # return [ocl_file]
 
