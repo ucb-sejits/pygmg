@@ -350,7 +350,7 @@ def get_arg_spec(f):
     f.argspec = inspect.getargspec(f).args
     return f.argspec[:]
 
-def compute_local_work_size(device, shape):
+def compute_local_work_size(device, shape):  # computes local work size that is multiple of ndim
     ndim = len(shape)
     interior_space = reduce(operator.mul, shape, 1)
     local_cube_dim, local_size = 1, 1
@@ -362,7 +362,7 @@ def compute_local_work_size(device, shape):
             local_size = local_cube_dim ** ndim
     return local_size
 
-def compute_largest_local_work_size(device, global_size):
+def compute_largest_local_work_size(device, global_size):  # computes largest possible work size regardless of dim
     local_size = min(device.max_work_group_size, global_size)
     while global_size % local_size != 0:
         local_size -= 1
@@ -375,16 +375,23 @@ def flattened_to_multi_index(flattened_id_symbol, shape, multipliers=None, offse
 
     body = []
     ndim = len(shape)
+    full_size = reduce(operator.mul, shape, 1)
     for i in range(ndim):
+        stmt = flattened_id_symbol
         mod_size = reduce(operator.mul, shape[i:], 1)
         div_size = reduce(operator.mul, shape[(i + 1):], 1)
-        stmt = Div(Mod(flattened_id_symbol, Constant(mod_size)), Constant(div_size))
-        if multipliers:
+        if mod_size < full_size:
+            stmt = Mod(stmt, Constant(mod_size))
+        if div_size != 1:
+            stmt = Div(stmt, Constant(div_size))
+        if multipliers and multipliers[i] != 1:
             stmt = Mul(stmt, Constant(multipliers[i]))
-        if offsets:
+        if offsets and offsets[i] != 0:
             stmt = Add(stmt, Constant(offsets[i]))
         body.append(stmt)
     return body
+
+
 
 def new_generate_control(name, global_size, local_size, kernel_params, kernels, other=None):
     # assumes that all kernels take the same arguments and that they all use the same global and local size!
