@@ -59,10 +59,10 @@ class SymmetricAlgebraicProblem(AlgebraicProblem):
     })
     def initialize_mesh(self, level, mesh, exp, dump=False):
         func = self.get_func(exp, self.symbols)
-        # print("expression {}".format(exp))
-        # for coord in level.interior_points():
-        for coord in level.indices():
-            if dump:
+        print("expression {}".format(exp))
+        # for coord in level.indices():
+        for coord in level.interior_points():
+            if dump and self.dimensions == 3:
                 x, y, z = level.coord_to_cell_center_point(coord)
                 f = func(*level.coord_to_cell_center_point(coord))
                 print("Coordinate ({:12.10f},{:12.10f},{:12.10f}) -> {:10.6g}".format(x, y, z, f))
@@ -102,3 +102,62 @@ class SymmetricAlgebraicProblem(AlgebraicProblem):
                 self.initialize_face_mesh(level, level.beta_face_values[dim], beta_expression, dim)
             else:
                 level.beta_face_values[dim].fill(1.0)
+
+    def initialize_problem_codegen(self, solver, level):
+        """
+        TODO: This is a work in progress, the goal is to refactor problem initialization in python
+        to look more like Sam's method where a single loop initializes all the meshes.
+
+        :param solver:
+        :param level:
+        :return:
+        """
+        alpha = 1.0
+        beta = 1.0
+
+        loop_vars = ", ".join(["i{}".format(dim) for dim in range(solver.dimensions)])
+        lines = ["for {vars} in level.indices():".format(
+            vars=loop_vars
+        )]
+        lines += [
+            "  {}".format(line)
+            for line in level.coord_to_cell_center_formula("x", "i")
+        ]
+        lines += [
+            "  level.alpha[({})] = 1.0".format(loop_vars)
+        ]
+        lines += [
+            "  level.right_hand_side[({})] = {}".format(loop_vars, self.expression)
+        ]
+
+        beta_expression = solver.beta_generator.get_beta_expression() if solver.is_variable_coefficient else beta
+        beta_first_derivative = [sympy.diff(beta_expression, sym) for sym in self.symbols]
+        u_first_derivative = [sympy.diff(self.expression, sym) for sym in self.symbols]
+        bu_derivative_1 = sum(a * b for a, b in zip(beta_first_derivative, u_first_derivative))
+        u_derivative_2 = [sympy.diff(self.expression, sym, 2) for sym in self.symbols]
+        f_exp = solver.a * alpha * self.expression - solver.b * (
+            bu_derivative_1 + beta_expression * sum(u_derivative_2))
+
+        lines += [
+            "  level.exact_solution[({})] = {}".format(loop_vars, f_exp)
+        ]
+
+        lines += [
+            "  z{dim} = x{dim} - {size}".format(
+                dim=dim, size=level.cell_size/2.0
+            )
+            for dim in range(solver.dimensions)
+        ]
+
+        for dimension in range(solver.dimensions):
+            lines.append(
+                "  level.beta_face_values[{dim}][({loop_vars})] = {beta_expr}".format(
+                    dim=dimension,
+                    loop_vars=loop_vars,
+                    beta_expr=solver.beta_generator.get_beta_expression(face_index=dimension, alternate_var_name="z")
+                )
+            )
+
+        for index, line in enumerate(lines):
+            print("{:>4d}  {}".format(index, line))
+

@@ -76,6 +76,14 @@ class TestVariableBetaGenerators(unittest.TestCase):
         corrections += -a*a*b*sin(a*x)*sin(a*y)*sin(a*z) * (h*h)/24.0
         return first_term + corrections
 
+    def test_default_evaluate_beta(self):
+        beta_generator = VariableBeta(3)
+        print(beta_generator.get_beta_expression())
+        for dim in range(3):
+            print(beta_generator.get_beta_expression(dim, "z"))
+
+
+
     def test_variable_beta_for_fv_problems(self):
         solver = SimpleMultigridSolver.get_solver(["2", "-d", "3", "-vc", "--problem", "fv"])
         level = solver.fine_level

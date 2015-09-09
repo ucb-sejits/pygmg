@@ -496,11 +496,9 @@ class SimpleMultigridSolver(object):
             start_level.multiply_meshes(start_level.temp, 1.0, start_level.right_hand_side, start_level.d_inverse)
             norm_of_d_inv_f = start_level.norm_mesh(start_level.temp)  # ||D^{-1}F||
         if r_tolerance:
-            Mesh.dump_mesh_enabled = True
-            start_level.right_hand_side.dump("F_id:right_hand_side")
-            Mesh.dump_mesh_enabled = False
-            print("XXXXXXXXXXXX norm_of_F {:10.6f}".format(norm_of_f))
             norm_of_f = start_level.norm_mesh(start_level.right_hand_side)  # ||F||
+            start_level.right_hand_side.dump(
+                "F_id:right_hand_side with ||right_hand_side|| == {}".format(norm_of_f), force_dump=True)
 
         # initialize the RHS for the f-cycle to f...
         start_level.scale_mesh(start_level.residual, 1.0, start_level.right_hand_side)

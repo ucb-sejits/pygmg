@@ -7,7 +7,7 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 import unittest
 from hpgmg.finite_volume.operators.interpolation import InterpolatorPQ, InterpolatorPC
-from hpgmg.finite_volume.space import Space, Coord, Vector
+from hpgmg.finite_volume.space import Space, Coord
 
 
 class TestInterpolationPQ(unittest.TestCase):
@@ -163,4 +163,3 @@ class TestInterpolationPQCoefficients(unittest.TestCase):
 
         mesh.print("convolution")
         print(numpy.sum(mesh))
-

@@ -251,6 +251,37 @@ class SimpleLevel(object):
         # return result
         return ((Vector(coord) - self.ghost_zone) + self.half_cell) * self.h
 
+    def coord_to_cell_center_formula(self, target_name, source_name):
+        lines = [
+            "{target}{dim} = (({source}{dim} - {ghost_offset}) + {half_cell}) * {cell_size}".format(
+                target=target_name, source=source_name,
+                dim=dim, ghost_offset=self.ghost_zone[dim],
+                half_cell=self.half_cell[dim], cell_size=self.h
+            )
+            for dim in range(self.solver.dimensions)
+        ]
+        for index, line in enumerate(lines):
+            print("{:02d} {}".format(index, line))
+        return lines
+
+    def cell_center_to_face_center(self, target_name, source_name):
+        ", ".join([
+            "{target}{dim}{adjust}".format(
+                target=target_name,
+            )
+        ])
+        lines = [
+            "{target}{dim} = (({source}{dim} - {ghost_offset}) + {half_cell}) * {cell_size}".format(
+                target=target_name, source=source_name,
+                dim=dim, ghost_offset=self.ghost_zone[dim],
+                half_cell=self.half_cell[dim], cell_size=self.h
+            )
+            for dim in range(self.solver.dimensions)
+        ]
+        for index, line in enumerate(lines):
+            print("{:02d} {}".format(index, line))
+        return lines
+
     def coord_to_face_center_point(self, coord, face_dimension):
         """
         a coordinate in one of the level, shifted to the face center on the specified dimension
