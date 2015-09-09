@@ -253,7 +253,7 @@ class SimpleLevel(object):
 
     def coord_to_cell_center_formula(self, target_name, source_name):
         lines = [
-            "{target}{dim} = (({source}{dim} - {ghost_offset}) + {half_cell}) * {cell_size}".format(
+            "{target}{dim} = (({source}[{dim}] - {ghost_offset}) + {half_cell}) * {cell_size}".format(
                 target=target_name, source=source_name,
                 dim=dim, ghost_offset=self.ghost_zone[dim],
                 half_cell=self.half_cell[dim], cell_size=self.h
@@ -291,6 +291,14 @@ class SimpleLevel(object):
         return self.coord_to_cell_center_point(coord) - (self.half_unit_vectors[face_dimension] * self.h)
 
     def print(self, title=None):
+        """
+        prints the cell values mesh
+        :param title:
+        :return:
+        """
+        self.cell_values.print(message=title)
+
+    def dump(self, title=None):
         """
         prints the cell values mesh
         :param title:

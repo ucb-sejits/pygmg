@@ -6,6 +6,7 @@ import numpy as np
 from hpgmg.finite_volume.operators.specializers.initialize_mesh_specializer import CInitializeMesh
 from hpgmg.finite_volume.operators.specializers.util import time_this, profile, specialized_func_dispatcher
 from hpgmg.finite_volume.problems.problem import Problem
+from hpgmg.finite_volume.python_block_codegen import TextIndenter
 
 __author__ = 'nzhang-dev'
 
@@ -103,7 +104,7 @@ class SymmetricAlgebraicProblem(AlgebraicProblem):
             else:
                 level.beta_face_values[dim].fill(1.0)
 
-    def initialize_problem_codegen(self, solver, level):
+    def orig_initialize_problem_codegen(self, solver, level):
         """
         TODO: This is a work in progress, the goal is to refactor problem initialization in python
         to look more like Sam's method where a single loop initializes all the meshes.
@@ -116,19 +117,13 @@ class SymmetricAlgebraicProblem(AlgebraicProblem):
         beta = 1.0
 
         loop_vars = ", ".join(["i{}".format(dim) for dim in range(solver.dimensions)])
-        lines = ["for {vars} in level.indices():".format(
-            vars=loop_vars
-        )]
+        lines = ["for index in level.indices():"]
         lines += [
-            "  {}".format(line)
-            for line in level.coord_to_cell_center_formula("x", "i")
+            "    {}".format(line)
+            for line in level.coord_to_cell_center_formula("x", "index")
         ]
-        lines += [
-            "  level.alpha[({})] = 1.0".format(loop_vars)
-        ]
-        lines += [
-            "  level.right_hand_side[({})] = {}".format(loop_vars, self.expression)
-        ]
+        lines.append("    level.alpha[index] = 1.0".format())
+        lines.append("    level.right_hand_side[index] = {}".format(loop_vars, self.expression))
 
         beta_expression = solver.beta_generator.get_beta_expression() if solver.is_variable_coefficient else beta
         beta_first_derivative = [sympy.diff(beta_expression, sym) for sym in self.symbols]
@@ -138,12 +133,10 @@ class SymmetricAlgebraicProblem(AlgebraicProblem):
         f_exp = solver.a * alpha * self.expression - solver.b * (
             bu_derivative_1 + beta_expression * sum(u_derivative_2))
 
-        lines += [
-            "  level.exact_solution[({})] = {}".format(loop_vars, f_exp)
-        ]
+        lines.append("    level.exact_solution[index] = {}".format(f_exp))
 
         lines += [
-            "  z{dim} = x{dim} - {size}".format(
+            "    z{dim} = x{dim} - {size}".format(
                 dim=dim, size=level.cell_size/2.0
             )
             for dim in range(solver.dimensions)
@@ -151,7 +144,7 @@ class SymmetricAlgebraicProblem(AlgebraicProblem):
 
         for dimension in range(solver.dimensions):
             lines.append(
-                "  level.beta_face_values[{dim}][({loop_vars})] = {beta_expr}".format(
+                "    level.beta_face_values[{dim}][({loop_vars})] = {beta_expr}".format(
                     dim=dimension,
                     loop_vars=loop_vars,
                     beta_expr=solver.beta_generator.get_beta_expression(face_index=dimension, alternate_var_name="z")
@@ -160,4 +153,70 @@ class SymmetricAlgebraicProblem(AlgebraicProblem):
 
         for index, line in enumerate(lines):
             print("{:>4d}  {}".format(index, line))
+
+    def initialize_problem_codegen(self, solver, level):
+        """
+        TODO: This is a work in progress, the goal is to refactor problem initialization in python
+        to look more like Sam's method where a single loop initializes all the meshes.
+
+        :param solver:
+        :param level:
+        :return:
+        """
+        alpha = 1.0
+        beta = 1.0
+
+        text = TextIndenter()
+        text += "def init_problem(level):"
+        text.indent()
+        text += "from math import sin, cos, tanh"
+        text += "for index in level.indices():"
+        text.indent()
+        text += [
+            "{}".format(line)
+            for line in level.coord_to_cell_center_formula("x", "index")
+        ]
+        text += "level.alpha[index] = 1.0"
+        text += "level.right_hand_side[index] = {}".format(self.expression)
+
+        beta_expression = solver.beta_generator.get_beta_expression() if solver.is_variable_coefficient else beta
+        beta_first_derivative = [sympy.diff(beta_expression, sym) for sym in self.symbols]
+        u_first_derivative = [sympy.diff(self.expression, sym) for sym in self.symbols]
+        bu_derivative_1 = sum(a * b for a, b in zip(beta_first_derivative, u_first_derivative))
+        u_derivative_2 = [sympy.diff(self.expression, sym, 2) for sym in self.symbols]
+        f_exp = solver.a * alpha * self.expression - solver.b * (
+            bu_derivative_1 + beta_expression * sum(u_derivative_2))
+
+        text += "level.exact_solution[index] = {}".format(f_exp)
+
+        text += [
+            "z{dim} = x{dim} - {size}".format(
+                dim=dim, size=level.cell_size/2.0
+            )
+            for dim in range(solver.dimensions)
+        ]
+
+        for dimension in range(solver.dimensions):
+            text += "level.beta_face_values[{dim}][index] = {beta_expr}".format(
+                    dim=dimension,
+                    beta_expr=solver.beta_generator.get_beta_expression(face_index=dimension, alternate_var_name="z")
+                )
+        text.outdent()
+        text += "level.right_hand_side.dump('RHS', force_dump=True)"
+        text += "print('hello world')"
+        for index, line in enumerate(text.lines):
+            print("{:>4d}  {}".format(index, line))
+
+        exec(text.__str__())
+
+        init_problem(level)
+
+        # import ast
+        #
+        # import ctree
+        #
+        # tree = ast.parse(text.__str__())
+        # print("dumping tree")
+        # ast.dump(tree)
+        # ctree.browser_show_ast(tree)
 
