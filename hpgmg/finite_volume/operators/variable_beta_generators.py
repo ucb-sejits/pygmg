@@ -71,11 +71,10 @@ class VariableBeta(object):
         symbols = [
             sympy.Symbol("{var_name}{index}".format(
                 var_name="x" if i != face_index else alternate_var_name, index=i)) for i in range(self.dimensions)]
-        print("symbols {}".format(symbols))
         expression_nd = functools.reduce(
             operator.mul,
-            (expression_1d.xreplace({symbol: symbol}) for symbol in symbols)
-        );
+            (expression_1d.xreplace({symbol: replacement_symbol}) for replacement_symbol in symbols)
+        )
         # expression_nd = functools.reduce(
         #     operator.mul,
         #     (expression_1d.xreplace({symbol: sympy.Symbol("x{}".format(i))}) for i in range(self.dimensions))

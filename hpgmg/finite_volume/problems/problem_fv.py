@@ -6,7 +6,7 @@ import sympy
 from hpgmg.finite_volume.hpgmg_exception import HpgmgException
 from hpgmg.finite_volume.operators.specializers.util import time_this, profile
 from hpgmg.finite_volume.problems.algebraic_problem import SymmetricAlgebraicProblem
-from hpgmg.tools.python_block_codegen import TextIndenter
+from hpgmg.tools.text_indenter import TextIndenter
 
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
@@ -69,7 +69,8 @@ class ProblemFV(SymmetricAlgebraicProblem):
         for dim in range(self.dimensions):
             if solver.is_variable_coefficient:
                 self.initialize_face_mesh(level, level.beta_face_values[dim],
-                                          solver.beta_generator.get_beta_fv_expression(), dim)
+                                          solver.beta_generator.get_beta_fv_expression(add_4th_order_correction=True,
+                                                                                       cell_size=level.cell_size), dim)
             else:
                 level.beta_face_values[dim].fill(1.0)
 
@@ -82,9 +83,6 @@ class ProblemFV(SymmetricAlgebraicProblem):
         :param level:
         :return:
         """
-        alpha = 1.0
-        beta = 1.0
-
         text = TextIndenter()
         text += "def init_problem(level):"
         text.indent()
@@ -113,10 +111,8 @@ class ProblemFV(SymmetricAlgebraicProblem):
                                                                            cell_size=level.cell_size,
                                                                            face_index=dimension,
                                                                            alternate_var_name="z")
-                )
-        text.outdent()
-        text += "level.right_hand_side.dump('RHS', force_dump=True)"
-        text += "print('hello world')"
+            )
+
         for index, line in enumerate(text.lines):
             print("{:>4d}  {}".format(index, line))
 
@@ -133,3 +129,7 @@ class ProblemFV(SymmetricAlgebraicProblem):
         # ast.dump(tree)
         # ctree.browser_show_ast(tree)
 
+
+def deco(f):
+    print("I am in deco")
+    return f

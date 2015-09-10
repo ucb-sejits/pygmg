@@ -25,8 +25,8 @@ class TestInitialization(unittest.TestCase):
         solver.problem.initialize_problem_codegen(solver, solver.fine_level)
 
         for i in range(solver.dimensions):
-            save_beta_face_values[i].print("original beta_faces_values[{}]".format(i))
-            solver.fine_level.beta_face_values[i].print("codegen beta_faces_values[{}]".format(i))
+            # save_beta_face_values[i].print("original beta_faces_values[{}]".format(i))
+            # solver.fine_level.beta_face_values[i].print("codegen beta_faces_values[{}]".format(i))
             for index in solver.fine_level.indices():
                 self.assertAlmostEqual(save_beta_face_values[i][index], solver.fine_level.beta_face_values[i][index],
                                        msg="face {} not same".format(i))
@@ -45,8 +45,8 @@ class TestInitialization(unittest.TestCase):
         solver.problem.initialize_problem_codegen(solver, solver.fine_level)
 
         for i in range(solver.dimensions):
-            save_beta_face_values[i].print("original beta_faces_values[{}]".format(i))
-            solver.fine_level.beta_face_values[i].print("codegen beta_faces_values[{}]".format(i))
+            # save_beta_face_values[i].print("original beta_faces_values[{}]".format(i))
+            # solver.fine_level.beta_face_values[i].print("codegen beta_faces_values[{}]".format(i))
             for index in solver.fine_level.indices():
                 self.assertAlmostEqual(save_beta_face_values[i][index], solver.fine_level.beta_face_values[i][index],
                                        msg="face {} not same".format(i))

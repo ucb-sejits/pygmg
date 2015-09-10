@@ -7,7 +7,7 @@ import numpy as np
 from hpgmg.finite_volume.operators.specializers.initialize_mesh_specializer import CInitializeMesh
 from hpgmg.finite_volume.operators.specializers.util import time_this, profile, specialized_func_dispatcher
 from hpgmg.finite_volume.problems.problem import Problem
-from hpgmg.tools.python_block_codegen import TextIndenter
+from hpgmg.tools.text_indenter import TextIndenter
 
 
 __author__ = 'nzhang-dev'
@@ -169,6 +169,7 @@ class SymmetricAlgebraicProblem(AlgebraicProblem):
         beta = 1.0
 
         text = TextIndenter()
+        # text += "@specialized_func_dispatcher({})"
         text += "def init_problem(level):"
         text.indent()
         text += "from math import sin, cos, tanh"
@@ -222,3 +223,7 @@ class SymmetricAlgebraicProblem(AlgebraicProblem):
         # ast.dump(tree)
         # ctree.browser_show_ast(tree)
 
+
+def deco(f):
+    print("Here I am in deco")
+    return f
