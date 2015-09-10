@@ -1,12 +1,14 @@
-import sympy
 import operator
 import functools
+
+import sympy
 import numpy as np
 
 from hpgmg.finite_volume.operators.specializers.initialize_mesh_specializer import CInitializeMesh
 from hpgmg.finite_volume.operators.specializers.util import time_this, profile, specialized_func_dispatcher
 from hpgmg.finite_volume.problems.problem import Problem
-from hpgmg.finite_volume.python_block_codegen import TextIndenter
+from hpgmg.tools.python_block_codegen import TextIndenter
+
 
 __author__ = 'nzhang-dev'
 

@@ -56,7 +56,8 @@ class VariableBeta(object):
         distance = sum((sym - d)**2 for sym, d in zip(symbols, self.center)) ** 0.5
         return c1 + c2 * sympy.tanh(c3 * (distance - 0.25))
 
-    def get_beta_fv_expression(self, add_4th_order_correction=False, cell_size=None):
+    def get_beta_fv_expression(self, add_4th_order_correction=False, cell_size=None,
+                               face_index=-1, alternate_var_name=None):
         if add_4th_order_correction and cell_size is None:
             raise HpgmgException("ProblemFv requires cells size")
 
@@ -67,10 +68,18 @@ class VariableBeta(object):
         free_symbols = expression_1d.free_symbols
         symbol = free_symbols.pop()
 
+        symbols = [
+            sympy.Symbol("{var_name}{index}".format(
+                var_name="x" if i != face_index else alternate_var_name, index=i)) for i in range(self.dimensions)]
+        print("symbols {}".format(symbols))
         expression_nd = functools.reduce(
             operator.mul,
-            (expression_1d.xreplace({symbol: sympy.Symbol("x{}".format(i))}) for i in range(self.dimensions))
-        )
+            (expression_1d.xreplace({symbol: symbol}) for symbol in symbols)
+        );
+        # expression_nd = functools.reduce(
+        #     operator.mul,
+        #     (expression_1d.xreplace({symbol: sympy.Symbol("x{}".format(i))}) for i in range(self.dimensions))
+        # )
 
         expression_nd *= sympy.sympify("{}".format(b))
         expression_nd += sympy.sympify("1.0")
@@ -79,7 +88,7 @@ class VariableBeta(object):
 
         if add_4th_order_correction:
             second_derivatives = []
-            symbols = [sympy.Symbol("x{}".format(d)) for d in range(self.dimensions)]
+            # symbols = [sympy.Symbol("x{}".format(d)) for d in range(self.dimensions)]
             # requires two loops so original expression is available for derivative
             for current_dim in range(self.dimensions):
                 second_derivatives.append(expression_nd.diff(symbols[current_dim-1], 2))
@@ -88,7 +97,7 @@ class VariableBeta(object):
             for current_dim in range(self.dimensions):
                 expression_nd = expression_nd + sympy.sympify("{}*{}/24.0*{}".format(
                     cell_size, cell_size, second_derivatives[current_dim]))
-            # print("Corrected expression for beta fv {}".format(expression_nd))
+        print("Corrected expression for beta fv {}".format(expression_nd))
 
         return expression_nd
 

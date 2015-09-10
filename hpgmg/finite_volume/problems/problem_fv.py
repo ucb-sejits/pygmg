@@ -1,10 +1,13 @@
 from __future__ import print_function
+
 import numpy as np
 import sympy
+
 from hpgmg.finite_volume.hpgmg_exception import HpgmgException
 from hpgmg.finite_volume.operators.specializers.util import time_this, profile
-
 from hpgmg.finite_volume.problems.algebraic_problem import SymmetricAlgebraicProblem
+from hpgmg.tools.python_block_codegen import TextIndenter
+
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
@@ -69,3 +72,64 @@ class ProblemFV(SymmetricAlgebraicProblem):
                                           solver.beta_generator.get_beta_fv_expression(), dim)
             else:
                 level.beta_face_values[dim].fill(1.0)
+
+    def initialize_problem_codegen(self, solver, level):
+        """
+        TODO: This is a work in progress, the goal is to refactor problem initialization in python
+        to look more like Sam's method where a single loop initializes all the meshes.
+
+        :param solver:
+        :param level:
+        :return:
+        """
+        alpha = 1.0
+        beta = 1.0
+
+        text = TextIndenter()
+        text += "def init_problem(level):"
+        text.indent()
+        text += "from math import sin, cos, tanh"
+        text += "for index in level.indices():"
+        text.indent()
+        text += [
+            "{}".format(line)
+            for line in level.coord_to_cell_center_formula("x", "index")
+        ]
+        text += "level.alpha[index] = 1.0"
+        text += "level.exact_solution[index] = 1.0"
+        text += "level.right_hand_side[index] = {}".format(self.expression)
+
+        text += [
+            "z{dim} = x{dim} - {size}".format(
+                dim=dim, size=level.cell_size/2.0
+            )
+            for dim in range(solver.dimensions)
+        ]
+
+        for dimension in range(solver.dimensions):
+            text += "level.beta_face_values[{dim}][index] = {beta_expr}".format(
+                    dim=dimension,
+                    beta_expr=solver.beta_generator.get_beta_fv_expression(add_4th_order_correction=True,
+                                                                           cell_size=level.cell_size,
+                                                                           face_index=dimension,
+                                                                           alternate_var_name="z")
+                )
+        text.outdent()
+        text += "level.right_hand_side.dump('RHS', force_dump=True)"
+        text += "print('hello world')"
+        for index, line in enumerate(text.lines):
+            print("{:>4d}  {}".format(index, line))
+
+        exec(text.__str__())
+
+        init_problem(level)
+
+        # import ast
+        #
+        # import ctree
+        #
+        # tree = ast.parse(text.__str__())
+        # print("dumping tree")
+        # ast.dump(tree)
+        # ctree.browser_show_ast(tree)
+
