@@ -28,6 +28,7 @@ class JacobiSmoother(Smoother):
         self.weight = 1.0 if use_l1_jacobi else 2.0/3.0
         self.iterations = iterations
 
+    @profile
     def smooth(self, level, mesh_to_smooth, rhs_mesh):
         """
         :param level: the level being smoothed

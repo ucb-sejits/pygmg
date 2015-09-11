@@ -14,11 +14,14 @@ class Mesh(np.ndarray):
 
     def __new__(cls, *args, **kwargs):
         obj = np.ndarray(*args, **kwargs).view(cls)
-        obj._buffer = None
-        obj.dirty = False
-        obj.fill_value = None
         #obj.fill(0)
         return obj
+
+    def __init__(self, *args, **kwargs):
+        self._buffer = None
+        self.dirty = False
+        self.fill_value = None
+        super(Mesh, self).__init__(*args, **kwargs)
     #
     # def __setitem__(self, key, value):
     #     self.dirty = True
@@ -57,8 +60,6 @@ class Mesh(np.ndarray):
 
     @property
     def buffer(self):
-        if not hasattr(self, "_buffer"):
-            self._buffer = None
         return self._buffer
 
     @buffer.setter
