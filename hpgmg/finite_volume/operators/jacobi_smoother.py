@@ -1,4 +1,5 @@
 from __future__ import print_function
+import copy
 import inspect
 from ctree.frontend import dump
 from snowflake.nodes import StencilComponent, SparseWeightArray, Stencil, StencilGroup, VariableUpdate
@@ -52,13 +53,13 @@ class JacobiSmoother(Smoother):
 
     def get_smooth_stencil(self, level):
         stencil = self.get_stencil(level)
-        boundary_kernels = level.solver.boundary_updater.stencil_kernels
+        boundary_kernels = copy.deepcopy(level.solver.boundary_updater.stencil_kernels)
         group = boundary_kernels + [stencil]
         stencil_group = StencilGroup(group)
         return stencil_group
 
     def get_smooth_kernel(self, level):
-        if level in self.__smooth_kernels and False:
+        if level in self.__smooth_kernels:
             return self.__smooth_kernels[level]
         stencil = self.get_smooth_stencil(level)
         kernel = self.__smooth_kernels[level] = compiler.compile(stencil)
@@ -100,21 +101,27 @@ class JacobiSmoother(Smoother):
 
         self.operator.set_scale(level.h)
 
-        # kernel = self.get_smooth_kernel(level)
+        kernel = self.get_smooth_kernel(level)
         # working_target, working_source = working_source, working_target
-        # use_kernel = True
-        # if use_kernel:
-        #     for i in range(self.iterations):
-        #         working_target, working_source = working_source, working_target
-        #         kernel(working_target, lambda_mesh, working_source, rhs_mesh)
-        #         print(level.norm_mesh(working_target))
-        #
-        # else:
+        # print(working_target.dtype, lambda_mesh.dtype, working_source.dtype, rhs_mesh.dtype)
         for i in range(self.iterations):
             working_target, working_source = working_source, working_target
-            level.solver.boundary_updater.apply(level, working_source)
-            self.kernel_smooth_points(level, working_source, working_target, rhs_mesh, lambda_mesh)
-            # kernel(working_target, lambda_mesh, working_source, rhs_mesh)
+            kernel(working_target, lambda_mesh, working_source, rhs_mesh)
+        #     print(working_target[:4])
+        #     # print(working_target[:32])
+        #     # raise Exception()
+
+        # for i in range(self.iterations):
+        #     working_target, working_source = working_source, working_target
+        #     level.solver.boundary_updater.apply(level, working_source)
+        #     self.kernel_smooth_points(level, working_source, working_target, rhs_mesh, lambda_mesh)
+        #     print(working_target[:4])
+        #     print(working_target[:32])
+        #     raise Exception()
+
+
+        # print(mts[:4], level.h)
+        # raise Exception()
 
     smooth = kernel_smooth
 

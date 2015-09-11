@@ -425,7 +425,7 @@ class SimpleMultigridSolver(object):
         print("  h = {:22.15e}  ||error|| = {:22.15e}".format(level_0.h, norm_of_u2h_minus_uh))
         # log( ||u^4h - R u^2h|| / ||u^2h - R u^h|| ) / log(2)
         # is an estimate of the order of the method (e.g. 4th order)
-        print("  order = {:0.3f}".format(math.log(norm_of_u4h_minus_u2h / norm_of_u2h_minus_uh) / math.log(2.0)))
+        print("  order = {:0.10f}".format(math.log(norm_of_u4h_minus_u2h / norm_of_u2h_minus_uh) / math.log(2.0)))
 
     @time_this
     def run_richardson_test(self):

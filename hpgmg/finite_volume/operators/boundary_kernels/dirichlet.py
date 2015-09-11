@@ -23,7 +23,7 @@ class DirichletBoundary(KernelGenerator):
         weight = (-1.0)**sum(abs(i) for i in boundary)
         #print(vec, weight)
         component = StencilComponent(
-            'out',
+            'mesh',
             SparseWeightArray(
                 {
                     vec: weight
@@ -31,7 +31,7 @@ class DirichletBoundary(KernelGenerator):
             )
         )
         #print component.weights.vectors
-        return Stencil(component, 'out', [
+        return Stencil(component, 'mesh', [
             (-1, 0, 1) if bound == 1 else (0, 1, 1) if bound == -1 else (1, -1, 1)
             for bound in boundary
         ])
