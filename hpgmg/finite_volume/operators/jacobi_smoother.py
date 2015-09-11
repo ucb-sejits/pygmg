@@ -51,17 +51,20 @@ class JacobiSmoother(Smoother):
         kernel = self.__kernels[level] = compiler.compile(stencil)
         return kernel
 
-    def get_smooth_stencil(self, level):
+    def get_smooth_stencil(self, level, iterations):
         stencil = self.get_stencil(level)
         boundary_kernels = copy.deepcopy(level.solver.boundary_updater.stencil_kernels)
-        group = boundary_kernels + [stencil]
-        stencil_group = StencilGroup(group)
+        group = [VariableUpdate(mesh='out', out='mesh')] + boundary_kernels + [stencil]
+        composed = []
+        for i in range(iterations):
+            composed.extend(group)
+        stencil_group = StencilGroup(composed)
         return stencil_group
 
-    def get_smooth_kernel(self, level):
+    def get_smooth_kernel(self, level, iterations):
         if level in self.__smooth_kernels:
             return self.__smooth_kernels[level]
-        stencil = self.get_smooth_stencil(level)
+        stencil = self.get_smooth_stencil(level, iterations)
         kernel = self.__smooth_kernels[level] = compiler.compile(stencil)
         return kernel
 
@@ -101,12 +104,13 @@ class JacobiSmoother(Smoother):
 
         self.operator.set_scale(level.h)
 
-        kernel = self.get_smooth_kernel(level)
+        kernel = self.get_smooth_kernel(level, self.iterations)
+        kernel(working_target, lambda_mesh, working_source, rhs_mesh)
         # working_target, working_source = working_source, working_target
         # print(working_target.dtype, lambda_mesh.dtype, working_source.dtype, rhs_mesh.dtype)
-        for i in range(self.iterations):
-            working_target, working_source = working_source, working_target
-            kernel(working_target, lambda_mesh, working_source, rhs_mesh)
+        # for i in range(self.iterations):
+        #     working_target, working_source = working_source, working_target
+        #     kernel(working_target, lambda_mesh, working_source, rhs_mesh)
         #     print(working_target[:4])
         #     # print(working_target[:32])
         #     # raise Exception()
