@@ -57,6 +57,8 @@ class Mesh(np.ndarray):
 
     @property
     def buffer(self):
+        if not hasattr(self, "_buffer"):
+            self._buffer = None
         return self._buffer
 
     @buffer.setter
