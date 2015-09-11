@@ -581,7 +581,7 @@ class SimpleMultigridSolver(object):
             number_passes = 1
         else:
             min_solves = 1
-            number_passes = 10
+            number_passes = 11
         for pass_num in range(number_passes):
             if pass_num == 0:
                 if self.backend == 'python':
@@ -595,6 +595,9 @@ class SimpleMultigridSolver(object):
                 self.all_levels[start_level].fill_mesh(self.all_levels[start_level].cell_values, 0.0)
 
                 self.solve(start_level=start_level)
+
+            if pass_num == 0 and self.backend != 'python':
+                time_this.reset()
 
         print("===== Timing Breakdown ==============================================")
         self.show_timing_information()

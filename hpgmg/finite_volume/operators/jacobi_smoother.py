@@ -89,7 +89,7 @@ class JacobiSmoother(Smoother):
             #self.kernel_smooth_points(level, working_source, working_target, rhs_mesh, lambda_mesh)
             self.smooth_points(level, working_source, working_target, rhs_mesh, lambda_mesh)
 
-    @time_this
+    # @time_this
     def kernel_smooth(self, level, mesh_to_smooth, rhs_mesh):
         """
         :param level: the level being smoothed

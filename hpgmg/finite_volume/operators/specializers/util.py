@@ -118,21 +118,39 @@ def include_mover(node):
 
 
 def time_this(func):
-    time_this.names.append(func.__name__)
-    timings = []
+    timings = [0, 0]
     def wrapper(*args, **kwargs):
         a = time.time()
         res = func(*args, **kwargs)
-        timings.append(time.time() - a)
+        t = time.time() - a
+        timings[0] += t
+        timings[1] += 1
         return res
+    time_this.names[func.__name__] = timings
     wrapper.total_time = 0
-    @atexit.register
-    def dump_time():
-        if finite_volume.CONFIG and finite_volume.CONFIG.verbose and timings:
-            maxlen = max(len(i) for i in time_this.names)
-            print('Function:', func.__name__.ljust(maxlen), 'Total time:', sum(timings), 'calls:', len(timings), sep="\t")
+    # @atexit.register
+    # def dump_time():
+    #     if finite_volume.CONFIG and finite_volume.CONFIG.verbose and timings:
+    #         maxlen = max(len(i) for i in time_this.names)
+    #         print('Function:', func.__name__.ljust(maxlen), 'Total time:', "{:0.5f}".format(timings[0]), 'calls:', timings[1], sep="\t")
     return wrapper
-time_this.names = []
+time_this.names = {}
+
+def reset_times():
+    for timing_data in time_this.names.values():
+        timing_data[0] = 0
+        timing_data[1] = 0
+
+time_this.reset = reset_times
+del reset_times
+
+@atexit.register
+def __dump_time():
+    if finite_volume.CONFIG and finite_volume.CONFIG.verbose:
+        maxlen = max(len(i) for i in time_this.names)
+        for name, timing in time_this.names.items():
+            if timing[1]:
+                print('Function:', name.ljust(maxlen), 'Total time:', "{:0.5f}".format(timing[0]), 'calls:', timing[1], sep="\t")
 
 
 def profile(func):
