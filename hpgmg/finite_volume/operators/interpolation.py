@@ -1,5 +1,9 @@
 from __future__ import print_function
 from abc import ABCMeta, abstractmethod
+import itertools
+from snowflake.nodes import StencilComponent, SparseWeightArray, ScalingStencil, StencilGroup
+from snowflake.vector import Vector
+from hpgmg.finite_volume import compiler
 from hpgmg.finite_volume.operators.specializers.interpolate_specializer import CInterpolateSpecializer
 from hpgmg.finite_volume.operators.specializers.util import time_this, specialized_func_dispatcher
 
@@ -25,17 +29,58 @@ class InterpolatorPC(Interpolator):
         self.solver = solver
         self.dimensions = solver.dimensions
         self.pre_scale = pre_scale
+        self.__kernels = {}
 
     @time_this
     @specialized_func_dispatcher({
         'c': CInterpolateSpecializer,
         'omp': CInterpolateSpecializer
     })
-    def interpolate(self, target_level, target_mesh, source_mesh):
+    def interpolate_std(self, target_level, target_mesh, source_mesh):
         for target_index in target_level.interior_points():
             source_index = ((target_index - target_level.ghost_zone) // 2) + target_level.ghost_zone
             target_mesh[target_index] *= self.pre_scale
             target_mesh[target_index] += source_mesh[source_index]
+
+    def get_stencil(self, level):
+        stencils = []
+        iter_range = level.interior_points().ranges
+        for offset in itertools.product((0, 1), repeat=self.dimensions):
+            irange = tuple(
+                ((l - g) // 2 + g, (h - g) // 2 + g) for g, (l, h) in zip(level.ghost_zone, iter_range)
+            )
+            target_component = StencilComponent(
+                'target_mesh',
+                SparseWeightArray({Vector.zero_vector(self.dimensions): 1})
+            ) * self.pre_scale
+            source_component = StencilComponent(
+                'source_mesh',
+                SparseWeightArray({Vector.zero_vector(self.dimensions): 1})
+            )
+            stencil = ScalingStencil(
+                target_component + source_component,
+                'target_mesh',
+                irange,
+                level.ghost_zone,
+                level.ghost_zone + offset,
+                (2,) * self.dimensions
+            )
+            stencils.append(stencil)
+        return StencilGroup(stencils)
+
+    def get_kernel(self, level):
+        if level in self.__kernels:
+            return self.__kernels[level]
+        kern = self.__kernels[level] = compiler.compile(self.get_stencil(level))
+        return kern
+
+
+    def interpolate_kernel(self, target_level, target_mesh, source_mesh):
+        kern = self.get_kernel(target_level)
+        kern(target_mesh, source_mesh)
+        raise Exception()
+
+    interpolate = interpolate_std
 
 
 class InterpolatorPQ(Interpolator):
