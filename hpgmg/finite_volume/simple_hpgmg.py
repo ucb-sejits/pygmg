@@ -16,7 +16,7 @@ from hpgmg.finite_volume.operators.specializers.initialize_mesh_specializer impo
 from hpgmg.finite_volume.operators.specializers.util import profile, time_this, specialized_func_dispatcher
 
 from hpgmg.finite_volume.operators.stencil_von_neumann_r1 import StencilVonNeumannR1
-from hpgmg.finite_volume.operators.interpolation import InterpolatorPC
+from hpgmg.finite_volume.operators.interpolation import InterpolatorPC, InterpolatorPQ
 from hpgmg.finite_volume.operators.jacobi_smoother import JacobiSmoother
 from hpgmg.finite_volume.problems.problem_p4 import ProblemP4
 from hpgmg.finite_volume.problems.problem_p6 import ProblemP6
@@ -80,7 +80,11 @@ class SimpleMultigridSolver(object):
         self.is_poisson = configuration.equation == 'p'
 
         self.number_of_v_cycles = configuration.number_of_vcycles
-        self.interpolator = InterpolatorPC(solver=self, pre_scale=1.0)
+        if configuration.interpolator_method == 'pc':
+            self.interpolator = InterpolatorPC(solver=self, pre_scale=1.0)
+        elif configuration.interpolator_method == 'v2':
+            self.interpolator = InterpolatorPQ(solver=self, prescale=1.0)
+
         self.restrictor = Restriction(solver=self)
 
         self.problem_operator = StencilVonNeumannR1(solver=self)
@@ -544,6 +548,10 @@ class SimpleMultigridSolver(object):
                             help="Type of smoother, j for jacobi, c for chebyshev",
                             choices=['j', 'c'],
                             default='j', )
+        parser.add_argument('-im', '--interpolator-method',
+                            help="Type of interpolator pc for pc, v2 for pq",
+                            choices=['pc', 'v2', 'v4'],
+                            default='pc', )
         parser.add_argument('-bs', '--bottom-solver',
                             help="Bottom solver to use",
                             choices=['smoother', 'bicgstab'],
