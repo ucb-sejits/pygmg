@@ -42,6 +42,29 @@ class InterpolatorPC(Interpolator):
             target_mesh[target_index] *= self.pre_scale
             target_mesh[target_index] += source_mesh[source_index]
 
+class InterpolatorNDPC(Interpolator):
+    """
+    interpolates in order n by sampling
+    """
+    def __init__(self, solver, pre_scale):
+        self.solver = solver
+        self.dimensions = solver.dimensions
+        self.pre_scale = pre_scale
+
+    @time_this
+    @specialized_func_dispatcher({
+        'c': CInterpolateSpecializer,
+        'omp': CInterpolateSpecializer
+    })
+    def interpolate(self, target_level, target_mesh, source_mesh):
+        for target_index in target_level.interior_points():
+            source_index = ((target_index - target_level.ghost_zone) // 2) + target_level.ghost_zone
+            target_mesh[target_index] *= self.pre_scale
+            target_mesh[target_index] += source_mesh[source_index]
+
+
+
+
 def to_coeff_array(expressions):
     symbols = list(sorted(set(itertools.chain(*[i.free_symbols for i in expressions])), key=str))
     coeff_array = np.zeros((len(expressions), len(symbols)))
@@ -73,7 +96,7 @@ class InterpolatorPQ(Interpolator):
         B = np.linalg.inv(to_coeff_array(l))
 
         #express u(1/4) in terms of a, b and c
-        uonefourth = to_coeff_array([f(.25)])[0]
+        uonefourth = to_coeff_array([u(.25)])[0]
 
         #express u(1/4) in terms of (-1), u(0) and u(1) via substitution
         #coeffs represent the coefficients in corresponding linear combination
@@ -113,10 +136,12 @@ class InterpolatorPQ(Interpolator):
     @staticmethod
     def compute_neighbor_index(vector):
             return (vector.i % 2) * 4 + (vector.j % 2) * 2 + (vector.k % 2)
-
     @time_this
+    @specialized_func_dispatcher({
+        'c': CInterpolateSpecializer,
+    })
     def interpolate(self, target_level, target_mesh, source_level, source_mesh, ):
-        for target_index in target_mesh.space.points:
+        for target_index in target_level.interior_points():
             source_index = target_index // 2
             target_mesh[target_index] *= self.pre_scale
             oddness_index = InterpolatorPQ.compute_neighbor_index(target_index)
