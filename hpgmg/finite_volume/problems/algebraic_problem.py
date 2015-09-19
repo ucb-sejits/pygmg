@@ -5,6 +5,7 @@ import sympy
 import numpy as np
 
 from hpgmg.finite_volume.operators.specializers.initialize_mesh_specializer import CInitializeMesh
+from hpgmg.finite_volume.operators.specializers.problem_init_specializer import ProblemInitSpecializer
 from hpgmg.finite_volume.operators.specializers.util import time_this, profile, specialized_func_dispatcher
 from hpgmg.finite_volume.problems.problem import Problem
 from hpgmg.tools.text_indenter import TextIndenter
@@ -156,21 +157,13 @@ class SymmetricAlgebraicProblem(AlgebraicProblem):
         for index, line in enumerate(lines):
             print("{:>4d}  {}".format(index, line))
 
-    def initialize_problem_codegen(self, solver, level):
-        """
-        TODO: This is a work in progress, the goal is to refactor problem initialization in python
-        to look more like Sam's method where a single loop initializes all the meshes.
-
-        :param solver:
-        :param level:
-        :return:
-        """
+    def problem_code_generator(self, solver, level):
         alpha = 1.0
         beta = 1.0
 
         text = TextIndenter()
         # text += "@specialized_func_dispatcher({})"
-        text += "def init_problem(level):"
+        text += "def init_problem(solver, level):"
         text.indent()
         text += "from math import sin, cos, tanh"
         text += "for index in level.indices():"
@@ -205,8 +198,22 @@ class SymmetricAlgebraicProblem(AlgebraicProblem):
                     beta_expr=solver.beta_generator.get_beta_expression(face_index=dimension, alternate_var_name="z")
                 )
         text.outdent()
-        text += "level.right_hand_side.dump('RHS', force_dump=True)"
-        text += "print('hello world')"
+        return text
+
+    def initialize_problem_codegen(self, solver, level):
+        """
+        TODO: This is a work in progress, the goal is to refactor problem initialization in python
+        to look more like Sam's method where a single loop initializes all the meshes.
+
+        :param solver:
+        :param level:
+        :return:
+        """
+
+        text = self.problem_code_generator(solver, level)
+
+        # text += "level.right_hand_side.dump('RHS', force_dump=True)"
+        # text += "print('hello world')"
         for index, line in enumerate(text.lines):
             print("{:>4d}  {}".format(index, line))
 
@@ -223,6 +230,14 @@ class SymmetricAlgebraicProblem(AlgebraicProblem):
         # ast.dump(tree)
         # ctree.browser_show_ast(tree)
 
+
+class SpecializedSymmetricAlgebraicProblem(SymmetricAlgebraicProblem, ProblemInitSpecializer):
+    def __init__(self, expression, dimensions, reduction_operator=operator.mul):
+        super(SpecializedSymmetricAlgebraicProblem, self).__init__(expression,
+                                                                   dimensions,
+                                                                   reduction_operator=operator.mul)
+
+        super(SpecializedSymmetricAlgebraicProblem,)
 
 def deco(f):
     print("Here I am in deco")

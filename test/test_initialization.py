@@ -1,4 +1,6 @@
 from __future__ import print_function
+from hpgmg.finite_volume.operators.specializers.problem_init_specializer import ProblemInitSpecializer
+
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 import unittest
@@ -99,3 +101,44 @@ class TestInitialization(unittest.TestCase):
                                        (i_x, i_y, i_z),
                                        sym_f_xx(i_x, i_y, i_z, period, power), sam_f_xx(i_x, i_y, i_z),
                                    ))
+
+    def test_initialize_problem_specializer(self):
+        solver = SimpleMultigridSolver.get_solver(["2", "-d", "2", "-vc", "--problem", "fv"])
+
+        save_beta_face_values = [
+            solver.fine_level.beta_face_values[i].copy()
+            for i in range(solver.dimensions)
+        ]
+
+        for i in range(solver.dimensions):
+            solver.fine_level.beta_face_values[i].fill(0.0)
+
+        text_indenter = solver.problem.problem_code_generator(solver, solver.fine_level)
+
+        initializer = ProblemInitSpecializer(text_indenter.__str__())
+
+        initializer(solver, solver.fine_level)
+
+        for i in range(solver.dimensions):
+            # save_beta_face_values[i].print("original beta_faces_values[{}]".format(i))
+            # solver.fine_level.beta_face_values[i].print("codegen beta_faces_values[{}]".format(i))
+            for index in solver.fine_level.indices():
+                self.assertAlmostEqual(save_beta_face_values[i][index], solver.fine_level.beta_face_values[i][index],
+                                       msg="face {} not same".format(i))
+
+
+    def test_initialize_problem_specializer_2(self):
+        solver = SimpleMultigridSolver.get_solver(["2", "-d", "2", "-vc", "--problem", "fv"])
+
+        save_beta_face_values = [
+            solver.fine_level.beta_face_values[i].copy()
+            for i in range(solver.dimensions)
+        ]
+
+        for i in range(solver.dimensions):
+            solver.fine_level.beta_face_values[i].fill(0.0)
+
+        text_indenter = solver.problem.problem_code_generator(solver, solver.fine_level)
+
+        print(text_indenter.__str__())
+        # initializer = ProblemInitSpecializer(text_indenter.__str__())
