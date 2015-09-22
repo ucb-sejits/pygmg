@@ -20,15 +20,22 @@ class TimerRecord(object):
 class Timer(object):
     def __init__(self, timer_record):
         self.timer_record = timer_record
+        self.starts = []
 
     def __enter__(self):
-        self.start = time.clock()
+        self.starts.append(time.clock())
         return self
 
     def __exit__(self, *args):
-        self.last_interval = time.clock() - self.start
+        self.last_interval = time.clock() - self.starts.pop()
         self.timer_record.total_time += self.last_interval
         self.timer_record.events += 1
+
+    def __call__(self, func):
+        def wrapper(*args, **kwargs):
+            with self:
+                return func(*args, **kwargs)
+        return wrapper
 
     @staticmethod
     def clear():

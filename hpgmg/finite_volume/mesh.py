@@ -1,4 +1,5 @@
 from __future__ import print_function
+from hpgmg.finite_volume.operators.specializers.util import time_this
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
@@ -6,12 +7,69 @@ import numpy as np
 
 import hpgmg.finite_volume.space as space
 
+import pycl as cl
+
 
 class Mesh(np.ndarray):
+
     def __new__(cls, *args, **kwargs):
         obj = np.ndarray(*args, **kwargs).view(cls)
         obj.fill(0)
         return obj
+
+    def __init__(self, *args, **kwargs):
+        self._buffer = None
+        self.dirty = False
+        self.fill_value = None
+        super(Mesh, self).__init__(*args, **kwargs)
+    #
+    # def __setitem__(self, key, value):
+    #     self.dirty = True
+    #     super(Mesh, self).__setitem__(key, value)
+
+    def __setitem__(self, key, value):
+        if self.buffer and self.buffer.dirty:
+            self.buffer_to_mesh()
+            # self.buffer.dirty = False
+            # queue = cl.clCreateCommandQueue(self.buffer.buffer.context)
+            # ary, evt = cl.buffer_to_ndarray(queue, self.buffer.buffer, self)
+            # evt.wait()
+        self.dirty = True
+        super(Mesh, self).__setitem__(key, value)
+
+    def __getitem__(self, item):
+        if self.buffer and self.buffer.dirty:
+            self.buffer_to_mesh()
+            # self.buffer.dirty = False
+            # queue = cl.clCreateCommandQueue(self.buffer.buffer.context)
+            # ary, evt = cl.buffer_to_ndarray(queue, self.buffer.buffer, self)
+            # evt.wait()
+        return super(Mesh, self).__getitem__(item)
+
+    @time_this
+    def buffer_to_mesh(self):
+        self.buffer.dirty = False
+        queue = cl.clCreateCommandQueue(self.buffer.buffer.context)
+        ary, evt = cl.buffer_to_ndarray(queue, self.buffer.buffer, self)
+        evt.wait()
+
+    def fill(self, value):
+        self.dirty = True
+        super(Mesh, self).fill(value)
+        self.fill_value = value
+
+    @property
+    def buffer(self):
+        return self._buffer
+
+    @buffer.setter
+    def buffer(self, cl_buffer):
+        if self._buffer is None:
+            self._buffer = Buffer(cl_buffer)
+        else:
+            self._buffer.buffer = cl_buffer
+            self._buffer.dirty = True
+
 
     @property
     def space(self):
@@ -153,3 +211,9 @@ class Mesh(np.ndarray):
     def zero(self):
         for index in self.indices():
             self[index] = 0.0
+
+class Buffer(object):
+    def __init__(self, buffer):
+        self.buffer = buffer
+        self.dirty = False
+        self.evt = None

@@ -1,0 +1,2 @@
+#!/bin/sh
+python -m cProfile -s tottime hpgmg/finite_volume/simple_hpgmg.py $*

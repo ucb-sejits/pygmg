@@ -3,13 +3,21 @@ implement a simple single threaded, variable coefficient gmg solver
 """
 from __future__ import division, print_function
 import math
+import itertools
 from stencil_code.halo_enumerator import HaloEnumerator
+from hpgmg.finite_volume.iterator import RangeIterator
+from hpgmg.finite_volume.operators.specializers.mesh_op_specializers import MeshOpSpecializer, CFillMeshSpecializer, \
+    CGeneralizedSimpleMeshOpSpecializer, OclFillMeshSpecializer, OclGeneralizedSimpleMeshOpSpecializer, \
+    OclMeshReduceOpSpecializer
+from hpgmg.finite_volume.operators.specializers.util import time_this, specialized_func_dispatcher
 from hpgmg.finite_volume.timer import EventTimer
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 from hpgmg.finite_volume.space import Vector, Space, Coord
 from hpgmg.finite_volume.mesh import Mesh
+
+import pycl as cl
 
 
 class SimpleLevel(object):
@@ -41,6 +49,7 @@ class SimpleLevel(object):
         ))
 
         self.solver = solver
+        self.interior_space = space
         self.space = space + (solver.ghost_zone * 2)
 
         self.configuration = solver.configuration
@@ -77,12 +86,14 @@ class SimpleLevel(object):
 
         self.timer = EventTimer(self)
 
-    def dimensions(self):
-        return self.solver.dimensions
+        self.buffers = []
+        # self.context = cl.clCreateContext(devices=[cl.clGetDeviceIDs()[-1]])
+        # self.queue = cl.clCreateCommandQueue(self.context)
+        if self.configuration.backend == 'ocl':
+            self.context = self.solver.context
+            self.queue = self.solver.queue
+            self.reducer_meshes = {}
 
-    def dimension_range(self):
-        for dim in range(self.solver.dimensions):
-            yield dim
 
     def dimension_size(self):
         return self.space[0] - (self.ghost_zone[0]*2)
@@ -99,21 +110,24 @@ class SimpleLevel(object):
         return self.cell_size
 
     def indices(self):
-        for point in self.space.points:
-            yield point
+        # for point in self.space.points:
+        #     yield point
+        return self.space.points
 
     def interior_points(self):
-        for point in self.space.interior_points(self.ghost_zone):
-            yield point
+        return self.space.interior_points(self.ghost_zone)
 
     def beta_interpolation_points(self, axis):
-        for point in self.space.beta_interior_points(self.ghost_zone, axis):
-            yield point
+        #print(axis)
+        pts = self.space.beta_interior_points(self.ghost_zone, axis)
+        #print(pts)
+        return pts
 
     def valid_indices(self):
-        for index in self.indices():
-            if self.valid[index] != 0.0:
-                yield index
+        # for index in self.indices():
+        #     if self.valid[index] != 0.0:
+        #         yield index
+        return (index for index in self.indices() if self.valid[index] != 0.0)
 
     def ghost_indices(self, mesh):
         halo_enumerator = HaloEnumerator(self.solver.ghost, mesh.space)
@@ -121,40 +135,94 @@ class SimpleLevel(object):
         for halo_coord in halo_enumerator.fixed_surface_iterator():
             yield halo_coord
 
+    @time_this
+    @specialized_func_dispatcher({
+        'c': CFillMeshSpecializer,
+        'omp': CFillMeshSpecializer,
+        'ocl': OclFillMeshSpecializer
+    })
     def fill_mesh(self, mesh, value):
         for index in self.indices():
-            mesh[index] = value if self.valid[index] > 0.0 else 0.0
+            mesh[index] = value  # if self.valid[index] > 0.0 else 0.0
 
+    @time_this
+    @specialized_func_dispatcher({
+        'c': CGeneralizedSimpleMeshOpSpecializer,
+        'omp': CGeneralizedSimpleMeshOpSpecializer,
+        'ocl': OclGeneralizedSimpleMeshOpSpecializer,
+    })
     def add_meshes(self, target_mesh, scale_a, mesh_a, scale_b, mesh_b):
         for index in self.interior_points():
             target_mesh[index] = scale_a * mesh_a[index] + scale_b * mesh_b[index]
 
+    @time_this
+    @specialized_func_dispatcher({
+        'c': CGeneralizedSimpleMeshOpSpecializer,
+        'omp': CGeneralizedSimpleMeshOpSpecializer,
+        'ocl': OclGeneralizedSimpleMeshOpSpecializer
+    })
     def multiply_meshes(self, target_mesh, scale_factor, mesh_a, mesh_b):
         for index in self.interior_points():
             target_mesh[index] = scale_factor * mesh_a[index] * mesh_b[index]
 
+    @time_this
+    @specialized_func_dispatcher({
+        'c': CGeneralizedSimpleMeshOpSpecializer,
+        'omp': CGeneralizedSimpleMeshOpSpecializer,
+        'ocl': OclGeneralizedSimpleMeshOpSpecializer
+    })
     def invert_mesh(self, target_mesh, scale_factor, mesh_to_invert):
         for index in self.interior_points():
             target_mesh[index] = scale_factor / mesh_to_invert[index]
 
+    @time_this
+    @specialized_func_dispatcher({
+        'c': CGeneralizedSimpleMeshOpSpecializer,
+        'omp': CGeneralizedSimpleMeshOpSpecializer,
+        'ocl': OclGeneralizedSimpleMeshOpSpecializer
+    })
     def copy_mesh(self, target_mesh, source_mesh):
         for index in self.interior_points():
             target_mesh[index] = source_mesh[index]
 
+    @time_this
+    @specialized_func_dispatcher({
+        'c': CGeneralizedSimpleMeshOpSpecializer,
+        'omp': CGeneralizedSimpleMeshOpSpecializer,
+        'ocl': OclGeneralizedSimpleMeshOpSpecializer
+    })
     def scale_mesh(self, target_mesh, scale_factor, source_mesh):
         for index in self.interior_points():
             target_mesh[index] = scale_factor * source_mesh[index]
 
+    @time_this
+    @specialized_func_dispatcher({
+        'c': CGeneralizedSimpleMeshOpSpecializer,
+        'omp': CGeneralizedSimpleMeshOpSpecializer,
+        'ocl': OclGeneralizedSimpleMeshOpSpecializer
+    })
     def shift_mesh(self, target_mesh, shift_value, source_mesh):
         for index in self.interior_points():
             target_mesh[index] = shift_value + source_mesh[index]
 
+    @time_this
+    @specialized_func_dispatcher({
+        'c': CGeneralizedSimpleMeshOpSpecializer,
+        'omp': CGeneralizedSimpleMeshOpSpecializer,
+        'ocl': OclMeshReduceOpSpecializer
+    })
     def dot_mesh(self, mesh_a, mesh_b):
         accumulator = 0.0
         for index in self.interior_points():
             accumulator += mesh_a[index] * mesh_b[index]
         return accumulator
 
+    @time_this
+    @specialized_func_dispatcher({
+        'c': CGeneralizedSimpleMeshOpSpecializer,
+        'omp': CGeneralizedSimpleMeshOpSpecializer,
+        'ocl': OclMeshReduceOpSpecializer
+    })
     def norm_mesh(self, mesh):
         max_norm = 0.0
         for index in self.interior_points():
@@ -162,26 +230,7 @@ class SimpleLevel(object):
                 max_norm = abs(mesh[index])
         return max_norm
 
-    def sum_mesh(self, mesh):
-        accumulator = 0.0
-        for index in self.interior_points():
-            accumulator += mesh[index]
-        return accumulator
-
-    def color_mesh(self, mesh, colors_in_each_dim, color_offset):
-        with self.timer("blas1"):
-            for index in self.interior_points():
-                color_vector = Vector(
-                    1.0 if (index[dim] + color_offset[dim] + self.ghost_zone[dim]) % colors_in_each_dim == 0 else 0.0
-                    for dim in self.dimension_range()
-                )
-
-                color_value = 1.0
-                for dim in self.dimension_range():
-                    color_value *= color_vector[dim]
-
-                mesh[index] = color_value
-
+    @time_this
     def meshes_interiors_equal(self, mesh_a, mesh_b):
         return all(mesh_a[index] == mesh_b[index] for index in self.interior_points())
 
@@ -192,6 +241,12 @@ class SimpleLevel(object):
         for index in self.valid_indices():
             self.beta_face_values[index] = 0.5 * (cell_mesh[index + lower_neighbor] + cell_mesh[index])
 
+    @time_this
+    @specialized_func_dispatcher({
+        'c': CGeneralizedSimpleMeshOpSpecializer,
+        'omp': CGeneralizedSimpleMeshOpSpecializer,
+        'ocl': OclMeshReduceOpSpecializer
+    })
     def mean_mesh(self, mesh):
         """
         compute the simple mean of interior of mesh
@@ -232,3 +287,17 @@ class SimpleLevel(object):
         :return:
         """
         self.cell_values.print(message=title)
+
+    def boundary_iterator(self, boundary):
+        bounds = []
+        for side, dim, ghost in zip(boundary, self.space, self.ghost_zone):
+            if side == -1:
+                #lower
+                bounds.append((0, ghost))
+            elif side == 1:
+                #upper
+                bounds.append((dim - ghost, dim))
+            else:
+                #interior
+                bounds.append((ghost, dim-ghost))
+        return RangeIterator(*bounds, map_func=Coord)
