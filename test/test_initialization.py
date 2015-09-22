@@ -12,6 +12,7 @@ from hpgmg.finite_volume.simple_hpgmg import SimpleMultigridSolver
 
 
 class TestInitialization(unittest.TestCase):
+    @unittest.skip
     def test_initialization_problem_init_codegen(self):
         solver = SimpleMultigridSolver.get_solver(["2", "-d", "3", "-vc"])
 
@@ -32,6 +33,7 @@ class TestInitialization(unittest.TestCase):
                 self.assertAlmostEqual(save_beta_face_values[i][index], solver.fine_level.beta_face_values[i][index],
                                        msg="face {} not same".format(i))
 
+    @unittest.skip
     def test_initialization_problem_init_codegen_fv(self):
         solver = SimpleMultigridSolver.get_solver(["2", "-d", "2", "-vc", "--problem", "fv"])
 
@@ -102,6 +104,7 @@ class TestInitialization(unittest.TestCase):
                                        sym_f_xx(i_x, i_y, i_z, period, power), sam_f_xx(i_x, i_y, i_z),
                                    ))
 
+    @unittest.skip
     def test_initialize_problem_specializer(self):
         solver = SimpleMultigridSolver.get_solver(["2", "-d", "2", "-vc", "--problem", "fv"])
 
@@ -126,7 +129,7 @@ class TestInitialization(unittest.TestCase):
                 self.assertAlmostEqual(save_beta_face_values[i][index], solver.fine_level.beta_face_values[i][index],
                                        msg="face {} not same".format(i))
 
-
+    @unittest.skip
     def test_initialize_problem_specializer_2(self):
         solver = SimpleMultigridSolver.get_solver(["2", "-d", "2", "-vc", "--problem", "fv"])
 
