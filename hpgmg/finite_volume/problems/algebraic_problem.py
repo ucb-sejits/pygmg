@@ -61,16 +61,16 @@ class SymmetricAlgebraicProblem(AlgebraicProblem):
         'c': CInitializeMesh,
         'omp': CInitializeMesh
     })
-    def initialize_mesh(self, level, mesh, exp, dump=False):
+    def initialize_mesh(self, level, mesh, exp, coord_transform):
         func = self.get_func(exp, self.symbols)
-        print("expression {}".format(exp))
+        # print("expression {}".format(exp))
         # for coord in level.indices():
         for coord in level.interior_points():
-            if dump and self.dimensions == 3:
-                x, y, z = level.coord_to_cell_center_point(coord)
-                f = func(*level.coord_to_cell_center_point(coord))
-                print("Coordinate ({:12.10f},{:12.10f},{:12.10f}) -> {:10.6g}".format(x, y, z, f))
-            mesh[coord] = func(*level.coord_to_cell_center_point(coord))
+            # if dump and self.dimensions == 3:
+            #     x, y, z = level.coord_to_cell_center_point(coord)
+            #     f = func(*level.coord_to_cell_center_point(coord))
+            #     print("Coordinate ({:12.10f},{:12.10f},{:12.10f}) -> {:10.6g}".format(x, y, z, f))
+            mesh[coord] = func(*coord_transform(coord))
 
     @specialized_func_dispatcher({
         'c': CInitializeMesh,
@@ -87,7 +87,7 @@ class SymmetricAlgebraicProblem(AlgebraicProblem):
     def initialize_problem(self, solver, level):
         alpha = 1.0
         beta = 1.0
-        self.initialize_mesh(level, level.exact_solution, self.expression)
+        self.initialize_mesh(level, level.exact_solution, self.expression, level.coord_to_cell_center_point)
 
         beta_expression = solver.beta_generator.get_beta_expression() if solver.is_variable_coefficient else beta
         beta_first_derivative = [sympy.diff(beta_expression, sym) for sym in self.symbols]
@@ -97,7 +97,7 @@ class SymmetricAlgebraicProblem(AlgebraicProblem):
         f_exp = solver.a * alpha * self.expression - solver.b * (
             bu_derivative_1 + beta_expression * sum(u_derivative_2))
 
-        self.initialize_mesh(level, level.right_hand_side, f_exp)
+        self.initialize_mesh(level, level.right_hand_side, f_exp, level.coord_to_cell_center_point)
 
         level.alpha.fill(1.0)
 
