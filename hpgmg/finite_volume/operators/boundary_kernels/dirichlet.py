@@ -5,6 +5,7 @@ import operator
 
 __author__ = 'nzhang-dev'
 
+
 class DirichletBoundary(KernelGenerator):
     def make_kernel(self, boundary):
 

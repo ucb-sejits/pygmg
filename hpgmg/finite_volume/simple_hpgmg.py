@@ -3,21 +3,20 @@ implement a simple single threaded, gmg solver
 """
 from __future__ import division, print_function
 import argparse
-import functools
 import os
 import sys
 import logging
-import time
 import sympy
 from hpgmg import finite_volume
 from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.operators.chebyshev_smoother import ChebyshevSmoother
-from hpgmg.finite_volume.operators.specializers.initialize_mesh_specializer import CInitializeMesh, OclInitializeMesh
+from hpgmg.finite_volume.operators.specializers.initialize_mesh_specializer import CInitializeMesh
 from hpgmg.finite_volume.operators.specializers.util import profile, time_this, specialized_func_dispatcher
 
 from hpgmg.finite_volume.operators.stencil_von_neumann_r1 import StencilVonNeumannR1
-from hpgmg.finite_volume.operators.interpolation import InterpolatorPC, InterpolatorPQ
+from hpgmg.finite_volume.operators.interpolation import InterpolatorPC
 from hpgmg.finite_volume.operators.jacobi_smoother import JacobiSmoother
+from hpgmg.finite_volume.problems.problem_fv import ProblemFV
 from hpgmg.finite_volume.problems.problem_p4 import ProblemP4
 from hpgmg.finite_volume.problems.problem_p6 import ProblemP6
 from hpgmg.finite_volume.problems.problem_sine_n_dim import SineProblemND
@@ -43,6 +42,71 @@ class SimpleMultigridSolver(object):
     a simple multi-grid solver. gets a argparse configuration
     with settings from the command line
     """
+    @staticmethod
+    def get_configuration(args=None):
+        parser = argparse.ArgumentParser()
+        parser.add_argument('log2_level_size', help='each dim will be of 2^(log2_level_size)',
+                            default=6, type=int)
+        parser.add_argument('-d', '--dimensions', help='number of dimensions in problem',
+                            default=3, type=int)
+        parser.add_argument('-nv', '--number-of-vcycles', help='number of vcycles to run',
+                            default=1, type=int)
+        parser.add_argument('-pn', '--problem-name',
+                            help="math problem name to use for initialization",
+                            default='sine',
+                            choices=['sine', 'p4', 'p6', 'fv'], )
+        parser.add_argument('-bc', '--boundary-condition',
+                            help="Type of boundary condition. Use p for Periodic and d for Dirichlet. Default is d",
+                            default=('p' if os.environ.get('USE_PERIODIC_BC', 0) else 'd'),
+                            choices=['p', 'd'], )
+        parser.add_argument('-eq', '--equation',
+                            help="Type of equation, h for helmholtz or p for poisson",
+                            choices=['h', 'p'],
+                            default='h', )
+        parser.add_argument('-sm', '--smoother',
+                            help="Type of smoother, j for jacobi, c for chebyshev",
+                            choices=['j', 'c'],
+                            default='j', )
+        parser.add_argument('-bs', '--bottom-solver',
+                            help="Bottom solver to use",
+                            choices=['smoother', 'bicgstab'],
+                            default='bicgstab', )
+        parser.add_argument('-ulj', '--use-l1-jacobi', action="store_true",
+                            help="use l1 instead of d inverse with jacobi smoother",
+                            default=False, )
+        parser.add_argument('-vc', '--variable-coefficient', action='store_true',
+                            help="Use 1.0 as fixed value of beta, default is variable beta coefficient",
+                            default=False, )
+        parser.add_argument('-si', '--smoother-iterations', help='number of iterations each time smoother is called',
+                            default=6, type=int)
+        parser.add_argument('-mcd', '--minimum-coarse_dimension', help='smallest allowed coarsened dimension',
+                            default=3, type=int)
+        parser.add_argument('-dre', '--disable-richardson-error',
+                            help="don't compute or show richardson error at end of run",
+                            action="store_true", default=False)
+        parser.add_argument('-dfc', '--do-f-cycles',
+                            help="use f-cycle solver instead of full v-cycle solver",
+                            action="store_true", default=False)
+        parser.add_argument('-ufc', '--unlimited-fmg-cycles',
+                            help="set max_v_cycles during f-cycles to 20 (that's nearly without limit :-)",
+                            action="store_true", default=False)
+        parser.add_argument('-dg', '--dump-grids', help='dump various grids for comparison with hpgmg.c',
+                            action="store_true", default=False)
+        parser.add_argument('-l', '--log', help='turn on logging', action="store_true", default=False)
+        parser.add_argument('-b', '--backend', help='turn on JIT',
+                            choices=('python', 'c', 'omp', 'ocl'), default='python')
+        parser.add_argument('-v', '--verbose', help='print verbose', action="store_true", default=False)
+        parser.add_argument('-bd', '--blocking_dimensions', help='number of dimensions to block in',
+                            default=0, type=int)
+        parser.add_argument('-bls', '--block_size', help='size of each block', default=32, type=int)
+        parser.add_argument('-t', '--tune', help='try tuning it', default=False, action="store_true")
+        finite_volume.CONFIG = parser.parse_args(args=args)
+        finite_volume.CONFIG.block_hierarchy = (finite_volume.CONFIG.block_size,) * int(
+            finite_volume.CONFIG.blocking_dimensions or 2
+        )
+
+        return finite_volume.CONFIG
+
     @profile
     def __init__(self, configuration):
         self.dump_grids = configuration.dump_grids
@@ -80,13 +144,15 @@ class SimpleMultigridSolver(object):
         self.is_poisson = configuration.equation == 'p'
 
         self.number_of_v_cycles = configuration.number_of_vcycles
-        if configuration.interpolator_method == 'pc':
-            self.interpolator = InterpolatorPC(solver=self, pre_scale=1.0)
-        elif configuration.interpolator_method == 'v2':
-            self.interpolator = InterpolatorPQ(solver=self, prescale=1.0)
-
+        self.interpolator = InterpolatorPC(solver=self, pre_scale=1.0)
         self.restrictor = Restriction(solver=self)
 
+        self.do_f_cycle = configuration.do_f_cycles
+        self.unlimited_fmg_cycles = configuration.unlimited_fmg_cycles
+        if self.do_f_cycle:
+            print("Running using f-cycles")
+        else:
+            print("Running without f-cycles")
         self.problem_operator = StencilVonNeumannR1(solver=self)
         self.ghost_zone = self.problem_operator.ghost_zone
 
@@ -118,8 +184,15 @@ class SimpleMultigridSolver(object):
 
         self.minimum_coarse_dimension = configuration.minimum_coarse_dimension
 
+        self.fine_level = SimpleLevel(solver=self, space=self.global_size, level_number=0)
+        self.all_levels = [self.fine_level]
+
         if configuration.problem_name == 'sine':
             self.problem = SineProblemND(dimensions=self.dimensions)
+        elif configuration.problem_name == 'fv':
+            self.problem = ProblemFV(dimensions=self.dimensions,
+                                     cell_size=self.fine_level.cell_size,
+                                     add_4th_order_correction=True)
         elif configuration.problem_name == 'p4':
             self.problem = ProblemP4(dimensions=self.dimensions)
         elif configuration.problem_name == 'p6':
@@ -127,11 +200,14 @@ class SimpleMultigridSolver(object):
                 dimensions=self.dimensions,
                 shift=0.0 if not self.boundary_is_periodic else 1.0/21.0
             )
+        print("Using problem initializer {}".format(configuration.problem_name))
 
         self.compute_richardson_error = not configuration.disable_richardson_error
 
         if configuration.variable_coefficient:
             self.beta_generator = VariableBeta(self.dimensions)
+        else:
+            self.beta_generator = None
 
         self.timer = EventTimer(self)
 
@@ -149,11 +225,11 @@ class SimpleMultigridSolver(object):
 
         self.fine_level = SimpleLevel(solver=self, space=self.global_size, level_number=0)
         self.all_levels = [self.fine_level]
-
-        self.initialize(self.fine_level)
+        # self.initialize(self.fine_level)
+        self.problem.initialize_problem(self, self.fine_level)
 
         self.fine_level.exact_solution.dump("VECTOR_UTRUE")
-        self.fine_level.right_hand_side.dump("VECTOR_F")
+        self.fine_level.right_hand_side.dump("VECTOR_F", force_dump=True)
 
         if self.dimensions == 3:
             self.fine_level.beta_face_values[2].dump("VECTOR_BETA_I")
@@ -200,17 +276,25 @@ class SimpleMultigridSolver(object):
         'omp': CInitializeMesh,
         'ocl': OclInitializeMesh
     })
-    def initialize_mesh(self, level, mesh, exp, coord_transform):  # TODO: Handle variable coefficient shifts
+    def initialize_mesh(self, level, mesh, exp, coord_transform, dump=False):
+        """
+        DEPRECATED: TODO REMOVE THIS FUNCTION ASAP, replaced in AlgebraicProblem
+        WARNING: This function does not handle variable coefficient shifts
+        """
         func = self.problem.get_func(exp, self.problem.symbols)
-        for coord in level.indices():
+        # print("expression {}".format(exp))
+        for coord in level.interior_points():
+            if dump:
+                x, y, z = coord_transform(coord)
+                f = func(*coord_transform(coord))
+                print("Coordinate ({:12.10f},{:12.10f},{:12.10f}) -> {:10.6g}".format(x, y, z, f))
             mesh[coord] = func(*coord_transform(coord))
-
-
 
     @time_this
     @profile
     def initialize(self, level):
         """
+        DEPRECATED: TODO REMOVE THIS FUNCTION ASAP, replaced in problem definitions
         Initialize the right_hand_side(VECTOR_F), exact_solution(VECTOR_UTRUE)
         alpha, and possibly the beta_faces
         :param level:
@@ -218,50 +302,45 @@ class SimpleMultigridSolver(object):
         """
         alpha = 1.0
         beta = 1.0
-        beta_xyz = Vector(0.0, 0.0, 0.0)
-        face_betas = [1.0 for _ in range(self.dimensions)]
+        # beta_xyz = Vector(0.0, 0.0, 0.0)
+        # face_betas = [1.0 for _ in range(self.dimensions)]
 
         problem = self.problem
-        print(self.problem.expression)
 
-        if level.is_variable_coefficient:
-            beta_generator = self.beta_generator
+        beta_generator = self.beta_generator
 
-        a = time.time()
-        #fill Alpha
-        #level.alpha
+        # a = time.time()
+        # fill Alpha
+        # level.alpha
         level.alpha.fill(alpha)
 
         #fill U
         self.initialize_mesh(level, level.exact_solution, problem.expression, level.coord_to_cell_center_point)
-
-
-
-        #beta stuff
+        # beta stuff
         if level.is_variable_coefficient:
-            beta_values = np.fromfunction(
-                np.frompyfunc(
-                    lambda *vector: beta_generator.evaluate_beta(vector), self.dimensions, 1
-                ),
-                level.space,
-                dtype=level.exact_solution.dtype
-            )
+            # beta_values = np.fromfunction(
+            #     np.frompyfunc(
+            #         lambda *vector: beta_generator.evaluate_beta(vector), self.dimensions, 1
+            #     ),
+            #     level.space,
+            #     dtype=level.exact_solution.dtype
+            # )
             beta_expression = beta_generator.get_beta_expression()
 
-            beta_vectors = np.fromfunction(
-                np.frompyfunc(
-                    lambda *vector: beta_generator.evaluate_beta_vector(vector), self.dimensions, self.dimensions
-                ),
-                level.space,
-                dtype=level.exact_solution.dtype
-            )
+            # beta_vectors = np.fromfunction(
+            #     np.frompyfunc(
+            #         lambda *vector: beta_generator.evaluate_beta_vector(vector), self.dimensions, self.dimensions
+            #     ),
+            #     level.space,
+            #     dtype=level.exact_solution.dtype
+            # )
         else:
             beta_expression = beta
-            beta_values = np.full(level.space, beta)
-            beta_vectors = [
-                np.full(level.space, 0)
-                for i in range(self.dimensions)
-            ]
+            # beta_values = np.full(level.space, beta)
+            # beta_vectors = [
+            #     np.full(level.space, 0)
+            #     for i in range(self.dimensions)
+            # ]
         #
         # level.right_hand_side -= self.b * (sum(A*B for A, B in zip(beta_vectors, first_derivatives)) +
         #                                    beta_values * second_derivatives)
@@ -282,19 +361,20 @@ class SimpleMultigridSolver(object):
         symbols = self.problem.symbols
         beta_first_derivative = [sympy.diff(beta_expression, sym) for sym in symbols]
         u_first_derivative = [sympy.diff(self.problem.expression, sym) for sym in symbols]
-        BU_derivative_1 = sum(a * b for a, b in zip(beta_first_derivative, u_first_derivative))
-        U_derivative_2 = [sympy.diff(problem.expression, sym, 2) for sym in symbols]
-        f_exp = self.a * alpha * problem.expression - self.b * (BU_derivative_1 + beta_expression * sum(U_derivative_2))
+        bu_derivative_1 = sum(a * b for a, b in zip(beta_first_derivative, u_first_derivative))
+        u_derivative_2 = [sympy.diff(problem.expression, sym, 2) for sym in symbols]
+        f_exp = self.a * alpha * problem.expression - self.b * (bu_derivative_1 + beta_expression * sum(u_derivative_2))
         #F = a*A*U - b*( (Bx*Ux + By*Uy + Bz*Uz)  +  B*(Uxx + Uyy + Uzz) );
         #print(f_exp)
         # rhs = np.zeros_like(level.right_hand_side)
-        self.initialize_mesh(level, level.right_hand_side, f_exp, level.coord_to_cell_center_point)
+        self.initialize_mesh(level, level.right_hand_side, f_exp, level.coord_to_cell_center_point, dump=False)
+        # level.right_hand_side.dump("VECTOR_F:right_hand_side", force_dump=True)
+        # exit(0)
         #
         # print(rhs.ravel()[:10])
         # print(level.right_hand_side.ravel()[:10])
 
-        b = time.time()
-
+        # b = time.time()
 
         if level.alpha_is_zero is None:
             level.alpha_is_zero = level.dot_mesh(level.alpha, level.alpha) == 0.0
@@ -309,6 +389,12 @@ class SimpleMultigridSolver(object):
             self.problem_operator.rebuild_operator(coarser_level, level)
             self.all_levels.append(coarser_level)
             level = coarser_level
+
+        for level in self.all_levels:
+            level.must_subtract_mean = False
+            alpha_is_zero = level.dot_mesh(level.alpha, level.alpha) == 0.0
+            if self.boundary_is_periodic and (self.a == 0.0 or alpha_is_zero == 1.0):
+                level.must_subtract_mean = True
 
     def v_cycle(self, level, target_mesh, residual_mesh):
         if min(level.space) <= 3:
@@ -415,6 +501,89 @@ class SimpleMultigridSolver(object):
                 if norm_of_residual < d_tolerance:
                     break
 
+    @time_this
+    def solve_with_f_cycle(self, start_level_number, d_tolerance, r_tolerance):
+        max_v_cycles = 10 if self.unlimited_fmg_cycles else 0
+        number_of_levels = len(self.all_levels)
+        start_level = self.all_levels[start_level_number]
+
+        # calculate norm of f...
+        norm_of_f, norm_of_d_inv_f = 1.0, 1.0
+        if d_tolerance > 0.0:
+            # D^{-1}F
+            start_level.multiply_meshes(start_level.temp, 1.0, start_level.right_hand_side, start_level.d_inverse)
+            norm_of_d_inv_f = start_level.norm_mesh(start_level.temp)  # ||D^{-1}F||
+        if r_tolerance:
+            norm_of_f = start_level.norm_mesh(start_level.right_hand_side)  # ||F||
+            start_level.right_hand_side.dump(
+                "F_id:right_hand_side with ||right_hand_side|| == {}".format(norm_of_f), force_dump=True)
+
+        # initialize the RHS for the f-cycle to f...
+        start_level.scale_mesh(start_level.residual, 1.0, start_level.right_hand_side)
+
+        # restrict RHS to bottom (coarsest grids)
+        for restrict_level in range(start_level_number, len(self.all_levels)-1):
+            self.restrictor.restrict(self.all_levels[restrict_level+1],
+                                     self.all_levels[restrict_level+1].residual,
+                                     self.all_levels[restrict_level].residual, Restriction.RESTRICT_CELL)
+
+        # solve coarsest grid...
+        last_level_number = number_of_levels - 1
+        last_level = self.all_levels[last_level_number]
+        if last_level_number > start_level_number:
+            start_level.fill_mesh(start_level.cell_values, 0.0)  # use whatever was the initial guess
+            self.bottom_solver.solve(last_level, start_level.cell_values, start_level.residual)
+
+        # now do the F-cycle proper...
+        for cycle_level in range(number_of_levels-2, start_level_number-1, -1):
+            # high-order interpolation
+            source_coarse_level = self.all_levels[cycle_level+1]
+            target_fine_level = self.all_levels[cycle_level]
+            self.interpolator.interpolate(target_fine_level, target_fine_level.cell_values,
+                                          source_coarse_level.cell_values)
+            target_fine_level.v_cycles_from_this_level += 1
+            self.v_cycle(target_fine_level, target_fine_level.cell_values, target_fine_level.residual)
+
+        # now do the post-F V-cycles
+        for v in range(-1, max_v_cycles):
+            level_number = start_level_number
+
+            # do the v-cycle...
+            if v >= 0:
+                self.all_levels[level_number].v_cycles_from_this_level += 1
+                self.v_cycle(self.fine_level, self.fine_level.cell_values,
+                             self.fine_level.residual)
+
+            # now calculate the norm of the residual...
+            if start_level.must_subtract_mean:
+                average_value_of_cell_values = start_level.mean_mesh(start_level.cell_values)
+                start_level.shift_mesh(start_level.cell_values, average_value_of_cell_values, start_level.cell_values)
+
+            self.residual.run(start_level,
+                              target_mesh=start_level.temp,
+                              source_mesh=start_level.cell_values,
+                              right_hand_side=start_level.right_hand_side)
+
+            if d_tolerance > 0.0:
+                start_level.multiply_meshes(start_level.temp, 1.0, start_level.temp, start_level.d_inverse)
+
+            norm_of_residual = start_level.norm_mesh(start_level.temp)
+
+            if r_tolerance > 0.0:
+                rel = norm_of_residual / norm_of_f
+            else:
+                rel = norm_of_residual / norm_of_d_inv_f
+
+            if v > 0.0:
+                print("            v-cycle={:2d}  norm={:1.15e}  rel={:1.15e}  ".format(v+1, norm_of_residual, rel))
+            else:
+                print("            f-cycle={:2s}  norm={:1.15e}  rel={:1.15e}  ".format("", norm_of_residual, rel))
+
+            if norm_of_residual / norm_of_f < r_tolerance:
+                break
+            if norm_of_residual < d_tolerance:
+                break
+
     def richardson_error(self, start_level=0):
         import math
         """
@@ -459,7 +628,10 @@ class SimpleMultigridSolver(object):
                     Restriction.RESTRICT_CELL)
             level.fill_mesh(level.cell_values, 0.0)
 
-            self.solve(start_level=level_number)
+            if self.do_f_cycle:
+                self.solve_with_f_cycle(0, 0.0, 1.0e-10)
+            else:
+                self.solve(start_level=level_number)
         self.richardson_error()
 
     def calculate_error(self, mesh1, mesh2):
@@ -548,10 +720,6 @@ class SimpleMultigridSolver(object):
                             help="Type of smoother, j for jacobi, c for chebyshev",
                             choices=['j', 'c'],
                             default='j', )
-        parser.add_argument('-im', '--interpolator-method',
-                            help="Type of interpolator pc for pc, v2 for pq",
-                            choices=['pc', 'v2', 'v4'],
-                            default='pc', )
         parser.add_argument('-bs', '--bottom-solver',
                             help="Bottom solver to use",
                             choices=['smoother', 'bicgstab'],
@@ -603,6 +771,7 @@ class SimpleMultigridSolver(object):
         else:
             min_solves = 10
             number_passes = 1
+
         for pass_num in range(number_passes):
             if pass_num == 0:
                 if self.backend == 'python':
@@ -615,7 +784,10 @@ class SimpleMultigridSolver(object):
             for solve_pass in range(min_solves):
                 self.all_levels[start_level].fill_mesh(self.all_levels[start_level].cell_values, 0.0)
 
-                self.solve(start_level=start_level)
+                if self.do_f_cycle:
+                    self.solve_with_f_cycle(0, 0.0, 1.0e-10)
+                else:
+                    self.solve(start_level=start_level)
 
         print("===== Timing Breakdown ==============================================")
         self.show_timing_information()
@@ -632,7 +804,6 @@ class SimpleMultigridSolver(object):
         configuration = SimpleMultigridSolver.get_configuration()
         solver = SimpleMultigridSolver(configuration)
         solver.benchmark_hpgmg(start_level=0)
-        # solver.benchmark_hpgmg(start_level=0)
         return
 
 if __name__ == '__main__':

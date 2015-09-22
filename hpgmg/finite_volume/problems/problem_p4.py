@@ -1,12 +1,12 @@
 from __future__ import print_function
-from hpgmg.finite_volume.problems.algebraic_problem import AlgebraicProblem, SymmetricAlgebraicProblem
-
-from hpgmg.finite_volume.problems.problem import Problem
-from hpgmg.finite_volume.space import Vector
-import sympy
+from hpgmg.finite_volume.problems.algebraic_problem import SymmetricAlgebraicProblem
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
+# from hpgmg.finite_volume.problems.problem import Problem
+# from hpgmg.finite_volume.space import Vector
+# import sympy
+#
 #
 # class ProblemP4(Problem):
 #     def __init__(self, dimensions=3, shift=0.0):

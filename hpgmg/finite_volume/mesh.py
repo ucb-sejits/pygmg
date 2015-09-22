@@ -148,13 +148,13 @@ class Mesh(np.ndarray):
 
     dump_mesh_enabled = False
 
-    def dump(self, message=None):
+    def dump(self, message=None, force_dump=False):
         """
         print this mesh, if 3d axes go up the page
         if 2d then standard over and down
         :return:
         """
-        if not Mesh.dump_mesh_enabled:
+        if not Mesh.dump_mesh_enabled and not force_dump:
             return
 
         if message:

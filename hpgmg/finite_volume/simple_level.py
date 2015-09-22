@@ -3,7 +3,6 @@ implement a simple single threaded, variable coefficient gmg solver
 """
 from __future__ import division, print_function
 import math
-import itertools
 from stencil_code.halo_enumerator import HaloEnumerator
 from hpgmg.finite_volume.iterator import RangeIterator
 from hpgmg.finite_volume.operators.specializers.mesh_op_specializers import MeshOpSpecializer, CFillMeshSpecializer, \
@@ -83,17 +82,10 @@ class SimpleLevel(object):
 
         self.cell_size = 1.0 / space[0]
         self.alpha_is_zero = None
+        self.v_cycles_from_this_level = 0
+        self.must_subtract_mean = False
 
         self.timer = EventTimer(self)
-
-        self.buffers = []
-        # self.context = cl.clCreateContext(devices=[cl.clGetDeviceIDs()[-1]])
-        # self.queue = cl.clCreateCommandQueue(self.context)
-        if self.configuration.backend == 'ocl':
-            self.context = self.solver.context
-            self.queue = self.solver.queue
-            self.reducer_meshes = {}
-
 
     def dimension_size(self):
         return self.space[0] - (self.ghost_zone[0]*2)
@@ -272,6 +264,37 @@ class SimpleLevel(object):
         # return result
         return ((Vector(coord) - self.ghost_zone) + self.half_cell) * self.h
 
+    def coord_to_cell_center_formula(self, target_name, source_name):
+        lines = [
+            "{target}{dim} = (({source}[{dim}] - {ghost_offset}) + {half_cell}) * {cell_size}".format(
+                target=target_name, source=source_name,
+                dim=dim, ghost_offset=self.ghost_zone[dim],
+                half_cell=self.half_cell[dim], cell_size=self.h
+            )
+            for dim in range(self.solver.dimensions)
+        ]
+        for index, line in enumerate(lines):
+            print("{:02d} {}".format(index, line))
+        return lines
+
+    def cell_center_to_face_center(self, target_name, source_name):
+        ", ".join([
+            "{target}{dim}{adjust}".format(
+                target=target_name,
+            )
+        ])
+        lines = [
+            "{target}{dim} = (({source}{dim} - {ghost_offset}) + {half_cell}) * {cell_size}".format(
+                target=target_name, source=source_name,
+                dim=dim, ghost_offset=self.ghost_zone[dim],
+                half_cell=self.half_cell[dim], cell_size=self.h
+            )
+            for dim in range(self.solver.dimensions)
+        ]
+        for index, line in enumerate(lines):
+            print("{:02d} {}".format(index, line))
+        return lines
+
     def coord_to_face_center_point(self, coord, face_dimension):
         """
         a coordinate in one of the level, shifted to the face center on the specified dimension
@@ -281,6 +304,14 @@ class SimpleLevel(object):
         return self.coord_to_cell_center_point(coord) - (self.half_unit_vectors[face_dimension] * self.h)
 
     def print(self, title=None):
+        """
+        prints the cell values mesh
+        :param title:
+        :return:
+        """
+        self.cell_values.print(message=title)
+
+    def dump(self, title=None):
         """
         prints the cell values mesh
         :param title:

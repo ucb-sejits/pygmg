@@ -11,5 +11,7 @@ class TestProblemP4(unittest.TestCase):
         for d in range(1, 5):
             problem = ProblemP4(d)
             print("Dimensions {}".format(d))
-            for line in problem.source:
-                print("    {}".format(line))
+            print("    {}".format(problem.expression))
+            # following is crude test that we have the right number of terms
+            self.assertEqual(d-1, problem.expression.__str__().count(')*('))
+
