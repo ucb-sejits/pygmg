@@ -157,3 +157,7 @@ class TestSimpleLevel(unittest.TestCase):
     #
     #
     #
+
+if __name__ == '__main__':
+    t = TestSimpleLevel()
+    t.run()

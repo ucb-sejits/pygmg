@@ -15,17 +15,29 @@ class Mesh(np.ndarray):
     def __new__(cls, *args, **kwargs):
         obj = np.ndarray(*args, **kwargs).view(cls)
         obj.fill(0)
+        obj._buffer = None
+        obj.dirty = False
+        obj.fill_value = None
         return obj
 
-    def __init__(self, *args, **kwargs):
-        self._buffer = None
-        self.dirty = False
-        self.fill_value = None
-        super(Mesh, self).__init__(*args, **kwargs)
+    # TODO: Remove the following, after discussion
+    # it was commented out per http://docs.scipy.org/doc/numpy/user/basics.subclassing.html
+    # def __init__(self, *args, **kwargs):
+    #     self._buffer = None
+    #     self.dirty = False
+    #     self.fill_value = None
+    #     super(Mesh, self).__init__(*args, **kwargs)
     #
     # def __setitem__(self, key, value):
     #     self.dirty = True
     #     super(Mesh, self).__setitem__(key, value)
+
+    def __array_finalize__(self, obj):
+        if obj is None:
+            return
+        self._buffer = getattr(obj, '_buffer', None)
+        self.dirty = getattr(obj, 'dirty', False)
+        self.fill_value = getattr(obj, 'dirty', None)
 
     def __setitem__(self, key, value):
         if self.buffer and self.buffer.dirty:
@@ -211,6 +223,7 @@ class Mesh(np.ndarray):
     def zero(self):
         for index in self.indices():
             self[index] = 0.0
+
 
 class Buffer(object):
     def __init__(self, buffer):
