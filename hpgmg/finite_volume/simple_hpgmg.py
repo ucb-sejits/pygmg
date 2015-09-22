@@ -10,7 +10,7 @@ import sympy
 from hpgmg import finite_volume
 from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.operators.chebyshev_smoother import ChebyshevSmoother
-from hpgmg.finite_volume.operators.specializers.initialize_mesh_specializer import CInitializeMesh
+from hpgmg.finite_volume.operators.specializers.initialize_mesh_specializer import CInitializeMesh, OclInitializeMesh
 from hpgmg.finite_volume.operators.specializers.util import profile, time_this, specialized_func_dispatcher
 
 from hpgmg.finite_volume.operators.stencil_von_neumann_r1 import StencilVonNeumannR1
@@ -694,64 +694,6 @@ class SimpleMultigridSolver(object):
         print()
         for key in self.timer.names():
             print(self.timer[key])
-
-    @staticmethod
-    def get_configuration(args=None):
-        parser = argparse.ArgumentParser()
-        parser.add_argument('log2_level_size', help='each dim will be of 2^(log2_level_size)',
-                            default=6, type=int)
-        parser.add_argument('-d', '--dimensions', help='number of dimensions in problem',
-                            default=3, type=int)
-        parser.add_argument('-nv', '--number-of-vcycles', help='number of vcycles to run',
-                            default=1, type=int)
-        parser.add_argument('-pn', '--problem-name',
-                            help="math problem name to use for initialization",
-                            default='sine',
-                            choices=['sine', 'p4', 'p6'], )
-        parser.add_argument('-bc', '--boundary-condition',
-                            help="Type of boundary condition. Use p for Periodic and d for Dirichlet. Default is d",
-                            default=('p' if os.environ.get('USE_PERIODIC_BC', 0) else 'd'),
-                            choices=['p', 'd'], )
-        parser.add_argument('-eq', '--equation',
-                            help="Type of equation, h for helmholtz or p for poisson",
-                            choices=['h', 'p'],
-                            default='h', )
-        parser.add_argument('-sm', '--smoother',
-                            help="Type of smoother, j for jacobi, c for chebyshev",
-                            choices=['j', 'c'],
-                            default='j', )
-        parser.add_argument('-bs', '--bottom-solver',
-                            help="Bottom solver to use",
-                            choices=['smoother', 'bicgstab'],
-                            default='bicgstab', )
-        parser.add_argument('-ulj', '--use-l1-jacobi', action="store_true",
-                            help="use l1 instead of d inverse with jacobi smoother",
-                            default=False, )
-        parser.add_argument('-vc', '--variable-coefficient', action='store_true',
-                            help="Use 1.0 as fixed value of beta, default is variable beta coefficient",
-                            default=False, )
-        parser.add_argument('-si', '--smoother-iterations', help='number of iterations each time smoother is called',
-                            default=6, type=int)
-        parser.add_argument('-mcd', '--minimum-coarse_dimension', help='smallest allowed coarsened dimension',
-                            default=3, type=int)
-        parser.add_argument('-dre', '--disable-richardson-error',
-                            help="don't compute or show richardson error at end of run",
-                            action="store_true", default=False)
-        parser.add_argument('-dg', '--dump-grids', help='dump various grids for comparison with hpgmg.c',
-                            action="store_true", default=False)
-        parser.add_argument('-l', '--log', help='turn on logging', action="store_true", default=False)
-        parser.add_argument('-b', '--backend', help='turn on JIT',
-                            choices=('python', 'c', 'omp', 'ocl'), default='python')
-        parser.add_argument('-v', '--verbose', help='print verbose', action="store_true", default=False)
-        parser.add_argument('-bd', '--blocking_dimensions', help='number of dimensions to block in', default=0, type=int)
-        parser.add_argument('-bls', '--block_size', help='size of each block', default=32, type=int)
-        parser.add_argument('-t', '--tune', help='try tuning it', default=False, action="store_true")
-        finite_volume.CONFIG = parser.parse_args(args=args)
-        finite_volume.CONFIG.block_hierarchy = (finite_volume.CONFIG.block_size,) * int(
-            finite_volume.CONFIG.blocking_dimensions or 2
-        )
-
-        return finite_volume.CONFIG
 
     @staticmethod
     def get_solver(args=None):
