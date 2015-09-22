@@ -61,7 +61,7 @@ class ProblemFV(SymmetricAlgebraicProblem):
                 level.cell_size, self.cell_size
             ))
 
-        self.initialize_mesh(level, level.right_hand_side, self.expression)  # , dump=True)
+        self.initialize_mesh(level, level.right_hand_side, self.expression, level.coord_to_cell_center_point)  # , dump=True)
         level.exact_solution.fill(0.0)
 
         level.alpha.fill(1.0)
