@@ -105,8 +105,11 @@ class TestBoundaryConditionV2(unittest.TestCase):
 
         mesh = simple_solver.fine_level.cell_values
 
-        for i in simple_solver.fine_level.interior_points():
-            mesh[i] = i[0] * .1 + i[1] * .01 + i[2] * .001 + i[3] * .0001
+        # TODO: Why was this used instead of fill below,
+        # for i in simple_solver.fine_level.interior_points():
+        #     mesh[i] = i[0] * .1 + i[1] * .01 + i[2] * .001 + i[3] * .0001
+
+        mesh.fill(1.0)
 
         bu.apply(simple_solver.fine_level, mesh)
 
