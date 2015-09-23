@@ -8,9 +8,6 @@ from hpgmg.finite_volume.operators.specializers.rebuild_specializer import CRebu
 from hpgmg.finite_volume.operators.specializers.util import specialized_func_dispatcher, profile
 from hpgmg.finite_volume.space import Coord
 
-import numpy as np
-
-
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 
@@ -85,7 +82,7 @@ class StencilVonNeumannR1(BaseOperator):
             )
         )
 
-    def apply_op_constant_coefficient_boundary_conditions(self, mesh, index, level):
+    def apply_op_constant_coefficient_boundary_conditions(self, mesh, index, _=None):
         return self.a * mesh[index] - self.b * self.h2inv * (
             sum([mesh[index + neighbor_offset] for neighbor_offset in self.neighborhood_offsets]) -
             mesh[index] * self.num_neighbors
@@ -97,7 +94,6 @@ class StencilVonNeumannR1(BaseOperator):
         second_term = neighbor_sum - m_i * self.num_neighbors
         print("apply_op h2inv {} neighbor_sum {} second_term {}".format(self.h2inv, neighbor_sum, second_term))
         return self.a * m_i - self.b * self.h2inv * second_term
-
 
     @profile
     def rebuild_operator(self, target_level, source_level=None):
@@ -184,7 +180,6 @@ class StencilVonNeumannR1(BaseOperator):
                 #     ",".join(map("{:02d}".format, index)),
                 #     self.a * target_level.alpha[index], self.b*self.h2inv, a_diagonal
                 # ))
-
 
             # compute the d_inverse, l1_inverse and dominant eigen_value
             target_level.d_inverse[index] = 1.0/a_diagonal
