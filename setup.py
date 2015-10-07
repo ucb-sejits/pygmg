@@ -20,8 +20,8 @@ setup(
     install_requires=[
         'numpy',
         'sympy',
-        'stencil_code',
         'ctree',
+        'stencil_code',
+        'rebox'
     ]
-
 )

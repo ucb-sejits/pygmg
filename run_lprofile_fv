@@ -1,0 +1,5 @@
+#!/bin/sh
+
+# 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
+
+kernprof -l -v hpgmg/finite_volume/simple_hpgmg.py $*

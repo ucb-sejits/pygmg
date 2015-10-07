@@ -17,29 +17,31 @@ class TestStencilVonNeumannR1(unittest.TestCase):
         self.assertIsInstance(solver.problem_operator, StencilVonNeumannR1)
         self.assertEqual(
             solver.problem_operator.apply_op,
-            solver.problem_operator.apply_op_constant_coefficient_unfused_boundary_conditions
+            solver.problem_operator.apply_op_constant_coefficient_boundary_conditions
         )
         self.assertEqual(solver.a, 1.0)
         self.assertEqual(solver.b, 1.0)
+
+        solver.problem_operator.set_scale(solver.fine_level.h)
         self.assertEqual(solver.problem_operator.h2inv, 64.0)
 
-        value = solver.problem_operator.apply_op(in_mesh, Coord(1, 1))
+        value = solver.problem_operator.apply_op(in_mesh, Coord(1, 1), solver.fine_level)
         self.assertEqual(value, 1.0)
 
         in_mesh[Coord(1, 1) + 1] = 10.0  # diagonal neighbor change has no effect on apply_op
-        value = solver.problem_operator.apply_op(in_mesh, Coord(1, 1))
+        value = solver.problem_operator.apply_op(in_mesh, Coord(1, 1), solver.fine_level)
         self.assertEqual(value, 1.0)
         in_mesh[Coord(1, 1) + 1] = 1.0  # diagonal neighbor change has no effect on apply_op
 
         in_mesh[Coord(1, 1) + Coord(1, 0)] = 0.0  # facing neighbor change affects stencil result
-        value = solver.problem_operator.apply_op(in_mesh, Coord(1, 1))
-        self.assertEqual(value, 65.0)  # TODO: confirm this value
+        value = solver.problem_operator.apply_op(in_mesh, Coord(1, 1), solver.fine_level)
+        self.assertEqual(value, 65.0)
 
         in_mesh[Coord(1, 1) + Coord(-1, 0)] = 2.0  # opposite facing neighbor balances out stencil
-        value = solver.problem_operator.apply_op(in_mesh, Coord(1, 1))
-        self.assertEqual(value, 1.0)  # TODO: confirm this value
-
-        value = solver.problem_operator.apply_op(in_mesh, Coord(1, 1))
+        value = solver.problem_operator.apply_op(in_mesh, Coord(1, 1), solver.fine_level)
         self.assertEqual(value, 1.0)
 
-        self.assertRaises(IndexError, solver.problem_operator.apply_op, in_mesh, in_mesh.space - 1)
+        value = solver.problem_operator.apply_op(in_mesh, Coord(1, 1), solver.fine_level)
+        self.assertEqual(value, 1.0)
+
+        self.assertRaises(IndexError, solver.problem_operator.apply_op, in_mesh, in_mesh.space - 1, solver.fine_level)

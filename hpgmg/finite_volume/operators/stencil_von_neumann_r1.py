@@ -1,7 +1,11 @@
 from __future__ import print_function
+
 from stencil_code.neighborhood import Neighborhood
+
 from hpgmg.finite_volume.operators.base_operator import BaseOperator
 from hpgmg.finite_volume.operators.restriction import Restriction
+from hpgmg.finite_volume.operators.specializers.rebuild_specializer import CRebuildSpecializer, OclRebuildSpecializer
+from hpgmg.finite_volume.operators.specializers.util import specialized_func_dispatcher, profile
 from hpgmg.finite_volume.space import Coord
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
@@ -33,141 +37,90 @@ class StencilVonNeumannR1(BaseOperator):
 
         if solver.is_variable_coefficient:
             if solver.is_helmholtz:
-                self.apply_op = self.apply_op_variable_coefficient_unfused_boundary_conditions_helmholtz
+                self.apply_op = self.apply_op_variable_coefficient_boundary_conditions_helmholtz
             else:
-                self.apply_op = self.apply_op_variable_coefficient_unfused_boundary_conditions_poisson
+                self.apply_op = self.apply_op_variable_coefficient_boundary_conditions_poisson
         else:
-            if solver.is_helmholtz:
-                self.apply_op = self.apply_op_constant_coefficient_unfused_boundary_conditions
-            else:
-                self.apply_op = self.apply_op_constant_coefficient_unfused_boundary_conditions
+            self.apply_op = self.apply_op_constant_coefficient_boundary_conditions
 
     def set_scale(self, level_h):
         self.h2inv = 1.0 / (level_h ** 2)
 
-    def apply_op_variable_coefficient_fused_boundary_conditions_helmholtz(self, mesh, index, level):
+    def apply_op_variable_coefficient_boundary_conditions_helmholtz(self, mesh, index, level):
         return self.a * level.alpha[index] * mesh[index] - self.b * self.h2inv * (
             sum(
-                level.beta_face_values[dim][index] * (
-                    level.valid[index - self.unit_vectors[dim]] * (
-                        mesh[index] + mesh[index - self.unit_vectors[dim]]
-                    ) - 2.0 * mesh[index]
-                )
+                level.beta_face_values[dim][index] * (mesh[index - self.unit_vectors[dim]] - mesh[index])
                 for dim in range(self.dimensions)
             ) +
             sum(
                 level.beta_face_values[dim][index + self.unit_vectors[dim]] * (
-                    level.valid[index + self.unit_vectors[dim]] * (
-                        mesh[index] + mesh[index + self.unit_vectors[dim]]
-                    ) - 2.0 * mesh[index]
+                    (
+                        mesh[index + self.unit_vectors[dim]] - mesh[index]
+                    )
                 )
                 for dim in range(self.dimensions)
             )
         )
 
-    def apply_op_variable_coefficient_fused_boundary_conditions_poisson(self, mesh, index, level):
-        return -self.b * self.h2inv * (
-            sum(
-                level.beta_face_values[dim][index] * (
-                    level.valid[index - self.unit_vectors[dim]] * (
-                        mesh[index] + mesh[index - self.unit_vectors[dim]]
-                    ) - 2.0 * mesh[index]
-                )
-                for dim in range(self.dimensions)
-            ) +
-            sum(
-                level.beta_face_values[dim][index + self.unit_vectors[dim]] * (
-                    level.valid[index + self.unit_vectors[dim]] * (
-                        mesh[index] + mesh[index + self.unit_vectors[dim]]
-                    ) - 2.0 * mesh[index]
-                )
-                for dim in range(self.dimensions)
-            )
-        )
-
-    def apply_op_constant_coefficient_fused_boundary_conditions(self, mesh, index, level):
-        return self.a * mesh[index] - self.b * self.h2inv * (
-            sum(
-                level.valid[index + self.unit_vectors[dim]] * (
-                    mesh[index] + mesh[index - self.unit_vectors[dim]]
-                )
-                for dim in range(self.dimensions)
-            ) +
-            sum(
-                level.valid[index + self.unit_vectors[dim]] * (
-                    mesh[index] + mesh[index - self.unit_vectors[dim]]
-                )
-                for dim in range(self.dimensions)
-            ) -
-            mesh[index] * self.num_neighbors * 2.0
-        )
-
-    def apply_op_variable_coefficient_unfused_boundary_conditions_helmholtz(self, mesh, index, level):
-        return self.a * level.alpha[index] * mesh[index] - self.b * self.h2inv * (
-            sum(
-                level.beta_face_values[dim][index] * (
-                    level.valid[index - self.unit_vectors[dim]] * (
-                        mesh[index] + mesh[index - self.unit_vectors[dim]]
-                    ) - 2.0 * mesh[index]
-                )
-                for dim in range(self.dimensions)
-            ) +
-            sum(
-                level.beta_face_values[dim][index + self.unit_vectors[dim]] * (
-                    level.valid[index + self.unit_vectors[dim]] * (
-                        mesh[index] + mesh[index + self.unit_vectors[dim]]
-                    ) - 2.0 * mesh[index]
-                )
-                for dim in range(self.dimensions)
-            )
-        )
-
-    def apply_op_variable_coefficient_unfused_boundary_conditions_poisson(self, mesh, index, level):
+    def apply_op_variable_coefficient_boundary_conditions_poisson(self, mesh, index, level):
         return -self.b * self.h2inv * (
             sum(
                 level.beta_face_values[dim][index] * (
                     (
-                        mesh[index] + mesh[index - self.unit_vectors[dim]]
-                    ) - 2.0 * mesh[index]
+                        mesh[index - self.unit_vectors[dim]] - mesh[index]
+                    )
                 )
                 for dim in range(self.dimensions)
             ) +
             sum(
                 level.beta_face_values[dim][index + self.unit_vectors[dim]] * (
                     (
-                        mesh[index] + mesh[index + self.unit_vectors[dim]]
-                    ) - 2.0 * mesh[index]
+                        mesh[index + self.unit_vectors[dim]] - mesh[index]
+                    )
                 )
                 for dim in range(self.dimensions)
             )
         )
 
-    def apply_op_constant_coefficient_unfused_boundary_conditions(self, mesh, index, _=None):
+    def apply_op_constant_coefficient_boundary_conditions(self, mesh, index, _=None):
         return self.a * mesh[index] - self.b * self.h2inv * (
             sum([mesh[index + neighbor_offset] for neighbor_offset in self.neighborhood_offsets]) -
             mesh[index] * self.num_neighbors
         )
 
-    def apply_op_constant_coefficient_unfused_boundary_conditions_verbose(self, mesh, index, _=None):
+    def apply_op_constant_coefficient_boundary_conditions_verbose(self, mesh, index, _=None):
         neighbor_sum = sum([mesh[index + neighbor_offset] for neighbor_offset in self.neighborhood_offsets])
         m_i = mesh[index]
         second_term = neighbor_sum - m_i * self.num_neighbors
         print("apply_op h2inv {} neighbor_sum {} second_term {}".format(self.h2inv, neighbor_sum, second_term))
         return self.a * m_i - self.b * self.h2inv * second_term
 
+    @profile
     def rebuild_operator(self, target_level, source_level=None):
         self.set_scale(target_level.h)
 
         if source_level is not None:
             self.restrictor.restrict(target_level, target_level.alpha, source_level.alpha, Restriction.RESTRICT_CELL)
             for dim in range(self.dimensions):
+                #print(np.sum(abs(target_level.beta_face_values[dim].ravel())))
                 self.restrictor.restrict(target_level, target_level.beta_face_values[dim],
                                          source_level.beta_face_values[dim], dim+1)
+                #print(np.sum(abs(target_level.beta_face_values[dim].ravel())))
 
+        with target_level.timer("blas1"):
+            target_level.dominant_eigen_value_of_d_inv_a = self.get_dominant_eigenvalue(target_level)
+
+    @specialized_func_dispatcher({
+        'c': CRebuildSpecializer,
+        'omp': CRebuildSpecializer,
+        'ocl': OclRebuildSpecializer
+    })
+    def get_dominant_eigenvalue(self, target_level):
         adjust_value = 2.0
         dominant_eigenvalue = -1e9
         for index in target_level.interior_points():
             if self.is_variable_coefficient:
+                # print("VARIABLE COEFFICIENT")
                 # double sumAbsAij = fabs(b*h2inv) * (
                 #                      fabs( beta_i[ijk        ]*valid[ijk-1      ] )+
                 #                      fabs( beta_j[ijk        ]*valid[ijk-jStride] )+
@@ -215,12 +168,18 @@ class StencilVonNeumannR1(BaseOperator):
                     )
                 )
             else:
+                # print("CONSTANT COEFFICIENT")
                 sum_abs = abs(self.b * self.h2inv) * sum(
-                    [target_level.valid[index + neighbor_offset] for neighbor_offset in self.neighborhood_offsets]
+                    target_level.valid[index + neighbor_offset] for neighbor_offset in self.neighborhood_offsets
                 )
-                a_diagonal = self.a * target_level.alpha[index] - self.b * self.h2inv * sum(
-                    [target_level.valid[index + neighbor_offset]-adjust_value for neighbor_offset in self.neighborhood_offsets]
+                a_diagonal = self.a - self.b * self.h2inv * sum(
+                    target_level.valid[index + neighbor_offset]-adjust_value
+                    for neighbor_offset in self.neighborhood_offsets
                 )
+                # print("##,{}:{:10.4f},{:10.4f},{:10.4f}".format(
+                #     ",".join(map("{:02d}".format, index)),
+                #     self.a * target_level.alpha[index], self.b*self.h2inv, a_diagonal
+                # ))
 
             # compute the d_inverse, l1_inverse and dominant eigen_value
             target_level.d_inverse[index] = 1.0/a_diagonal
@@ -235,4 +194,4 @@ class StencilVonNeumannR1(BaseOperator):
             di = (a_diagonal + sum_abs) / a_diagonal
             if di > dominant_eigenvalue:
                 dominant_eigenvalue = di
-            target_level.dominant_eigen_value_of_d_inv_a = dominant_eigenvalue
+        return dominant_eigenvalue

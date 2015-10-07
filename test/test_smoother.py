@@ -78,7 +78,6 @@ class TestApplyOp(unittest.TestCase):
         self.assertTrue(all(mesh[x] == 0 for x in mesh.indices()), "zeros everywhere")
         solver.smoother.smooth(base_level, base_level.cell_values, base_level.right_hand_side)
 
-
         mesh.print("cell values after smooth")
         self.assertTrue(all(m == 0.0 for m in mesh[3]), "spike should not have propagated past row 3")
         self.assertTrue(all(m == 0.0 for m in mesh[:, 3]), "spike should not have propagated past col 3")

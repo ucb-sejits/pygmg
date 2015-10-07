@@ -2,4 +2,4 @@
 
 # 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
-python hpgmg/finite_volume/simple_hpgmg.py $*
+/Applications/pypy-2.5.1-osx64/bin/pypy hpgmg/finite_volume/simple_hpgmg.py $*

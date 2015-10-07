@@ -1,9 +1,15 @@
 from __future__ import print_function
 
-__author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
-
 from math import tanh
+import numpy as np
+import functools
+import operator
+import sympy
+
+from hpgmg.finite_volume.hpgmg_exception import HpgmgException
 from hpgmg.finite_volume.space import Vector
+
+__author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 
 class VariableBeta(object):
@@ -25,12 +31,86 @@ class VariableBeta(object):
 
         delta = vector - self.center
         distance = sum(d**2 for d in delta)**0.5
-        normalized_delta = delta * distance**-1.0
 
         beta_at_face = c1 + c2 * tanh(c3 * (distance - 0.25))
-        beta_vector = c2 * c3 * normalized_delta * (1 - (tanh(c3 * (distance - 0.25))**2))
 
-        return beta_at_face, beta_vector
+        # print("eb v {} dis {} del {} ndel {} bv {}".format(
+        #     ",".join(map(str, vector)), distance, ",".join(map(str, delta)), ",".join(map(str, normalized_delta)),
+        #     ",".join(map(str, beta_vector))
+        # ))
+
+        return beta_at_face
+
+    def get_beta_expression(self, face_index=-1, alternate_var_name=None):
+        b_min = 1.0
+        b_max = 10.0
+        c2 = (b_max-b_min)/2  # coefficients to affect this transition
+        c1 = (b_max+b_min)/2
+        c3 = 10.0  # how sharply (B)eta transitions
+
+        #delta = vector - self.center
+        #distance = sum(d**2 for d in delta)**0.5
+        symbols = [
+            sympy.Symbol("{var_name}{index}".format(
+                var_name="x" if i != face_index else alternate_var_name, index=i)) for i in range(self.dimensions)]
+        distance = sum((sym - d)**2 for sym, d in zip(symbols, self.center)) ** 0.5
+        return c1 + c2 * sympy.tanh(c3 * (distance - 0.25))
+
+    def get_beta_fv_expression(self, add_4th_order_correction=False, cell_size=None,
+                               face_index=-1, alternate_var_name=None):
+        if add_4th_order_correction and cell_size is None:
+            raise HpgmgException("ProblemFv requires cells size")
+
+        b = 0.25
+        a = 2.0 * np.pi
+
+        expression_1d = sympy.sympify("sin({period}*x)".format(period=a))
+        free_symbols = expression_1d.free_symbols
+        symbol = free_symbols.pop()
+
+        symbols = [
+            sympy.Symbol("{var_name}{index}".format(
+                var_name="x" if i != face_index else alternate_var_name, index=i)) for i in range(self.dimensions)]
+        expression_nd = functools.reduce(
+            operator.mul,
+            (expression_1d.xreplace({symbol: replacement_symbol}) for replacement_symbol in symbols)
+        )
+        # expression_nd = functools.reduce(
+        #     operator.mul,
+        #     (expression_1d.xreplace({symbol: sympy.Symbol("x{}".format(i))}) for i in range(self.dimensions))
+        # )
+
+        expression_nd *= sympy.sympify("{}".format(b))
+        expression_nd += sympy.sympify("1.0")
+
+        # print("Uncorrected expression for beta fv {}".format(expression_nd))
+
+        if add_4th_order_correction:
+            second_derivatives = []
+            # symbols = [sympy.Symbol("x{}".format(d)) for d in range(self.dimensions)]
+            # requires two loops so original expression is available for derivative
+            for current_dim in range(self.dimensions):
+                second_derivatives.append(expression_nd.diff(symbols[current_dim-1], 2))
+
+            # print("using cell_size {}".format(cell_size))
+            for current_dim in range(self.dimensions):
+                expression_nd = expression_nd + sympy.sympify("{}*{}/24.0*{}".format(
+                    cell_size, cell_size, second_derivatives[current_dim]))
+        print("Corrected expression for beta fv {}".format(expression_nd))
+
+        return expression_nd
+
+    def evaluate_beta_vector(self, vector):
+        b_min = 1.0
+        b_max = 10.0
+        c2 = (b_max-b_min)/2  # coefficients to affect this transition
+        c3 = 10.0  # how sharply (B)eta transitions
+
+        delta = vector - self.center
+        distance = sum(d**2 for d in delta)**0.5
+        normalized_delta = delta / distance
+        beta_vector = c2 * c3 * normalized_delta * (1 - (tanh(c3 * (distance - 0.25))**2))
+        return beta_vector
 
     def evaluate_beta_3d(self, vector):
         """
