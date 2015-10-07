@@ -20,17 +20,9 @@ class Mesh(np.ndarray):
         obj.fill_value = None
         return obj
 
-    # TODO: Remove the following, after discussion
-    # it was commented out per http://docs.scipy.org/doc/numpy/user/basics.subclassing.html
-    # def __init__(self, *args, **kwargs):
-    #     self._buffer = None
-    #     self.dirty = False
-    #     self.fill_value = None
-    #     super(Mesh, self).__init__(*args, **kwargs)
-    #
-    # def __setitem__(self, key, value):
-    #     self.dirty = True
-    #     super(Mesh, self).__setitem__(key, value)
+    def __setitem__(self, key, value):
+        self.dirty = True
+        super(Mesh, self).__setitem__(key, value)
 
     def __array_finalize__(self, obj):
         if obj is None:
