@@ -136,8 +136,8 @@ class InterpolatorPQ(Interpolator):
 
 
 #do not remove this comment or comment below. the compiler needs it
-
-class InterpolatorND(Interpolator):
+#special interpolator
+class InterpolatorNDPC(Interpolator):
     """
     interpolates in order n by sampling
     """
@@ -155,35 +155,6 @@ class InterpolatorND(Interpolator):
     def interpolate(self, target_level, target_mesh, source_mesh):
         for target_index in target_level.interior_points():
             source_index = ((target_index - target_level.ghost_zone) // 2) + target_level.ghost_zone
-            #target_mesh[target_index] *= self.pre_scale
-            c1 = .125
-            print(target_index, source_index)
-            #DO NOT remove this comment or comment below. the compiler needs it!!!!!!!!!!!!
+            target_mesh[target_index] *= self.pre_scale
+            target_mesh[target_index] += source_mesh[source_index]
 
-            #special interpolator
-            fc00 =  source_mesh[source_index + Coord(-1, -1)]
-            fc01 =  source_mesh[source_index + Coord(-1, 0)]
-            fc02 =  source_mesh[source_index + Coord(-1, 1)]
-            fc10 =  source_mesh[source_index + Coord(0, -1)]
-            fc11 =  source_mesh[source_index + Coord(0, 0)]
-            fc12 =  source_mesh[source_index + Coord(0, 1)]
-            fc20 =  source_mesh[source_index + Coord(1, -1)]
-            fc21 =  source_mesh[source_index + Coord(1, 0)]
-            fc22 =  source_mesh[source_index + Coord(1, 1)]
-            
-
-            f0c0 =  c1*fc00+1*fc10+-c1*fc20
-            f1c0 = -c1*fc00+1*fc10+ c1*fc20
-            f0c1 =  c1*fc01+1*fc11+-c1*fc21
-            f1c1 = -c1*fc01+1*fc11+ c1*fc21
-            f0c2 =  c1*fc02+1*fc12+-c1*fc22
-            f1c2 = -c1*fc02+1*fc12+ c1*fc22
-            
-
-            f00c =  c1*f0c0+1*f0c1+-c1*f0c2
-            f01c = -c1*f0c0+1*f0c1+ c1*f0c2
-            f10c =  c1*f1c0+1*f1c1+-c1*f1c2
-            f11c = -c1*f1c0+1*f1c1+ c1*f1c2
-            
-
-            target_mesh[target_index + Coord(0, 0)] = f00c
