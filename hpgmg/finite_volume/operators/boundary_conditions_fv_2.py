@@ -3,6 +3,8 @@ from stencil_code.halo_enumerator import HaloEnumerator
 from stencil_code.ordered_halo_enumerator import OrderedHaloEnumerator
 from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.space import Coord
+from sympy import *
+from sympy.abc import x,y
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
@@ -27,12 +29,31 @@ class BoundaryUpdaterV2(object):
     You get <u_-1> = -5/2<u_0> + 1/2<u_1> or u[-1] = -5/2*u[0] + 1/2*u[1].
     -Sam Williams, 2015
     """
+
+    dirichilet_coeffs = []
     def __init__(self, solver):
         self.solver = solver
 
         if self.solver.boundary_is_dirichlet:
             self.apply = BoundaryUpdaterV2.apply_dirichlet
             self.name = "dirichlet"
+            a, b, c = symbols('a, b, c')
+            l = []
+            # append n simulaneous equations coefficients l[i] into list
+            for i in range(0,2):
+                f = Poly(a*x**2 + b*x , x)
+                l.append(integrate(f, (x, i, i+1)).coeffs())
+            A = np.array(l)
+            B =  np.linalg.inv(A) # "solve" system
+            uneg1 = integrate(f, (x, -1, 0)).coeffs() #
+            coeffs = np.zeros(2)
+            for i in range(2):
+                coeffs = coeffs + B[i]*uneg1[i]
+            BoundaryUpdaterV2.dirichilet_coeffs =  coeffs
+            print(BoundaryUpdaterV2.dirichilet_coeffs)
+            print("dirichlet coeffs")
+
+
         elif self.solver.boundary_is_periodic:
             self.apply = BoundaryUpdaterV2.apply_periodic
             self.name = "periodic"
@@ -44,10 +65,13 @@ class BoundaryUpdaterV2(object):
         halo_iterator = OrderedHaloEnumerator(level.ghost_zone, mesh.space)
 
         with level.timer('apply_boundary'):
+            coeffs = BoundaryUpdaterV2.dirichilet_coeffs
             for index, neighbor_vector in halo_iterator.point_and_neighbor_vector_iterator():
                 n1 = Coord(index) + neighbor_vector
                 n2 = Coord(index) + (Coord(neighbor_vector) * 2)
-                mesh[index] = -2.5 * mesh[n1] + 0.5 * mesh[n2]
+                #mesh[index] = -2.5 * mesh[n1] + 0.5 * mesh[n2]
+                mesh[index] = coeffs[0] * mesh[n1] + coeffs[1] * mesh[n2]
+                #print(BoundaryUpdaterV2.dirichilet_coeffs, "DIRICHLET COEFFICIENTS")
 
     @staticmethod
     def apply_periodic(level, mesh):
