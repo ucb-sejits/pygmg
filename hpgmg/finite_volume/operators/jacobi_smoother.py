@@ -96,7 +96,7 @@ class JacobiSmoother(Smoother):
         # print(mesh_to_smooth[:4, :4, :4])
         # raise Exception()
 
-    # @time_this
+    @time_this
     def kernel_smooth(self, level, mesh_to_smooth, rhs_mesh):
         """
         :param level: the level being smoothed
