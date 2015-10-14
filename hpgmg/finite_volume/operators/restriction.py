@@ -1,5 +1,5 @@
 from __future__ import print_function
-from snowflake.nodes import SparseWeightArray, Stencil, StencilComponent, ScalingStencil
+from snowflake.nodes import SparseWeightArray, Stencil, StencilComponent
 
 from stencil_code.neighborhood import Neighborhood
 from hpgmg.finite_volume import compiler
@@ -94,36 +94,36 @@ class Restriction(object):
                     source[source_point + neighbor_offset] for neighbor_offset in self.neighbor_offsets[restriction_type]
                 ) / len(self.neighbor_offsets[restriction_type])
 
-    def get_stencil(self, level, restriction_type):
-        ndim = self.dimensions
-        offsets = self.neighbor_offsets[restriction_type]
-        multiplier = 1.0 / len(offsets)
-        if restriction_type == self.RESTRICT_CELL:
-            iter_space = level.interior_points()
-        else:
-            iter_space = level.beta_interpolation_points(restriction_type - 1)
-        weights = {}
-        for vector in offsets:
-            weights[vector] = multiplier
-        arr = SparseWeightArray(weights)
-        sc = StencilComponent('source', arr)
-        scaled_space = []
-        for g, (l, h) in zip(level.ghost_zone, iter_space.ranges):
-            scaled_space.append(((l - g) * 2 + g, (h - g) * 2 + g, 2))
-        return ScalingStencil(
-            sc, 'target', tuple(scaled_space), level.ghost_zone, level.ghost_zone, (0.5,)*ndim
-        )
+    # def get_stencil(self, level, restriction_type):
+    #     ndim = self.dimensions
+    #     offsets = self.neighbor_offsets[restriction_type]
+    #     multiplier = 1.0 / len(offsets)
+    #     if restriction_type == self.RESTRICT_CELL:
+    #         iter_space = level.interior_points()
+    #     else:
+    #         iter_space = level.beta_interpolation_points(restriction_type - 1)
+    #     weights = {}
+    #     for vector in offsets:
+    #         weights[vector] = multiplier
+    #     arr = SparseWeightArray(weights)
+    #     sc = StencilComponent('source', arr)
+    #     scaled_space = []
+    #     for g, (l, h) in zip(level.ghost_zone, iter_space.ranges):
+    #         scaled_space.append(((l - g) * 2 + g, (h - g) * 2 + g, 2))
+    #     return ScalingStencil(
+    #         sc, 'target', tuple(scaled_space), level.ghost_zone, level.ghost_zone, (0.5,)*ndim
+    #     )
 
-    def get_kernel(self, level, restriction_type):
-        if (level, restriction_type) in self.__kernels:
-            return self.__kernels[(level, restriction_type)]
-        kern = self.__kernels[(level, restriction_type)] = compiler.compile(self.get_stencil(level, restriction_type))
-        return kern
+    # def get_kernel(self, level, restriction_type):
+    #     if (level, restriction_type) in self.__kernels:
+    #         return self.__kernels[(level, restriction_type)]
+    #     kern = self.__kernels[(level, restriction_type)] = compiler.compile(self.get_stencil(level, restriction_type))
+    #     return kern
+    #
+    # def restrict_kern(self, level, target, source, restriction_type):
+    #     kernel = self.get_kernel(level, restriction_type)
+    #     kernel(target, source)
+    #     # print(target)
+    #     # raise Exception()
 
-    def restrict_kern(self, level, target, source, restriction_type):
-        kernel = self.get_kernel(level, restriction_type)
-        kernel(target, source)
-        # print(target)
-        # raise Exception()
-
-    restrict = restrict_kern
+    restrict = restrict_std

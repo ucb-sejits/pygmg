@@ -2,7 +2,8 @@ from __future__ import print_function
 import copy
 import inspect
 from ctree.frontend import dump
-from snowflake.nodes import StencilComponent, SparseWeightArray, Stencil, StencilGroup, VariableUpdate
+from snowflake.nodes import StencilComponent, SparseWeightArray, Stencil, StencilGroup
+from snowflake.utils import swap_variables
 from snowflake.vector import Vector
 from hpgmg.finite_volume import compiler
 
@@ -42,7 +43,7 @@ class JacobiSmoother(Smoother):
         lambda_ref = StencilComponent('lambda_mesh', SparseWeightArray({Vector.zero_vector(self.operator.dimensions): 1}))
         working_ref = StencilComponent('mesh', SparseWeightArray({Vector.zero_vector(self.operator.dimensions): 1}))
         rhs = working_ref + (self.weight * lambda_ref * (b - a_x))
-        return Stencil(rhs, 'out', ((1, -1),) * self.operator.dimensions)
+        return Stencil(rhs, 'out', ((1, -1, 1),) * self.operator.dimensions, primary_mesh='out')
 
     def get_kernel(self, level):
         if level in self.__kernels:
@@ -54,12 +55,17 @@ class JacobiSmoother(Smoother):
     def get_smooth_stencil(self, level, iterations):
         stencil = self.get_stencil(level)
         boundary_kernels = copy.deepcopy(level.solver.boundary_updater.stencil_kernels)
-        group = [VariableUpdate(mesh='out', out='mesh')] + boundary_kernels + [stencil]
+        group = boundary_kernels + [stencil]
+        copied = [swap_variables(s, {'out': 'mesh', 'mesh': 'out'}) for s in group]
         composed = []
         for i in range(iterations):
-            composed.extend(group)
+            if i % 2 == 0:
+                composed.extend(copied)
+            else:
+                composed.extend(group)
         stencil_group = StencilGroup(composed)
         return stencil_group
+        # return StencilGroup(boundary_kernels + [stencil])
 
     def get_smooth_kernel(self, level, iterations):
         if level in self.__smooth_kernels:
@@ -86,8 +92,9 @@ class JacobiSmoother(Smoother):
         for i in range(self.iterations):
             working_target, working_source = working_source, working_target
             level.solver.boundary_updater.apply(level, working_source)
-            #self.kernel_smooth_points(level, working_source, working_target, rhs_mesh, lambda_mesh)
             self.smooth_points(level, working_source, working_target, rhs_mesh, lambda_mesh)
+        # print(mesh_to_smooth[:4, :4, :4])
+        # raise Exception()
 
     # @time_this
     def kernel_smooth(self, level, mesh_to_smooth, rhs_mesh):
@@ -98,34 +105,17 @@ class JacobiSmoother(Smoother):
         :return:
         """
         lambda_mesh = level.l1_inverse if self.use_l1_jacobi else level.d_inverse
-        mts = mesh_to_smooth
 
         working_target, working_source = mesh_to_smooth, level.temp
 
         self.operator.set_scale(level.h)
 
         kernel = self.get_smooth_kernel(level, self.iterations)
-        kernel(working_target, lambda_mesh, working_source, rhs_mesh)
-        # working_target, working_source = working_source, working_target
-        # print(working_target.dtype, lambda_mesh.dtype, working_source.dtype, rhs_mesh.dtype)
         # for i in range(self.iterations):
         #     working_target, working_source = working_source, working_target
-        #     kernel(working_target, lambda_mesh, working_source, rhs_mesh)
-        #     print(working_target[:4])
-        #     # print(working_target[:32])
-        #     # raise Exception()
-
-        # for i in range(self.iterations):
-        #     working_target, working_source = working_source, working_target
-        #     level.solver.boundary_updater.apply(level, working_source)
-        #     self.kernel_smooth_points(level, working_source, working_target, rhs_mesh, lambda_mesh)
-        #     print(working_target[:4])
-        #     print(working_target[:32])
-        #     raise Exception()
-
-
-        # print(mts[:4], level.h)
-        # raise Exception()
+        #
+        #     kernel(working_source, working_target, lambda_mesh, rhs_mesh)
+        kernel(working_source, working_target, lambda_mesh, rhs_mesh)
 
     smooth = kernel_smooth
 
