@@ -590,12 +590,10 @@ class SimpleMultigridSolver(object):
                     print("===== Warming up by running {:d} solves ===============================".format(min_solves))
             else:
                 print("===== Running {:d} solves =============================================".format(min_solves))
-
             for solve_pass in range(min_solves):
                 self.all_levels[start_level].fill_mesh(self.all_levels[start_level].cell_values, 0.0)
 
                 self.solve(start_level=start_level)
-
             if pass_num == 0 and self.backend != 'python':
                 time_this.reset()
 

@@ -129,8 +129,3 @@ class JacobiSmoother(Smoother):
             a_x = self.operator.apply_op(working_source, index, level)
             b = rhs_mesh[index]
             working_target[index] = working_source[index] + (self.weight * lambda_mesh[index] * (b - a_x))
-
-    def kernel_smooth_points(self, level, working_source, working_target, rhs_mesh, lambda_mesh):
-        if not self.operator.is_variable_coefficient:
-            self.get_kernel(level)(working_target, lambda_mesh, working_source, rhs_mesh)
-            #print(self.get_kernel(level).arg_spec)
