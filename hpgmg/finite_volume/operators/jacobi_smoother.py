@@ -5,6 +5,7 @@ from ctree.frontend import dump
 from snowflake.nodes import StencilComponent, SparseWeightArray, Stencil, StencilGroup
 from snowflake.utils import swap_variables
 from snowflake.vector import Vector
+import time
 from hpgmg.finite_volume import compiler
 
 from hpgmg.finite_volume.operators.base_operator import BaseOperator
@@ -111,10 +112,6 @@ class JacobiSmoother(Smoother):
         self.operator.set_scale(level.h)
 
         kernel = self.get_smooth_kernel(level, self.iterations)
-        # for i in range(self.iterations):
-        #     working_target, working_source = working_source, working_target
-        #
-        #     kernel(working_source, working_target, lambda_mesh, rhs_mesh)
         kernel(working_source, working_target, lambda_mesh, rhs_mesh)
 
     smooth = kernel_smooth
