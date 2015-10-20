@@ -8,5 +8,3 @@ do
 done
 
 grep "solve.*calls" timings/snowflake_*.log | cut -f 4 > data.out
-
-rm -rf timings
