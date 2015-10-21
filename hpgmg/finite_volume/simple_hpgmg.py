@@ -611,8 +611,9 @@ class SimpleMultigridSolver(object):
     @time_this
     @profile
     def main():
-        hpgmg.finite_volume.setup()
+
         configuration = SimpleMultigridSolver.get_configuration()
+        hpgmg.finite_volume.setup()
         solver = SimpleMultigridSolver(configuration)
         solver.backend = configuration.backend
 
