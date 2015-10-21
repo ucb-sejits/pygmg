@@ -23,6 +23,7 @@ setup(
         'ctree',
         'stencil_code',
         'rebox',
-        'snowflake'
+        'snowflake',
+        'snowflake_openmp'
     ]
 )

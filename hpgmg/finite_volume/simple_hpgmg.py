@@ -9,8 +9,10 @@ import sys
 import logging
 import time
 from snowflake.stencil_compiler import CCompiler
+from snowflake_openmp.compiler import TiledOpenMPCompiler
 import sympy
 from hpgmg import finite_volume
+import hpgmg
 from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.operators.chebyshev_smoother import ChebyshevSmoother
 from hpgmg.finite_volume.operators.specializers.initialize_mesh_specializer import CInitializeMesh
@@ -612,6 +614,7 @@ class SimpleMultigridSolver(object):
         configuration = SimpleMultigridSolver.get_configuration()
         solver = SimpleMultigridSolver(configuration)
         solver.backend = configuration.backend
+        hpgmg.finite_volume.setup()
         # solver.solve()
         solver.benchmark_hpgmg()
         solver.show_timing_information()
