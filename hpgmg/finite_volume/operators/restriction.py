@@ -1,8 +1,6 @@
 from __future__ import print_function
-from snowflake.nodes import SparseWeightArray, Stencil, StencilComponent
 
 from stencil_code.neighborhood import Neighborhood
-from hpgmg.finite_volume import compiler
 from hpgmg.finite_volume.operators.specializers.restrict_specializer import CRestrictSpecializer
 from hpgmg.finite_volume.operators.specializers.util import profile, time_this, specialized_func_dispatcher
 

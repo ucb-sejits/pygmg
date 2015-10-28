@@ -6,7 +6,7 @@ from snowflake.nodes import StencilComponent, SparseWeightArray, Stencil, Stenci
 from snowflake.utils import swap_variables
 from snowflake.vector import Vector
 import time
-from hpgmg.finite_volume import compiler
+from hpgmg import finite_volume
 
 from hpgmg.finite_volume.operators.base_operator import BaseOperator
 from hpgmg.finite_volume.operators.smoother import Smoother
@@ -50,7 +50,7 @@ class JacobiSmoother(Smoother):
         if level in self.__kernels:
             return self.__kernels[level]
         stencil = self.get_stencil(level)
-        kernel = self.__kernels[level] = compiler.compile(stencil)
+        kernel = self.__kernels[level] = finite_volume.compiler.compile(stencil)
         return kernel
 
     def get_smooth_stencil(self, level, iterations):
@@ -72,7 +72,7 @@ class JacobiSmoother(Smoother):
         if level in self.__smooth_kernels:
             return self.__smooth_kernels[level]
         stencil = self.get_smooth_stencil(level, iterations)
-        kernel = self.__smooth_kernels[level] = compiler.compile(stencil)
+        kernel = self.__smooth_kernels[level] = finite_volume.compiler.compile(stencil)
         return kernel
 
     @time_this

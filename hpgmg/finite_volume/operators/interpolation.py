@@ -1,9 +1,5 @@
 from __future__ import print_function
 from abc import ABCMeta, abstractmethod
-import itertools
-from snowflake.nodes import StencilComponent, SparseWeightArray, StencilGroup
-from snowflake.vector import Vector
-from hpgmg.finite_volume import compiler
 from hpgmg.finite_volume.operators.specializers.interpolate_specializer import CInterpolateSpecializer
 from hpgmg.finite_volume.operators.specializers.util import time_this, specialized_func_dispatcher
 

@@ -9,10 +9,9 @@ import sys
 import logging
 import time
 from snowflake.stencil_compiler import CCompiler
-from snowflake_openmp.compiler import TiledOpenMPCompiler
+from snowflake_openmp.compiler import TiledOpenMPCompiler, OpenMPCompiler
 import sympy
 from hpgmg import finite_volume
-import hpgmg
 from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.operators.chebyshev_smoother import ChebyshevSmoother
 from hpgmg.finite_volume.operators.specializers.initialize_mesh_specializer import CInitializeMesh
@@ -562,7 +561,10 @@ class SimpleMultigridSolver(object):
         finite_volume.CONFIG.block_hierarchy = (finite_volume.CONFIG.block_size,) * int(
             finite_volume.CONFIG.blocking_dimensions or 2
         )
-
+        if finite_volume.CONFIG.backend == 'c':
+            finite_volume.compiler = CCompiler()
+        elif finite_volume.CONFIG.backend == 'omp':
+            finite_volume.compiler = OpenMPCompiler()
         return finite_volume.CONFIG
 
     @staticmethod
@@ -613,7 +615,6 @@ class SimpleMultigridSolver(object):
     def main():
 
         configuration = SimpleMultigridSolver.get_configuration()
-        hpgmg.finite_volume.setup()
         solver = SimpleMultigridSolver(configuration)
         solver.backend = configuration.backend
 
