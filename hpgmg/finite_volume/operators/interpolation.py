@@ -69,24 +69,17 @@ class InterpolatorPQ(Interpolator):
         #evaluate 2d polynomial u(x)=ax^2+bx+c algebraically at u(-1),u(0),u(1)
         #and store results in l
         # creating a system of equations where u(-1),u(0),u(1) are in terms of a,b, and c
+        
         a, b, c= symbols("a, b, c")
         u = Poly(a*x**2 + b*x + c, x)
         l = [u(i) for i in range(-1,2)]
-
-        #convert system of equations to matrix and "solve" by inverting matrix
-        #to express a,b,c in terms of  u(-1), u(0) and u(1)
         B = np.linalg.inv(to_coeff_array(l))
-
-        #express u(1/4) in terms of a, b and c
         uonefourth = to_coeff_array([u(.25)])[0]
-
-        #express u(1/4) in terms of (-1), u(0) and u(1) via substitution
-        #coeffs represent the coefficients in corresponding linear combination
-        #and define the interpolating stencil
-        coeffs=np.zeros(3)
         for i in range(3):
             coeffs += B[i]*uonefourth[i]
-            #print(B[i], uonefourth[i])
+
+
+
         coeffs = [coeff*32 for coeff in coeffs]
 
         #compose coeffs to generate coefficients for higher order 3d interpolating stencil
@@ -187,3 +180,6 @@ class InterpolatorND(Interpolator):
             
 
             target_mesh[target_index + Coord(0, 0)] = f00c
+            target_mesh[target_index + Coord(0, 1)] = f01c
+            target_mesh[target_index + Coord(1, 0)] = f10c
+            target_mesh[target_index + Coord(1, 1)] = f11c
