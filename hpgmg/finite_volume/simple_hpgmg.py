@@ -3,9 +3,13 @@ implement a simple single threaded, gmg solver
 """
 from __future__ import division, print_function
 import argparse
+import functools
 import os
 import sys
 import logging
+import time
+from snowflake.stencil_compiler import CCompiler
+from snowflake_openmp.compiler import TiledOpenMPCompiler, OpenMPCompiler
 import sympy
 from hpgmg import finite_volume
 from hpgmg.finite_volume.mesh import Mesh
@@ -42,73 +46,9 @@ class SimpleMultigridSolver(object):
     a simple multi-grid solver. gets a argparse configuration
     with settings from the command line
     """
-    @staticmethod
-    def get_configuration(args=None):
-        parser = argparse.ArgumentParser()
-        parser.add_argument('log2_level_size', help='each dim will be of 2^(log2_level_size)',
-                            default=6, type=int)
-        parser.add_argument('-d', '--dimensions', help='number of dimensions in problem',
-                            default=3, type=int)
-        parser.add_argument('-nv', '--number-of-vcycles', help='number of vcycles to run',
-                            default=1, type=int)
-        parser.add_argument('-pn', '--problem-name',
-                            help="math problem name to use for initialization",
-                            default='sine',
-                            choices=['sine', 'p4', 'p6', 'fv'], )
-        parser.add_argument('-bc', '--boundary-condition',
-                            help="Type of boundary condition. Use p for Periodic and d for Dirichlet. Default is d",
-                            default=('p' if os.environ.get('USE_PERIODIC_BC', 0) else 'd'),
-                            choices=['p', 'd'], )
-        parser.add_argument('-eq', '--equation',
-                            help="Type of equation, h for helmholtz or p for poisson",
-                            choices=['h', 'p'],
-                            default='h', )
-        parser.add_argument('-sm', '--smoother',
-                            help="Type of smoother, j for jacobi, c for chebyshev",
-                            choices=['j', 'c'],
-                            default='j', )
-        parser.add_argument('-bs', '--bottom-solver',
-                            help="Bottom solver to use",
-                            choices=['smoother', 'bicgstab'],
-                            default='bicgstab', )
-        parser.add_argument('-ulj', '--use-l1-jacobi', action="store_true",
-                            help="use l1 instead of d inverse with jacobi smoother",
-                            default=False, )
-        parser.add_argument('-vc', '--variable-coefficient', action='store_true',
-                            help="Use 1.0 as fixed value of beta, default is variable beta coefficient",
-                            default=False, )
-        parser.add_argument('-si', '--smoother-iterations', help='number of iterations each time smoother is called',
-                            default=6, type=int)
-        parser.add_argument('-mcd', '--minimum-coarse_dimension', help='smallest allowed coarsened dimension',
-                            default=3, type=int)
-        parser.add_argument('-dre', '--disable-richardson-error',
-                            help="don't compute or show richardson error at end of run",
-                            action="store_true", default=False)
-        parser.add_argument('-dfc', '--do-f-cycles',
-                            help="use f-cycle solver instead of full v-cycle solver",
-                            action="store_true", default=False)
-        parser.add_argument('-ufc', '--unlimited-fmg-cycles',
-                            help="set max_v_cycles during f-cycles to 20 (that's nearly without limit :-)",
-                            action="store_true", default=False)
-        parser.add_argument('-dg', '--dump-grids', help='dump various grids for comparison with hpgmg.c',
-                            action="store_true", default=False)
-        parser.add_argument('-l', '--log', help='turn on logging', action="store_true", default=False)
-        parser.add_argument('-b', '--backend', help='turn on JIT',
-                            choices=('python', 'c', 'omp', 'ocl'), default='python')
-        parser.add_argument('-v', '--verbose', help='print verbose', action="store_true", default=False)
-        parser.add_argument('-bd', '--blocking_dimensions', help='number of dimensions to block in',
-                            default=0, type=int)
-        parser.add_argument('-bls', '--block_size', help='size of each block', default=32, type=int)
-        parser.add_argument('-t', '--tune', help='try tuning it', default=False, action="store_true")
-        finite_volume.CONFIG = parser.parse_args(args=args)
-        finite_volume.CONFIG.block_hierarchy = (finite_volume.CONFIG.block_size,) * int(
-            finite_volume.CONFIG.blocking_dimensions or 2
-        )
-
-        return finite_volume.CONFIG
-
     @profile
     def __init__(self, configuration):
+        self.compiler = CCompiler
         self.dump_grids = configuration.dump_grids
         if self.dump_grids:
             Mesh.dump_mesh_enabled = True
@@ -306,12 +246,13 @@ class SimpleMultigridSolver(object):
         # face_betas = [1.0 for _ in range(self.dimensions)]
 
         problem = self.problem
+        print(self.problem.expression)
 
         beta_generator = self.beta_generator
 
-        # a = time.time()
-        # fill Alpha
-        # level.alpha
+        a = time.time()
+        #fill Alpha
+        #level.alpha
         level.alpha.fill(alpha)
 
         #fill U
@@ -374,7 +315,8 @@ class SimpleMultigridSolver(object):
         # print(rhs.ravel()[:10])
         # print(level.right_hand_side.ravel()[:10])
 
-        # b = time.time()
+        b = time.time()
+
 
         if level.alpha_is_zero is None:
             level.alpha_is_zero = level.dot_mesh(level.alpha, level.alpha) == 0.0
@@ -389,6 +331,8 @@ class SimpleMultigridSolver(object):
             self.problem_operator.rebuild_operator(coarser_level, level)
             self.all_levels.append(coarser_level)
             level = coarser_level
+        for level in self.all_levels:
+            self.smoother.get_kernel(level)
 
         for level in self.all_levels:
             level.must_subtract_mean = False
@@ -611,7 +555,7 @@ class SimpleMultigridSolver(object):
         print("  h = {:22.15e}  ||error|| = {:22.15e}".format(level_0.h, norm_of_u2h_minus_uh))
         # log( ||u^4h - R u^2h|| / ||u^2h - R u^h|| ) / log(2)
         # is an estimate of the order of the method (e.g. 4th order)
-        print("  order = {:0.3f}".format(math.log(norm_of_u4h_minus_u2h / norm_of_u2h_minus_uh) / math.log(2.0)))
+        print("  order = {:0.10f}".format(math.log(norm_of_u4h_minus_u2h / norm_of_u2h_minus_uh) / math.log(2.0)))
 
     @time_this
     def run_richardson_test(self):
@@ -696,6 +640,72 @@ class SimpleMultigridSolver(object):
             print(self.timer[key])
 
     @staticmethod
+    def get_configuration(args=None):
+        parser = argparse.ArgumentParser()
+        parser.add_argument('log2_level_size', help='each dim will be of 2^(log2_level_size)',
+                            default=6, type=int)
+        parser.add_argument('-d', '--dimensions', help='number of dimensions in problem',
+                            default=3, type=int)
+        parser.add_argument('-nv', '--number-of-vcycles', help='number of vcycles to run',
+                            default=1, type=int)
+        parser.add_argument('-pn', '--problem-name',
+                            help="math problem name to use for initialization",
+                            default='sine',
+                            choices=['sine', 'p4', 'p6'], )
+        parser.add_argument('-bc', '--boundary-condition',
+                            help="Type of boundary condition. Use p for Periodic and d for Dirichlet. Default is d",
+                            default=('p' if os.environ.get('USE_PERIODIC_BC', 0) else 'd'),
+                            choices=['p', 'd'], )
+        parser.add_argument('-eq', '--equation',
+                            help="Type of equation, h for helmholtz or p for poisson",
+                            choices=['h', 'p'],
+                            default='h', )
+        parser.add_argument('-sm', '--smoother',
+                            help="Type of smoother, j for jacobi, c for chebyshev",
+                            choices=['j', 'c'],
+                            default='j', )
+        parser.add_argument('-bs', '--bottom-solver',
+                            help="Bottom solver to use",
+                            choices=['smoother', 'bicgstab'],
+                            default='bicgstab', )
+        parser.add_argument('-ulj', '--use-l1-jacobi', action="store_true",
+                            help="use l1 instead of d inverse with jacobi smoother",
+                            default=False, )
+        parser.add_argument('-vc', '--variable-coefficient', action='store_true',
+                            help="Use 1.0 as fixed value of beta, default is variable beta coefficient",
+                            default=False, )
+        parser.add_argument('-si', '--smoother-iterations', help='number of iterations each time smoother is called',
+                            default=6, type=int)
+        parser.add_argument('-mcd', '--minimum-coarse_dimension', help='smallest allowed coarsened dimension',
+                            default=3, type=int)
+        parser.add_argument('-dre', '--disable-richardson-error',
+                            help="don't compute or show richardson error at end of run",
+                            action="store_true", default=False)
+        parser.add_argument('-dfc', '--do-f-cycles',
+                            help="use f-cycle solver instead of full v-cycle solver",
+                            action="store_true", default=False)
+        parser.add_argument('-ufc', '--unlimited-fmg-cycles',
+                            help="set max_v_cycles during f-cycles to 20 (that's nearly without limit :-)",
+                            action="store_true", default=False)
+        parser.add_argument('-dg', '--dump-grids', help='dump various grids for comparison with hpgmg.c',
+                            action="store_true", default=False)
+        parser.add_argument('-l', '--log', help='turn on logging', action="store_true", default=False)
+        parser.add_argument('-b', '--backend', help='turn on JIT', choices=('python', 'c', 'omp', 'ocl'), default='python')
+        parser.add_argument('-v', '--verbose', help='print verbose', action="store_true", default=False)
+        parser.add_argument('-bd', '--blocking_dimensions', help='number of dimensions to block in', default=0, type=int)
+        parser.add_argument('-bls', '--block_size', help='size of each block', default=32, type=int)
+        parser.add_argument('-t', '--tune', help='try tuning it', default=False, action="store_true")
+        finite_volume.CONFIG = parser.parse_args(args=args)
+        finite_volume.CONFIG.block_hierarchy = (finite_volume.CONFIG.block_size,) * int(
+            finite_volume.CONFIG.blocking_dimensions or 2
+        )
+        if finite_volume.CONFIG.backend == 'c':
+            finite_volume.compiler = CCompiler()
+        elif finite_volume.CONFIG.backend == 'omp':
+            finite_volume.compiler = OpenMPCompiler()
+        return finite_volume.CONFIG
+
+    @staticmethod
     def get_solver(args=None):
         """
         this is meant for use in testing
@@ -730,6 +740,8 @@ class SimpleMultigridSolver(object):
                     self.solve_with_f_cycle(0, 0.0, 1.0e-10)
                 else:
                     self.solve(start_level=start_level)
+            if pass_num == 0 and self.backend != 'python':
+                time_this.reset()
 
         print("===== Timing Breakdown ==============================================")
         self.show_timing_information()
@@ -745,8 +757,16 @@ class SimpleMultigridSolver(object):
     def main():
         configuration = SimpleMultigridSolver.get_configuration()
         solver = SimpleMultigridSolver(configuration)
-        solver.benchmark_hpgmg(start_level=0)
-        return
+        solver.backend = configuration.backend
+
+        # solver.solve()
+        solver.benchmark_hpgmg()
+        solver.show_timing_information()
+        solver.show_error_information()
+        if solver.compute_richardson_error:
+            solver.run_richardson_test()
+        if configuration.verbose:
+            print('Backend: {}'.format(solver.configuration.backend))
 
 if __name__ == '__main__':
     SimpleMultigridSolver.main()

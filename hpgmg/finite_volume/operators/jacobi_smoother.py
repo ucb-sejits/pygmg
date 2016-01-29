@@ -1,7 +1,16 @@
 from __future__ import print_function
+import copy
+import inspect
+from ctree.frontend import dump
+from snowflake.nodes import StencilComponent, SparseWeightArray, Stencil, StencilGroup
+from snowflake.utils import swap_variables
+from snowflake.vector import Vector
+import time
+from hpgmg import finite_volume
 
 from hpgmg.finite_volume.operators.base_operator import BaseOperator
 from hpgmg.finite_volume.operators.smoother import Smoother
+from hpgmg.finite_volume.operators.specializers.smooth_specializer import CSmoothSpecializer, OmpSmoothSpecializer
 from hpgmg.finite_volume.operators.specializers.inline_jit import partial_jit
 from hpgmg.finite_volume.operators.specializers.smooth_specializer import CSmoothSpecializer, OmpSmoothSpecializer, \
     OclSmoothSpecializer
@@ -27,10 +36,51 @@ class JacobiSmoother(Smoother):
         self.use_l1_jacobi = use_l1_jacobi
         self.weight = 1.0 if use_l1_jacobi else 2.0/3.0
         self.iterations = iterations
+        self.__kernels = {}
+        self.__smooth_kernels = {}
 
-    @profile
-    def smooth(self, level, mesh_to_smooth, rhs_mesh):
+    def get_stencil(self, level):
+        #print("Rebuilding stencil")
+        a_x = level.kernel.get_stencil()
+        b = StencilComponent('rhs_mesh', SparseWeightArray({Vector.zero_vector(self.operator.dimensions): 1}))
+        lambda_ref = StencilComponent('lambda_mesh', SparseWeightArray({Vector.zero_vector(self.operator.dimensions): 1}))
+        working_ref = StencilComponent('mesh', SparseWeightArray({Vector.zero_vector(self.operator.dimensions): 1}))
+        rhs = working_ref + (self.weight * lambda_ref * (b - a_x))
+        return Stencil(rhs, 'out', ((1, -1, 1),) * self.operator.dimensions, primary_mesh='out')
+
+    def get_kernel(self, level):
+        if level in self.__kernels:
+            return self.__kernels[level]
+        stencil = self.get_stencil(level)
+        kernel = self.__kernels[level] = finite_volume.compiler.compile(stencil)
+        return kernel
+
+    def get_smooth_stencil(self, level, iterations):
+        stencil = self.get_stencil(level)
+        boundary_kernels = copy.deepcopy(level.solver.boundary_updater.stencil_kernels)
+        group = boundary_kernels + [stencil]
+        copied = [swap_variables(s, {'out': 'mesh', 'mesh': 'out'}) for s in group]
+        composed = []
+        for i in range(iterations):
+            if i % 2 == 0:
+                composed.extend(copied)
+            else:
+                composed.extend(group)
+        stencil_group = StencilGroup(composed)
+        return stencil_group
+        # return StencilGroup(boundary_kernels + [stencil])
+
+    def get_smooth_kernel(self, level, iterations):
+        if level in self.__smooth_kernels:
+            return self.__smooth_kernels[level]
+        stencil = self.get_smooth_stencil(level, iterations)
+        kernel = self.__smooth_kernels[level] = finite_volume.compiler.compile(stencil)
+        return kernel
+
+    @time_this
+    def std_smooth(self, level, mesh_to_smooth, rhs_mesh):
         """
+
         :param level: the level being smoothed
         :param mesh_to_smooth:
         :param rhs_mesh:
@@ -46,7 +96,27 @@ class JacobiSmoother(Smoother):
             working_target, working_source = working_source, working_target
             level.solver.boundary_updater.apply(level, working_source)
             self.smooth_points(level, working_source, working_target, rhs_mesh, lambda_mesh)
+        # print(mesh_to_smooth[:4, :4, :4])
+        # raise Exception()
 
+    @time_this
+    def kernel_smooth(self, level, mesh_to_smooth, rhs_mesh):
+        """
+        :param level: the level being smoothed
+        :param mesh_to_smooth:
+        :param rhs_mesh:
+        :return:
+        """
+        lambda_mesh = level.l1_inverse if self.use_l1_jacobi else level.d_inverse
+
+        working_target, working_source = mesh_to_smooth, level.temp
+
+        self.operator.set_scale(level.h)
+
+        kernel = self.get_smooth_kernel(level, self.iterations)
+        kernel(working_source, working_target, lambda_mesh, rhs_mesh)
+
+    smooth = kernel_smooth
 
     @time_this
     @specialized_func_dispatcher({

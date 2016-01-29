@@ -3,10 +3,14 @@ from __future__ import print_function
 from stencil_code.neighborhood import Neighborhood
 
 from hpgmg.finite_volume.operators.base_operator import BaseOperator
+from hpgmg.finite_volume.operators.kernels.von_neumann import VariableCoefficientVonNeumannStencil, \
+    ConstantCoefficientVonNeumannStencil
 from hpgmg.finite_volume.operators.restriction import Restriction
 from hpgmg.finite_volume.operators.specializers.rebuild_specializer import CRebuildSpecializer, OclRebuildSpecializer
 from hpgmg.finite_volume.operators.specializers.util import specialized_func_dispatcher, profile
 from hpgmg.finite_volume.space import Coord
+import numpy as np
+
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
@@ -42,6 +46,7 @@ class StencilVonNeumannR1(BaseOperator):
                 self.apply_op = self.apply_op_variable_coefficient_boundary_conditions_poisson
         else:
             self.apply_op = self.apply_op_constant_coefficient_boundary_conditions
+        self.set_scale(1)
 
     def set_scale(self, level_h):
         self.h2inv = 1.0 / (level_h ** 2)

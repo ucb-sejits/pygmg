@@ -19,6 +19,7 @@ class Restriction(object):
     def __init__(self, solver):
         self.solver = solver
         self.dimensions = self.solver.dimensions
+        self.__kernels = {}
 
         # self.neighbor_offsets = [
         #     [

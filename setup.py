@@ -22,6 +22,8 @@ setup(
         'sympy',
         'ctree',
         'stencil_code',
-        'rebox'
+        'rebox',
+        'snowflake',
+        'snowflake_openmp'
     ]
 )

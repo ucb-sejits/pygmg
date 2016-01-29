@@ -18,3 +18,7 @@ class KernelGenerator(object):
     @abc.abstractmethod
     def make_kernel(self, boundary):
         pass
+
+    @abc.abstractmethod
+    def get_stencil(self, boundary):
+        pass

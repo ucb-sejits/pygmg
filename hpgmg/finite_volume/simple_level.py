@@ -5,6 +5,8 @@ from __future__ import division, print_function
 import math
 from stencil_code.halo_enumerator import HaloEnumerator
 from hpgmg.finite_volume.iterator import RangeIterator
+from hpgmg.finite_volume.operators.kernels.von_neumann import ConstantCoefficientVonNeumannStencil, \
+    VariableCoefficientVonNeumannStencil
 from hpgmg.finite_volume.operators.specializers.mesh_op_specializers import MeshOpSpecializer, CFillMeshSpecializer, \
     CGeneralizedSimpleMeshOpSpecializer, OclFillMeshSpecializer, OclGeneralizedSimpleMeshOpSpecializer, \
     OclMeshReduceOpSpecializer
@@ -86,6 +88,15 @@ class SimpleLevel(object):
         self.must_subtract_mean = False
 
         self.timer = EventTimer(self)
+
+
+        kernel_class = None
+
+        if solver.is_variable_coefficient:
+            kernel_class = VariableCoefficientVonNeumannStencil
+        else:
+            kernel_class = ConstantCoefficientVonNeumannStencil
+        self.kernel = kernel_class(self.solver.dimensions, solver.a, solver.b, 1.0 / (self.h ** 2))
 
     def dimension_size(self):
         return self.space[0] - (self.ghost_zone[0]*2)
