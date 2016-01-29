@@ -3,13 +3,13 @@ implement a simple single threaded, variable coefficient gmg solver
 """
 from __future__ import division, print_function
 import math
-import itertools
 from stencil_code.halo_enumerator import HaloEnumerator
 from hpgmg.finite_volume.iterator import RangeIterator
 from hpgmg.finite_volume.operators.kernels.von_neumann import ConstantCoefficientVonNeumannStencil, \
     VariableCoefficientVonNeumannStencil
 from hpgmg.finite_volume.operators.specializers.mesh_op_specializers import MeshOpSpecializer, CFillMeshSpecializer, \
-    CGeneralizedSimpleMeshOpSpecializer
+    CGeneralizedSimpleMeshOpSpecializer, OclFillMeshSpecializer, OclGeneralizedSimpleMeshOpSpecializer, \
+    OclMeshReduceOpSpecializer
 from hpgmg.finite_volume.operators.specializers.util import time_this, specialized_func_dispatcher
 from hpgmg.finite_volume.timer import EventTimer
 
@@ -17,6 +17,8 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 from hpgmg.finite_volume.space import Vector, Space, Coord
 from hpgmg.finite_volume.mesh import Mesh
+
+import pycl as cl
 
 
 class SimpleLevel(object):
@@ -82,6 +84,8 @@ class SimpleLevel(object):
 
         self.cell_size = 1.0 / space[0]
         self.alpha_is_zero = None
+        self.v_cycles_from_this_level = 0
+        self.must_subtract_mean = False
 
         self.timer = EventTimer(self)
 
@@ -137,7 +141,8 @@ class SimpleLevel(object):
     @time_this
     @specialized_func_dispatcher({
         'c': CFillMeshSpecializer,
-        'omp': CFillMeshSpecializer
+        'omp': CFillMeshSpecializer,
+        'ocl': OclFillMeshSpecializer
     })
     def fill_mesh(self, mesh, value):
         for index in self.indices():
@@ -146,7 +151,8 @@ class SimpleLevel(object):
     @time_this
     @specialized_func_dispatcher({
         'c': CGeneralizedSimpleMeshOpSpecializer,
-        'omp': CGeneralizedSimpleMeshOpSpecializer
+        'omp': CGeneralizedSimpleMeshOpSpecializer,
+        'ocl': OclGeneralizedSimpleMeshOpSpecializer,
     })
     def add_meshes(self, target_mesh, scale_a, mesh_a, scale_b, mesh_b):
         for index in self.interior_points():
@@ -155,7 +161,8 @@ class SimpleLevel(object):
     @time_this
     @specialized_func_dispatcher({
         'c': CGeneralizedSimpleMeshOpSpecializer,
-        'omp': CGeneralizedSimpleMeshOpSpecializer
+        'omp': CGeneralizedSimpleMeshOpSpecializer,
+        'ocl': OclGeneralizedSimpleMeshOpSpecializer
     })
     def multiply_meshes(self, target_mesh, scale_factor, mesh_a, mesh_b):
         for index in self.interior_points():
@@ -164,7 +171,8 @@ class SimpleLevel(object):
     @time_this
     @specialized_func_dispatcher({
         'c': CGeneralizedSimpleMeshOpSpecializer,
-        'omp': CGeneralizedSimpleMeshOpSpecializer
+        'omp': CGeneralizedSimpleMeshOpSpecializer,
+        'ocl': OclGeneralizedSimpleMeshOpSpecializer
     })
     def invert_mesh(self, target_mesh, scale_factor, mesh_to_invert):
         for index in self.interior_points():
@@ -173,7 +181,8 @@ class SimpleLevel(object):
     @time_this
     @specialized_func_dispatcher({
         'c': CGeneralizedSimpleMeshOpSpecializer,
-        'omp': CGeneralizedSimpleMeshOpSpecializer
+        'omp': CGeneralizedSimpleMeshOpSpecializer,
+        'ocl': OclGeneralizedSimpleMeshOpSpecializer
     })
     def copy_mesh(self, target_mesh, source_mesh):
         for index in self.interior_points():
@@ -182,7 +191,8 @@ class SimpleLevel(object):
     @time_this
     @specialized_func_dispatcher({
         'c': CGeneralizedSimpleMeshOpSpecializer,
-        'omp': CGeneralizedSimpleMeshOpSpecializer
+        'omp': CGeneralizedSimpleMeshOpSpecializer,
+        'ocl': OclGeneralizedSimpleMeshOpSpecializer
     })
     def scale_mesh(self, target_mesh, scale_factor, source_mesh):
         for index in self.interior_points():
@@ -191,7 +201,8 @@ class SimpleLevel(object):
     @time_this
     @specialized_func_dispatcher({
         'c': CGeneralizedSimpleMeshOpSpecializer,
-        'omp': CGeneralizedSimpleMeshOpSpecializer
+        'omp': CGeneralizedSimpleMeshOpSpecializer,
+        'ocl': OclGeneralizedSimpleMeshOpSpecializer
     })
     def shift_mesh(self, target_mesh, shift_value, source_mesh):
         for index in self.interior_points():
@@ -200,7 +211,8 @@ class SimpleLevel(object):
     @time_this
     @specialized_func_dispatcher({
         'c': CGeneralizedSimpleMeshOpSpecializer,
-        'omp': CGeneralizedSimpleMeshOpSpecializer
+        'omp': CGeneralizedSimpleMeshOpSpecializer,
+        'ocl': OclMeshReduceOpSpecializer
     })
     def dot_mesh(self, mesh_a, mesh_b):
         accumulator = 0.0
@@ -211,7 +223,8 @@ class SimpleLevel(object):
     @time_this
     @specialized_func_dispatcher({
         'c': CGeneralizedSimpleMeshOpSpecializer,
-        'omp': CGeneralizedSimpleMeshOpSpecializer
+        'omp': CGeneralizedSimpleMeshOpSpecializer,
+        'ocl': OclMeshReduceOpSpecializer
     })
     def norm_mesh(self, mesh):
         max_norm = 0.0
@@ -234,7 +247,8 @@ class SimpleLevel(object):
     @time_this
     @specialized_func_dispatcher({
         'c': CGeneralizedSimpleMeshOpSpecializer,
-        'omp': CGeneralizedSimpleMeshOpSpecializer
+        'omp': CGeneralizedSimpleMeshOpSpecializer,
+        'ocl': OclMeshReduceOpSpecializer
     })
     def mean_mesh(self, mesh):
         """
@@ -261,6 +275,37 @@ class SimpleLevel(object):
         # return result
         return ((Vector(coord) - self.ghost_zone) + self.half_cell) * self.h
 
+    def coord_to_cell_center_formula(self, target_name, source_name):
+        lines = [
+            "{target}{dim} = (({source}[{dim}] - {ghost_offset}) + {half_cell}) * {cell_size}".format(
+                target=target_name, source=source_name,
+                dim=dim, ghost_offset=self.ghost_zone[dim],
+                half_cell=self.half_cell[dim], cell_size=self.h
+            )
+            for dim in range(self.solver.dimensions)
+        ]
+        for index, line in enumerate(lines):
+            print("{:02d} {}".format(index, line))
+        return lines
+
+    def cell_center_to_face_center(self, target_name, source_name):
+        ", ".join([
+            "{target}{dim}{adjust}".format(
+                target=target_name,
+            )
+        ])
+        lines = [
+            "{target}{dim} = (({source}{dim} - {ghost_offset}) + {half_cell}) * {cell_size}".format(
+                target=target_name, source=source_name,
+                dim=dim, ghost_offset=self.ghost_zone[dim],
+                half_cell=self.half_cell[dim], cell_size=self.h
+            )
+            for dim in range(self.solver.dimensions)
+        ]
+        for index, line in enumerate(lines):
+            print("{:02d} {}".format(index, line))
+        return lines
+
     def coord_to_face_center_point(self, coord, face_dimension):
         """
         a coordinate in one of the level, shifted to the face center on the specified dimension
@@ -270,6 +315,14 @@ class SimpleLevel(object):
         return self.coord_to_cell_center_point(coord) - (self.half_unit_vectors[face_dimension] * self.h)
 
     def print(self, title=None):
+        """
+        prints the cell values mesh
+        :param title:
+        :return:
+        """
+        self.cell_values.print(message=title)
+
+    def dump(self, title=None):
         """
         prints the cell values mesh
         :param title:

@@ -6,14 +6,15 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 import unittest
 
-from hpgmg.other_work.boundary_condition import BoundaryCondition
+from hpgmg.finite_volume.operators.boundary_conditions_fv import DirichletBoundary
+from hpgmg.finite_volume.operators.boundary_conditions_fv import PeriodicBoundary
 
 
 class TestBoundaryCondition(unittest.TestCase):
     def test_boundary_updater_v1_dirichlet(self):
         simple_solver = SimpleMultigridSolver.get_solver(["2"])
         bu = BoundaryUpdaterV1(simple_solver)
-        self.assertTrue(bu.apply == bu.apply_dirichlet)
+        self.assertIsInstance(bu.boundary, DirichletBoundary)
 
         mesh = simple_solver.fine_level.cell_values
 
@@ -56,7 +57,7 @@ class TestBoundaryCondition(unittest.TestCase):
     def test_boundary_updater_v1_periodic(self):
         simple_solver = SimpleMultigridSolver.get_solver(["2", "-bc", "p"])
         bu = BoundaryUpdaterV1(simple_solver)
-        self.assertTrue(bu.apply == bu.apply_periodic)
+        self.assertIsInstance(bu.boundary, PeriodicBoundary)
 
         mesh = simple_solver.fine_level.cell_values
 
@@ -78,4 +79,3 @@ class TestBoundaryCondition(unittest.TestCase):
         for index in mesh.indices():
             if index[0] == 0:
                 self.assertEqual(mesh[index], 4.0, "mesh[{}] is {} should be 4".format(index, mesh[index]))
-

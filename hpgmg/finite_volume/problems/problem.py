@@ -5,10 +5,11 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 
 class Problem(object):
-    def evaluate_u(self, vector):
-        """
-        compute the exact value of the function u for a given point in space
-        :param vector:
-        :return: value of u and a tuple of u for each dimension
-        """
-        raise HpgmgException("Problem subclass must implement evaluate_beta")
+    pass
+    # def evaluate_u(self, vector):
+    #     """
+    #     compute the exact value of the function u for a given point in space
+    #     :param vector:
+    #     :return: value of u and a tuple of u for each dimension
+    #     """
+    #     raise HpgmgException("Problem subclass must implement evaluate_u")

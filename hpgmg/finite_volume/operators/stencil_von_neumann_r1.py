@@ -6,7 +6,7 @@ from hpgmg.finite_volume.operators.base_operator import BaseOperator
 from hpgmg.finite_volume.operators.kernels.von_neumann import VariableCoefficientVonNeumannStencil, \
     ConstantCoefficientVonNeumannStencil
 from hpgmg.finite_volume.operators.restriction import Restriction
-from hpgmg.finite_volume.operators.specializers.rebuild_specializer import CRebuildSpecializer
+from hpgmg.finite_volume.operators.specializers.rebuild_specializer import CRebuildSpecializer, OclRebuildSpecializer
 from hpgmg.finite_volume.operators.specializers.util import specialized_func_dispatcher, profile
 from hpgmg.finite_volume.space import Coord
 import numpy as np
@@ -40,19 +40,15 @@ class StencilVonNeumannR1(BaseOperator):
         self.num_neighbors = len(self.neighborhood_offsets)
 
         if solver.is_variable_coefficient:
-            #self.kernel_class = VariableCoefficientVonNeumannStencil
             if solver.is_helmholtz:
                 self.apply_op = self.apply_op_variable_coefficient_boundary_conditions_helmholtz
             else:
                 self.apply_op = self.apply_op_variable_coefficient_boundary_conditions_poisson
         else:
             self.apply_op = self.apply_op_constant_coefficient_boundary_conditions
-            #self.kernel_class = ConstantCoefficientVonNeumannStencil
-        #self.kernel = None
         self.set_scale(1)
 
     def set_scale(self, level_h):
-        #print("Set scale: ", level_h)
         self.h2inv = 1.0 / (level_h ** 2)
 
     def apply_op_variable_coefficient_boundary_conditions_helmholtz(self, mesh, index, level):
@@ -91,8 +87,7 @@ class StencilVonNeumannR1(BaseOperator):
             )
         )
 
-
-    def apply_op_constant_coefficient_boundary_conditions(self, mesh, index, level):
+    def apply_op_constant_coefficient_boundary_conditions(self, mesh, index, _=None):
         return self.a * mesh[index] - self.b * self.h2inv * (
             sum([mesh[index + neighbor_offset] for neighbor_offset in self.neighborhood_offsets]) -
             mesh[index] * self.num_neighbors
@@ -104,7 +99,6 @@ class StencilVonNeumannR1(BaseOperator):
         second_term = neighbor_sum - m_i * self.num_neighbors
         print("apply_op h2inv {} neighbor_sum {} second_term {}".format(self.h2inv, neighbor_sum, second_term))
         return self.a * m_i - self.b * self.h2inv * second_term
-
 
     @profile
     def rebuild_operator(self, target_level, source_level=None):
@@ -123,7 +117,8 @@ class StencilVonNeumannR1(BaseOperator):
 
     @specialized_func_dispatcher({
         'c': CRebuildSpecializer,
-        'omp': CRebuildSpecializer
+        'omp': CRebuildSpecializer,
+        'ocl': OclRebuildSpecializer
     })
     def get_dominant_eigenvalue(self, target_level):
         adjust_value = 2.0
@@ -190,7 +185,6 @@ class StencilVonNeumannR1(BaseOperator):
                 #     ",".join(map("{:02d}".format, index)),
                 #     self.a * target_level.alpha[index], self.b*self.h2inv, a_diagonal
                 # ))
-
 
             # compute the d_inverse, l1_inverse and dominant eigen_value
             target_level.d_inverse[index] = 1.0/a_diagonal

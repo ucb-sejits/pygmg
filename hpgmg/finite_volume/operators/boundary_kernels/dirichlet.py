@@ -8,6 +8,7 @@ import operator
 
 __author__ = 'nzhang-dev'
 
+
 class DirichletBoundary(KernelGenerator):
     """
     returns a pointer to a function that computes the value on
