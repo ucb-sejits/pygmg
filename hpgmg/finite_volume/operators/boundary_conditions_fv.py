@@ -10,7 +10,8 @@ from hpgmg import finite_volume
 from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.operators.boundary_kernels.dirichlet import DirichletBoundary
 from hpgmg.finite_volume.operators.boundary_kernels.periodic import PeriodicBoundary
-from hpgmg.finite_volume.operators.specializers.boundary_specializer import CBoundarySpecializer, OmpBoundarySpecializer
+from hpgmg.finite_volume.operators.specializers.boundary_specializer import CBoundarySpecializer, OmpBoundarySpecializer, \
+    OclBoundarySpecializer
 from hpgmg.finite_volume.operators.specializers.util import time_this, specialized_func_dispatcher
 from hpgmg.finite_volume.space import Vector
 

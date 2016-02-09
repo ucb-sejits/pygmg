@@ -1,13 +1,14 @@
 from __future__ import print_function
 from hpgmg.finite_volume.problems.algebraic_problem import SymmetricAlgebraicProblem
 
-from hpgmg.finite_volume.problems.problem import Problem
-from hpgmg.finite_volume.space import Vector
-import sympy
-
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
 
+# from hpgmg.finite_volume.problems.problem import Problem
+# from hpgmg.finite_volume.space import Vector
+# import sympy
+#
+#
 # class ProblemP6(Problem):
 #     """
 #     should be continuous in u, u', u'', u''', and u'''' to guarantee high order and periodic boundaries
@@ -15,7 +16,8 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 #     u(x,y,z) = v(x)v(y)v(z)
 #     If Periodic, then the integral of the RHS should sum to zero.
 #       Setting shift=1.0 should ensure that the integrals of X, Y, or Z should sum to zero...
-#       That should(?) make the integrals of u,ux,uy,uz,uxx,uyy,uzz sum to zero and thus make the integral of f sum to zero
+#       That should(?) make the integrals of u,ux,uy,uz,uxx,uyy,uzz sum to zero and thus make
+#       the integral of f sum to zero
 #     If dirichlet, then w(0)=w(1) = 0.0
 #       Setting shift to 0 should ensure that U(x,y,z) = 0 on boundary
 #        u =    ax^6 +    bx^5 +   cx^4 +  dx^3 +  ex^2 + fx + g
@@ -44,7 +46,8 @@ __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 #             dimension_symbols.append(sympy.Symbol(dimension_name))
 #
 #         first_terms = [
-#             "(2.0 * {sym}**6 - 6.0 * {sym}**5 + 5.0 * {sym}**4 - 1.0 * {sym}**2  + {shift})".format(sym=sym, shift=shift)
+#             "(2.0 * {sym}**6 - 6.0 * {sym}**5 + 5.0 * {sym}**4 - 1.0 * {sym}**2  +
+#              {shift})".format(sym=sym, shift=shift)
 #             for sym in dimension_symbols
 #         ]
 #         summed_terms = " * ".join(first_terms)

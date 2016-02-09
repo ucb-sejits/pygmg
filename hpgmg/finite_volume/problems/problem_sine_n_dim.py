@@ -10,8 +10,9 @@ from hpgmg.finite_volume.space import Vector
 import sympy
 
 
-class SineProblemND(Problem):
+class OriginalSineProblemND(Problem):
     """
+    DEPRECATED see SineProblemND below
     computes the value of the function u(...) in an arbitrary number of dimensions
     e.g.
     u(x) = sin(c1*x)^power + sin(c2*x)^power  # for the 1d
@@ -99,7 +100,10 @@ class SineProblemND(Problem):
 
 class SineProblemND(SymmetricAlgebraicProblem):
     def __init__(self, dimensions=3, power=13, constants=(2.0*np.pi, 6.0*np.pi)):
-        expr = sum(sympy.sympify("sin({const}*{var})**{power}".format(const=c, var='x', power=power)) for c in constants)
+        expr = sum(
+            sympy.sympify("sin({const}*{var})**{power}".format(const=c, var='x', power=power)) for c in constants
+        )
+
         def pairwise_product_sum(a, b):
             return sum(a_arg * b_arg for a_arg, b_arg in zip(a.args, b.args))
         super(SineProblemND, self).__init__(expr, dimensions, pairwise_product_sum)
