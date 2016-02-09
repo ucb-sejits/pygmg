@@ -4,7 +4,6 @@ from inspect import getargspec
 import itertools
 import numpy as np
 from snowflake.nodes import StencilGroup
-from snowflake.stencil_compiler import CCompiler
 from stencil_code.halo_enumerator import HaloEnumerator
 from hpgmg import finite_volume
 

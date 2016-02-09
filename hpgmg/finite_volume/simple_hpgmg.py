@@ -9,7 +9,7 @@ import sys
 import logging
 import time
 from snowflake.stencil_compiler import CCompiler
-from snowflake_openmp.compiler import TiledOpenMPCompiler, OpenMPCompiler
+from snowflake_openmp.compiler import OpenMPCompiler
 import sympy
 from hpgmg import finite_volume
 from hpgmg.finite_volume.mesh import Mesh

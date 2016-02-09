@@ -61,9 +61,9 @@ class JacobiSmoother(Smoother):
         composed = []
         for i in range(iterations):
             if i % 2 == 0:
-                composed.extend(copied)
+                composed.extend(copy.deepcopy(copied))
             else:
-                composed.extend(group)
+                composed.extend(copy.deepcopy(group))
         stencil_group = StencilGroup(composed)
         return stencil_group
         # return StencilGroup(boundary_kernels + [stencil])
