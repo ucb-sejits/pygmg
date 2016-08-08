@@ -619,7 +619,9 @@ class SimpleMultigridSolver(object):
         solver.backend = configuration.backend
 
         # solver.solve()
+        print("Start")
         solver.benchmark_hpgmg()
+        print("end")
         solver.show_timing_information()
         solver.show_error_information()
         if solver.compute_richardson_error:

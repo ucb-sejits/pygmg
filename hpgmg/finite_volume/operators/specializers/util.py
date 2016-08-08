@@ -47,6 +47,7 @@ def specialized_func_dispatcher(specializers):
             if not func.is_specialized and func.specializer is None:
                 set_specializer()
                 func.callable = func.specializer(get_ast(func))
+                print("Specializing ", func)
             return func.callable(*args, **kwargs)
         wrapper.func = func
         return wrapper
