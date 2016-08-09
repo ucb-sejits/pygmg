@@ -22,8 +22,8 @@ from hpgmg.finite_volume.operators.transformers.generator_transformers import Ge
 from hpgmg.finite_volume.operators.transformers.utility_transformers import ParamStripper, IndexTransformer, \
     IndexOpTransformer, IndexDirectTransformer, AttributeRenamer, LookupSimplificationTransformer, get_name
 
-
 __author__ = 'nzhang-dev'
+
 
 def specialized_func_dispatcher(specializers):
     def decorator(func):
@@ -33,6 +33,8 @@ def specialized_func_dispatcher(specializers):
         func.signature = inspect.getargspec(func)
         #print(func)
         def set_specializer():
+            if finite_volume.CONFIG.backend == "ocl":  # special case, do the copies.
+                func.specializer = specializers["omp"]
             if finite_volume.CONFIG.backend not in specializers:
                 func.specializer = lambda x: func
                 #func.callable = func
@@ -44,10 +46,10 @@ def specialized_func_dispatcher(specializers):
 
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
+            print("Specializing ", func)
             if not func.is_specialized and func.specializer is None:
                 set_specializer()
                 func.callable = func.specializer(get_ast(func))
-                print("Specializing ", func)
             return func.callable(*args, **kwargs)
         wrapper.func = func
         return wrapper
