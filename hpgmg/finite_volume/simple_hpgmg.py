@@ -368,7 +368,9 @@ class SimpleMultigridSolver(object):
             level.residual.dump('VECTOR_F_MINUS_AV')
             for cycle in range(self.number_of_v_cycles):
                 # level.residual.print('residual before v_cycle')
+                print("Start Cycle")
                 self.v_cycle(level, level.cell_values, level.residual)
+                print("End Cycle")
                 # exit(0)
                 level.cell_values.dump('cell values after v_cycle')
 
@@ -565,6 +567,9 @@ class SimpleMultigridSolver(object):
             finite_volume.compiler = CCompiler()
         elif finite_volume.CONFIG.backend == 'omp':
             finite_volume.compiler = OpenMPCompiler()
+        elif finite_volume.CONFIG.backend == 'ocl':
+            from snowflake_opencl.compiler import OpenCLCompiler
+            finite_volume.compiler = OpenCLCompiler()
         return finite_volume.CONFIG
 
     @staticmethod
@@ -585,7 +590,7 @@ class SimpleMultigridSolver(object):
             number_passes = 1
         else:
             min_solves = 1
-            number_passes = 11
+            number_passes = 1
         for pass_num in range(number_passes):
             if pass_num == 0:
                 if self.backend == 'python':
@@ -619,9 +624,7 @@ class SimpleMultigridSolver(object):
         solver.backend = configuration.backend
 
         # solver.solve()
-        print("Start")
         solver.benchmark_hpgmg()
-        print("end")
         solver.show_timing_information()
         solver.show_error_information()
         if solver.compute_richardson_error:
