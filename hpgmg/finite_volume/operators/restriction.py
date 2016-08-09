@@ -6,6 +6,10 @@ from hpgmg.finite_volume.operators.specializers.util import profile, time_this, 
 
 from hpgmg.finite_volume.simple_level import SimpleLevel
 
+import snowflake.nodes as snodes
+import hpgmg.finite_volume
+
+from snowflake.vector import Vector
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
@@ -92,5 +96,31 @@ class Restriction(object):
                     source[source_point + neighbor_offset] for neighbor_offset in self.neighbor_offsets[restriction_type]
                 ) / len(self.neighbor_offsets[restriction_type])
 
+    __function_cache = {}
+    def restrict_kern(self, level, target, source, restriction_type):
+        if level in self.__function_cache:
+            return self.__function_cache[level](target, source)
+        offsets = self.neighbor_offsets[self.RESTRICT_CELL]
+        ndim = level.solver.dimensions
+        component = snodes.StencilComponent(
+            "source", snodes.SparseWeightArray({
+                Vector.index_vector(ndim) * 2 - level.ghost_zone + offset : 1.0/len(offsets)
+                for offset in offsets
+            })
+        )
+        self.__function_cache[level] = kern = hpgmg.finite_volume.compiler.compile(
+            snodes.Stencil(
+                component,
+                "target",
+                ((1, -1, 1),) * ndim,
+                primary_mesh="target"
+            )
+        )
+        kern(target, source)
 
-    restrict = restrict_std
+
+    def restrict(self, level, target, source, restriction_type):
+        if restriction_type != self.RESTRICT_CELL:
+            self.restrict_std(level, target, source, restriction_type)
+        else:
+            self.restrict_kern(level, target, source, restriction_type)
