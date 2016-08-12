@@ -6,8 +6,10 @@ import numpy as np
 
 import hpgmg.finite_volume.space as space
 
+from gpuarray.core import MappedArray
 
-class Mesh(np.ndarray):
+
+class Mesh(MappedArray):
     def __new__(cls, *args, **kwargs):
         obj = np.ndarray(*args, **kwargs).view(cls)
         #obj.fill(0)

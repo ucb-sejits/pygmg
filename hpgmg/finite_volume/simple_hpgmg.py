@@ -8,6 +8,8 @@ import os
 import sys
 import logging
 import time
+
+from snowflake.comparison_compiler import ComparisonCompiler
 from snowflake.stencil_compiler import CCompiler
 from snowflake_openmp.compiler import OpenMPCompiler
 import sympy
@@ -32,6 +34,8 @@ from hpgmg.finite_volume.solvers.smoothing_solver import SmoothingSolver
 from hpgmg.finite_volume.timer import EventTimer
 from hpgmg.finite_volume.space import Space, Vector
 from hpgmg.finite_volume.simple_level import SimpleLevel
+
+from snowflake_opencl.compiler import OpenCLCompiler
 
 import numpy as np
 
@@ -293,6 +297,7 @@ class SimpleMultigridSolver(object):
             level = coarser_level
         for level in self.all_levels:
             self.smoother.get_kernel(level)
+        print("Levels built")
 
     def v_cycle(self, level, target_mesh, residual_mesh):
         if min(level.space) <= 3:
@@ -386,6 +391,8 @@ class SimpleMultigridSolver(object):
                 level.temp.dump("residual after v_cycle")
                 if d_tolerance > 0.0:
                     level.multiply_meshes(level.temp, 1.0, level.temp, level.d_inverse)
+                if self.backend == "ocl":
+                    level.temp.gpu_to_device(wait=True, force=True)
                 norm_of_residual = level.norm_mesh(level.temp)
 
                 if r_tolerance > 0:
@@ -564,11 +571,10 @@ class SimpleMultigridSolver(object):
             finite_volume.CONFIG.blocking_dimensions or 2
         )
         if finite_volume.CONFIG.backend == 'c':
-            finite_volume.compiler = CCompiler()
+            finite_volume.compiler = ComparisonCompiler([CCompiler(), OpenCLCompiler()])
         elif finite_volume.CONFIG.backend == 'omp':
             finite_volume.compiler = OpenMPCompiler()
         elif finite_volume.CONFIG.backend == 'ocl':
-            from snowflake_opencl.compiler import OpenCLCompiler
             finite_volume.compiler = OpenCLCompiler()
         return finite_volume.CONFIG
 
@@ -618,11 +624,10 @@ class SimpleMultigridSolver(object):
     @time_this
     @profile
     def main():
-
+        raw_input()
         configuration = SimpleMultigridSolver.get_configuration()
         solver = SimpleMultigridSolver(configuration)
         solver.backend = configuration.backend
-
         # solver.solve()
         solver.benchmark_hpgmg()
         solver.show_timing_information()

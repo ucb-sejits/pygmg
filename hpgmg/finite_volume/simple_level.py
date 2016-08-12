@@ -100,6 +100,8 @@ class SimpleLevel(object):
                     kernel_class = ConstantCoefficientVonNeumannStencil
                 self.kernel = kernel_class(self.solver.dimensions, solver.a, solver.b, 1.0 / (self.h ** 2))
 
+                print("Level creation complete")
+
             def dimension_size(self):
                 return self.space[0] - (self.ghost_zone[0]*2)
 
@@ -295,7 +297,8 @@ class SimpleLevel(object):
             @time_this
             @specialized_func_dispatcher({
                 'c': CGeneralizedSimpleMeshOpSpecializer,
-                'omp': CGeneralizedSimpleMeshOpSpecializer
+                'omp': CGeneralizedSimpleMeshOpSpecializer,
+                'ocl': CGeneralizedSimpleMeshOpSpecializer
             })
             def norm_mesh(self, mesh):
                 max_norm = 0.0
