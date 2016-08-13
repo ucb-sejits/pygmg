@@ -8,17 +8,23 @@ import time
 
 from ctree import get_ast
 import ctree
+from ctree.c.macros import NULL
 from ctree.cpp.nodes import CppDefine
 from ctree.frontend import dump
-from ctree.c.nodes import SymbolRef, MultiNode, Constant, Add, Mul, FunctionCall
+from ctree.c.nodes import SymbolRef, MultiNode, Constant, Add, Mul, FunctionCall, Div, Mod, Ref, FunctionDecl, ArrayDef, \
+    Assign, Return, Array, CFile, Sub, Deref, Literal
+from ctree.templates.nodes import StringTemplate
 from ctree.transformations import PyBasicConversions
 import itertools
 import operator
 import sympy
+import pycl as cl
+import numpy as np
+import ctypes
 
 from hpgmg import finite_volume
-from hpgmg.finite_volume.operators.transformers.generator_transformers import GeneratorTransformer, CompReductionTransformer, \
-    AttributeFiller
+from hpgmg.finite_volume.operators.transformers.generator_transformers import GeneratorTransformer, \
+    CompReductionTransformer, AttributeFiller
 from hpgmg.finite_volume.operators.transformers.utility_transformers import ParamStripper, IndexTransformer, \
     IndexOpTransformer, IndexDirectTransformer, AttributeRenamer, LookupSimplificationTransformer, get_name
 
@@ -56,7 +62,6 @@ def specialized_func_dispatcher(specializers):
     return decorator
 
 
-
 def to_macro_function(f, namespace=None, rename=None, index_map=None):
     index_map = index_map or {'index': 'encode'}
     namespace = {} if namespace is None else namespace.copy()
@@ -84,15 +89,18 @@ def to_macro_function(f, namespace=None, rename=None, index_map=None):
     define = CppDefine(name='apply_op', params=params, body=body)
     return define
 
+
 def apply_all_layers(layers, node):
     for layer in layers:
         node = layer.visit(node)
     return node
 
+
 class LayerPrinter(ast.NodeVisitor):
     def visit(self, node):
         print(dump(node))
         return node
+
 
 def validateCNode(node):
     for node in ast.walk(node):
@@ -102,9 +110,11 @@ def validateCNode(node):
             return False
     return True
 
+
 def include_mover(node):
     includes = set()
     defines = set()
+
     class includeFinder(ast.NodeTransformer):
         def visit_CppInclude(self, node):
             includes.add(node)
@@ -122,6 +132,7 @@ def include_mover(node):
 
 def time_this(func):
     timings = [0, 0]
+
     def wrapper(*args, **kwargs):
         a = time.time()
         res = func(*args, **kwargs)
@@ -155,12 +166,12 @@ def __dump_time():
             if timing[1]:
                 print('Function:', name.ljust(maxlen), 'Total time:', "{:0.5f}".format(timing[0]), 'calls:', timing[1], sep="\t")
 
-
 def profile(func):
     print("profiling with line_profiler")
     if 'profile' in __builtins__:
         return __builtins__['profile'](func)
     return func
+
 
 def sympy_to_c(exp, sym_name='x'):
     if isinstance(exp, sympy.Number):
@@ -244,13 +255,13 @@ class Analyzer(ast.NodeVisitor):
         return "{}\t{}".format(self.defines, self.dependencies)
 
 
-
 def analyze_dependencies(tree):
     #print(dump(tree))
 
     analyzer = Analyzer()
     analyzer.visit(tree)
     return analyzer
+
 
 def find_fusible_blocks(tree, namespace):
     """
@@ -278,8 +289,6 @@ def find_fusible_blocks(tree, namespace):
             # try to find a chunk that is fusible
 
             groups = itertools.groupby(node.body, operator.attrgetter('fusible'))
-
-
 
 
 def is_fusible(tree, namespace):
@@ -322,6 +331,7 @@ def is_fusible(tree, namespace):
 
     return FusionFinder().visit(tree).fusible
 
+
 def get_object(name, namespace, allow_builtins=False):
     split = name.split(".")
     obj_name = split.pop(0)
@@ -337,6 +347,7 @@ def get_object(name, namespace, allow_builtins=False):
         obj = getattr(obj, attr_name)
     return obj
 
+
 def string_to_ast(s):
     """
     converts string s to nested ast.Attribute and Name nodes
@@ -347,8 +358,118 @@ def string_to_ast(s):
         result = ast.Attribute(value=result, attr=attrib, ctx=ast.Load())
     return result
 
+
 def get_arg_spec(f):
     if hasattr(f, 'argspec'):
         return f.argspec[:]
     f.argspec = inspect.getargspec(f).args
     return f.argspec[:]
+
+def compute_local_work_size(device, shape):  # computes local work size that is multiple of ndim
+    ndim = len(shape)
+    interior_space = reduce(operator.mul, shape, 1)
+    local_cube_dim, local_size = 1, 1
+    max_size = min(device.max_work_group_size, interior_space)
+
+    while local_cube_dim ** ndim < max_size:
+        local_cube_dim += 1
+        if interior_space % (local_cube_dim ** ndim) == 0:
+            local_size = local_cube_dim ** ndim
+    return local_size
+
+def compute_largest_local_work_size(device, global_size):  # computes largest possible work size regardless of dim
+    local_size = min(device.max_work_group_size, global_size)
+    while global_size % local_size != 0:
+        local_size -= 1
+    return local_size
+
+def flattened_to_multi_index(flattened_id_symbol, shape, multipliers=None, offsets=None):
+
+    # flattened_id should be a node
+    # offsets applied after multipliers
+
+    body = []
+    ndim = len(shape)
+    full_size = reduce(operator.mul, shape, 1)
+    for i in range(ndim):
+        stmt = flattened_id_symbol
+        mod_size = reduce(operator.mul, shape[i:], 1)
+        div_size = reduce(operator.mul, shape[(i + 1):], 1)
+        if mod_size < full_size:
+            stmt = Mod(stmt, Constant(mod_size))
+        if div_size != 1:
+            stmt = Div(stmt, Constant(div_size))
+        if multipliers and multipliers[i] != 1:
+            stmt = Mul(stmt, Constant(multipliers[i]))
+        if offsets and offsets[i] != 0:
+            stmt = Add(stmt, Constant(offsets[i]))
+        body.append(stmt)
+    return body
+
+
+
+def new_generate_control(name, global_size, local_size, kernel_params, kernels, other=None):
+    # assumes that all kernels take the same arguments and that they all use the same global and local size!
+    defn = []
+    defn.append(StringTemplate("""clock_t start, diff;"""))
+    defn.append(ArrayDef(SymbolRef("global", ctypes.c_ulong()), 1, Array(body=[Constant(global_size)])))
+    defn.append(ArrayDef(SymbolRef("local", ctypes.c_ulong()), 1, Array(body=[Constant(local_size)])))
+    defn.append(Assign(SymbolRef("error_code", ctypes.c_int()), Constant(0)))
+    defn.append(StringTemplate("""start = clock();"""))
+    for kernel in kernels:
+        kernel_name = kernel.find(FunctionDecl, kernel=True).name
+        for param, num in zip(kernel_params, range(len(kernel_params))):
+            if isinstance(param, ctypes.POINTER(ctypes.c_double)):
+                set_arg = FunctionCall(SymbolRef("clSetKernelArg"),
+                                     [SymbolRef(kernel_name),
+                                      Constant(num),
+                                      FunctionCall(SymbolRef("sizeof"), [SymbolRef("cl_mem")]),
+                                      Ref(SymbolRef(param.name))])
+            else:
+                set_arg = FunctionCall(SymbolRef("clSetKernelArg"),
+                                     [SymbolRef(kernel_name),
+                                      Constant(num),
+                                      Constant(ctypes.sizeof(param.type)),
+                                      Ref(SymbolRef(param.name))])
+            defn.append(set_arg)
+        enqueue_call = FunctionCall(SymbolRef("clEnqueueNDRangeKernel"), [
+            SymbolRef("queue"),
+            SymbolRef(kernel_name),
+            Constant(1),
+            NULL(),
+            SymbolRef("global"),
+            SymbolRef("local"),
+            Constant(0),
+            NULL(),
+            NULL()
+        ])
+        defn.append(enqueue_call)
+    defn.append(StringTemplate("""clFinish(queue);"""))
+    defn.append(StringTemplate("""diff = clock() - start;"""))
+    defn.append(StringTemplate("""total_time[0] = total_time[0] + (diff / (float) CLOCKS_PER_SEC);"""))
+    defn.append(Return(SymbolRef("error_code")))
+    params=[]
+    params.append(SymbolRef("queue", cl.cl_command_queue()))
+    for kernel in kernels:
+        params.append(SymbolRef(kernel.find(FunctionDecl, kernel=True).name, cl.cl_kernel()))
+    for param in kernel_params:
+        if isinstance(param.type, ctypes.POINTER(ctypes.c_double)):
+            params.append(SymbolRef(param.name, cl.cl_mem()))
+        else:
+            params.append(param)
+    params.append(SymbolRef("total_time", ctypes.POINTER(ctypes.c_float)()))
+    func = FunctionDecl(ctypes.c_int(), name, params, defn)
+    ocl_include = StringTemplate("""
+            #include <stdio.h>
+            #include <time.h>
+            #ifdef __APPLE__
+            #include <OpenCL/opencl.h>
+            #else
+            #include <CL/cl.h>
+            #endif
+            """)
+    body = [ocl_include, func]
+    if other:
+        body.extend(other)
+    file = CFile(name=name, body=body, config_target='opencl')
+    return file

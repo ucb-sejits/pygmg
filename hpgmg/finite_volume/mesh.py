@@ -1,4 +1,5 @@
 from __future__ import print_function
+from hpgmg.finite_volume.operators.specializers.util import time_this
 
 __author__ = 'Chick Markley chick@eecs.berkeley.edu U.C. Berkeley'
 
@@ -7,6 +8,8 @@ import numpy as np
 import hpgmg.finite_volume.space as space
 
 from gpuarray.core import MappedArray
+import pycl as cl
+
 
 
 class Mesh(MappedArray):
@@ -21,6 +24,10 @@ class Mesh(MappedArray):
 
     def indices(self):
         return self.space.points
+
+    def dim_range(self):
+        for dim in range(len(self.shape)):
+            yield dim
 
     def assign_to_all(self, value):
         for index in self.indices():
@@ -48,7 +55,21 @@ class Mesh(MappedArray):
         if message:
             print("Mesh print {} shape {}".format(message, self.shape))
 
-        if len(self.space) == 3:
+        if len(self.space) == 4:
+            max_h, max_i, max_j, max_k = self.shape
+
+            for h in range(max_h):
+                print("hyperplane {}".format(h))
+                for i in range(max_i-1, -1, -1):
+                    # print("i  {}".format(i))
+                    for j in range(max_j-1, -1, -1):
+                        print(" "*j*2, end="")
+                        for k in range(max_k):
+                                print("{:10.6f}".format(self[(h, i, j, k)]), end=" ")
+                        print()
+                    print()
+                print()
+        elif len(self.space) == 3:
             max_i, max_j, max_k = self.shape
 
             for i in range(max_i-1, -1, -1):
@@ -70,17 +91,17 @@ class Mesh(MappedArray):
                 print()
             print()
         else:
-            print("I don't know how to mesh with {} dimensions".format(self.space.ndim))
+            print("I don't know how to print mesh with {} dimensions".format(self.space.ndim))
 
     dump_mesh_enabled = False
 
-    def dump(self, message=None):
+    def dump(self, message=None, force_dump=False):
         """
         print this mesh, if 3d axes go up the page
         if 2d then standard over and down
         :return:
         """
-        if not Mesh.dump_mesh_enabled:
+        if not Mesh.dump_mesh_enabled and not force_dump:
             return
 
         if message:
@@ -137,3 +158,9 @@ class Mesh(MappedArray):
     def zero(self):
         for index in self.indices():
             self[index] = 0.0
+
+class Buffer(object):
+    def __init__(self, buffer):
+        self.buffer = buffer
+        self.dirty = False
+        self.evt = None

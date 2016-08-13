@@ -1,9 +1,7 @@
 from hpgmg.finite_volume.operators.boundary_kernels.kernel_generator import KernelGenerator
-import numpy as np
-import functools
-import operator
 
 __author__ = 'nzhang-dev'
+
 
 class PeriodicBoundary(KernelGenerator):
     def make_kernel(self, boundary):

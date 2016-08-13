@@ -8,7 +8,15 @@ import operator
 
 __author__ = 'nzhang-dev'
 
+
 class DirichletBoundary(KernelGenerator):
+    """
+    returns a pointer to a function that computes the value on
+    the boundary.  each higher order boundary
+    where O(corner) > O(edge) > O(face) ...
+    is the opposite sign of its immediately lower boundary
+    kernel.multiplier in make_kernel does this
+    """
     def make_kernel(self, boundary):
 
         def kernel(level, mesh):
