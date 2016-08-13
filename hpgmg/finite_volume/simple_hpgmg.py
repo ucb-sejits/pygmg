@@ -170,8 +170,8 @@ class SimpleMultigridSolver(object):
         # self.initialize(self.fine_level)
         self.problem.initialize_problem(self, self.fine_level)
 
-        self.fine_level.exact_solution.dump("VECTOR_UTRUE")
-        self.fine_level.right_hand_side.dump("VECTOR_F", force_dump=True)
+        #self.fine_level.exact_solution.dump("VECTOR_UTRUE")
+        #self.fine_level.right_hand_side.dump("VECTOR_F", force_dump=True)
 
         if self.dimensions == 3:
             self.fine_level.beta_face_values[2].dump("VECTOR_BETA_I")
@@ -188,7 +188,7 @@ class SimpleMultigridSolver(object):
             ))
             self.fine_level.shift_mesh(self.fine_level.exact_solution, -average_value_of_exact_solution,
                                        self.fine_level.exact_solution)
-            self.fine_level.exact_solution.dump("VECTOR_UTRUE_ADJUSTED")
+            #self.fine_level.exact_solution.dump("VECTOR_UTRUE_ADJUSTED")
 
         if self.boundary_is_periodic:
             average_value_of_rhs = self.fine_level.mean_mesh(self.fine_level.right_hand_side)
@@ -199,24 +199,24 @@ class SimpleMultigridSolver(object):
                     average_value_of_rhs,
                     self.fine_level.right_hand_side
                 )
-                self.fine_level.right_hand_side.dump("VECTOR_F_ADJUSTED")
+                #self.fine_level.right_hand_side.dump("VECTOR_F_ADJUSTED")
 
         self.problem_operator.rebuild_operator(self.fine_level, source_level=None)
 
         self.build_all_levels()
 
-        if self.dimensions == 3:
-            for index in range(1, len(self.all_levels)):
-                self.all_levels[index].beta_face_values[2].dump("VECTOR_BETA_I_LEVEL_{}".format(index))
-                self.all_levels[index].beta_face_values[1].dump("VECTOR_BETA_J_LEVEL_{}".format(index))
-                self.all_levels[index].beta_face_values[0].dump("VECTOR_BETA_K_LEVEL_{}".format(index))
-                self.all_levels[index].d_inverse.dump("VECTOR_DINV_LEVEL_{}".format(index))
+        # if self.dimensions == 3:
+        #     for index in range(1, len(self.all_levels)):
+        #         self.all_levels[index].beta_face_values[2].dump("VECTOR_BETA_I_LEVEL_{}".format(index))
+        #         self.all_levels[index].beta_face_values[1].dump("VECTOR_BETA_J_LEVEL_{}".format(index))
+        #         self.all_levels[index].beta_face_values[0].dump("VECTOR_BETA_K_LEVEL_{}".format(index))
+        #         self.all_levels[index].d_inverse.dump("VECTOR_DINV_LEVEL_{}".format(index))
 
 
     @specialized_func_dispatcher({
         'c': CInitializeMesh,
         'omp': CInitializeMesh,
-        'ocl': OclInitializeMesh
+        'ocl': CInitializeMesh
     })
     def initialize_mesh(self, level, mesh, exp, coord_transform, dump=False):
         """

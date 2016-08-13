@@ -39,8 +39,6 @@ def specialized_func_dispatcher(specializers):
         func.signature = inspect.getargspec(func)
         #print(func)
         def set_specializer():
-            if finite_volume.CONFIG.backend == "ocl":  # special case, do the copies.
-                func.specializer = specializers["omp"]
             if finite_volume.CONFIG.backend not in specializers:
                 func.specializer = lambda x: func
                 #func.callable = func
