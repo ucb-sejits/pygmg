@@ -8,8 +8,6 @@ import os
 import sys
 import logging
 import time
-
-from snowflake.comparison_compiler import ComparisonCompiler
 from snowflake.stencil_compiler import CCompiler
 from snowflake_openmp.compiler import OpenMPCompiler
 import sympy
@@ -710,7 +708,6 @@ class SimpleMultigridSolver(object):
         )
         if finite_volume.CONFIG.backend == 'c':
             finite_volume.compiler = CCompiler()
-            #finite_volume.compiler = CCompiler()
         elif finite_volume.CONFIG.backend == 'omp':
             finite_volume.compiler = OpenMPCompiler()
         elif finite_volume.CONFIG.backend == 'ocl':
