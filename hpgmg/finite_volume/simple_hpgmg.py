@@ -763,7 +763,6 @@ class SimpleMultigridSolver(object):
     @time_this
     @profile
     def main():
-        raw_input()
         configuration = SimpleMultigridSolver.get_configuration()
         solver = SimpleMultigridSolver(configuration)
         solver.backend = configuration.backend
