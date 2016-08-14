@@ -14,6 +14,7 @@ import sympy
 from hpgmg import finite_volume
 from hpgmg.finite_volume.mesh import Mesh
 from hpgmg.finite_volume.operators.chebyshev_smoother import ChebyshevSmoother
+from hpgmg.finite_volume.operators.gsrb import GSRBSmoother
 from hpgmg.finite_volume.operators.specializers.initialize_mesh_specializer import CInitializeMesh, OclInitializeMesh
 from hpgmg.finite_volume.operators.specializers.util import profile, time_this, specialized_func_dispatcher
 
@@ -115,6 +116,12 @@ class SimpleMultigridSolver(object):
                 iterations=configuration.smoother_iterations
             )
             print("Using Chebyshev smoother")
+        elif configuration.smoother == 'gsrb':
+            self.smoother = GSRBSmoother(
+                self.problem_operator,
+                iterations=configuration.smoother_iterations
+            )
+            print("Using GSRB smoother")
 
         self.default_bottom_norm = 1e-3
         if configuration.bottom_solver == 'bicgstab':
@@ -344,7 +351,8 @@ class SimpleMultigridSolver(object):
                 level.must_subtract_mean = True
 
     def v_cycle(self, level, target_mesh, residual_mesh):
-        if min(level.space) <= 3:
+        print(level.space)
+        if min(level.space) <= 6: # 2^2 level
             with level.timer('total cycles'):
                 #residual_mesh.dump("BOTTOM-SOLVER-RESIDUAL level {}".format(level.level_number))
                 self.bottom_solver.solve(level, target_mesh, residual_mesh)
@@ -668,8 +676,8 @@ class SimpleMultigridSolver(object):
                             choices=['h', 'p'],
                             default='h', )
         parser.add_argument('-sm', '--smoother',
-                            help="Type of smoother, j for jacobi, c for chebyshev",
-                            choices=['j', 'c'],
+                            help="Type of smoother, j for jacobi, c for chebyshev, 'gsrb for gauss-seidel",
+                            choices=['j', 'c', 'gsrb'],
                             default='j', )
         parser.add_argument('-bs', '--bottom-solver',
                             help="Bottom solver to use",
