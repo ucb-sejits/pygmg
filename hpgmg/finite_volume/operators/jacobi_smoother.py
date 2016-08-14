@@ -114,7 +114,12 @@ class JacobiSmoother(Smoother):
         self.operator.set_scale(level.h)
 
         kernel = self.get_smooth_kernel(level, self.iterations)
-        kernel(working_source, working_target, lambda_mesh, rhs_mesh)
+        if finite_volume.CONFIG.variable_coefficient:
+            #'mesh', 'out', 'alpha', 'beta_0', 'beta_1', 'beta_2', 'lambda_mesh', 'rhs_mesh'
+            params = [working_source, working_target, level.alpha] + level.beta_face_values + [lambda_mesh, rhs_mesh]
+            kernel(*params)
+        else:
+            kernel(working_source, working_target, lambda_mesh, rhs_mesh)
 
     smooth = kernel_smooth
 

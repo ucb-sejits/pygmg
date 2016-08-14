@@ -38,7 +38,11 @@ class Residual(object):
 
     def residue(self, level, target_mesh, source_mesh, right_hand_side, lambda_mesh):
         kern = self.get_residue_kernel(level)
-        kern(target_mesh, source_mesh, right_hand_side)
+        if hpgmg.finite_volume.CONFIG.variable_coefficient:
+            params = [target_mesh, level.alpha] + level.beta_face_values + [source_mesh, right_hand_side]
+            kern(*params)
+        else:
+            kern(target_mesh, source_mesh, right_hand_side)
 
     __residue_cache = {}
     def get_residue_kernel(self, level):
