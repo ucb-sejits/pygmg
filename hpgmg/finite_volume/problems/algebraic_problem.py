@@ -103,7 +103,8 @@ class SymmetricAlgebraicProblem(AlgebraicProblem):
 
         for dim in range(self.dimensions):
             if solver.is_variable_coefficient:
-                self.initialize_face_mesh(level, level.beta_face_values[dim], beta_expression, dim)
+                #self.initialize_face_mesh(level, level.beta_face_values[dim], beta_expression, dim)
+                level.beta_face_values[dim].fill(1.0)
             else:
                 level.beta_face_values[dim].fill(1.0)
 
