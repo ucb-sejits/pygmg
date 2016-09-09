@@ -79,8 +79,8 @@ class GSRBSmoother(Smoother):
     def get_smooth_stencil(self, level, iterations):
         stencil = self.get_stencil(level).body
         boundary_kernels = copy.deepcopy(level.solver.boundary_updater.stencil_kernels)
-        group = boundary_kernels + stencil
-        stencil_group = StencilGroup(group*iterations)
+        group = boundary_kernels + [stencil[0]] + boundary_kernels + [stencil[1]]
+        stencil_group = StencilGroup(group*(iterations//2))
         return stencil_group
 
     def get_smooth_kernel(self, level, iterations):
