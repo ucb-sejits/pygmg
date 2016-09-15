@@ -740,6 +740,18 @@ class SimpleMultigridSolver(object):
         else:
             min_solves = 1
             number_passes = 10
+        for solve_pass in range(min_solves):
+                self.all_levels[start_level].fill_mesh(self.all_levels[start_level].cell_values, 0.0)
+
+                if self.do_f_cycle:
+                    self.solve_with_f_cycle(0, 0.0, 1.0e-10)
+                else:
+                    self.solve(start_level=start_level)
+
+
+        time_this.reset()
+        t_start = time.time()
+
         for pass_num in range(number_passes):
             if pass_num == 0:
                 if self.backend == 'python':
@@ -756,9 +768,6 @@ class SimpleMultigridSolver(object):
                     self.solve_with_f_cycle(0, 0.0, 1.0e-10)
                 else:
                     self.solve(start_level=start_level)
-            if pass_num == 0 and self.backend != 'python':
-                time_this.reset()
-                t_start = time.time()
         print("===== Timing Breakdown ==============================================")
         self.show_timing_information()
         self.show_error_information()
@@ -766,7 +775,7 @@ class SimpleMultigridSolver(object):
             self.run_richardson_test()
         if self.configuration.verbose:
             print('Backend: {}'.format(self.configuration.backend))
-            print("Total time: ", time.time - t_start)
+            print("Total time: ", time.time() - t_start)
 
     @staticmethod
     @time_this
