@@ -741,25 +741,19 @@ class SimpleMultigridSolver(object):
             min_solves = 1
             number_passes = 10
         for solve_pass in range(min_solves):
-                self.all_levels[start_level].fill_mesh(self.all_levels[start_level].cell_values, 0.0)
+            self.all_levels[start_level].fill_mesh(self.all_levels[start_level].cell_values, 0.0)
 
-                if self.do_f_cycle:
-                    self.solve_with_f_cycle(0, 0.0, 1.0e-10)
-                else:
-                    self.solve(start_level=start_level)
+            if self.do_f_cycle:
+                self.solve_with_f_cycle(0, 0.0, 1.0e-10)
+            else:
+                self.solve(start_level=start_level)
 
 
         time_this.reset()
         t_start = time.time()
 
         for pass_num in range(number_passes):
-            if pass_num == 0:
-                if self.backend == 'python':
-                    print("===== Running python, no warm-up, one pass ============================".format(min_solves))
-                else:
-                    print("===== Warming up by running {:d} solves ===============================".format(min_solves))
-            else:
-                print("===== Running {:d} solves =============================================".format(min_solves))
+            print("===== Running {:d} solves =============================================".format(min_solves))
 
             for solve_pass in range(min_solves):
                 self.all_levels[start_level].fill_mesh(self.all_levels[start_level].cell_values, 0.0)
