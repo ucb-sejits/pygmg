@@ -758,7 +758,7 @@ class SimpleMultigridSolver(object):
                     self.solve(start_level=start_level)
             if pass_num == 0 and self.backend != 'python':
                 time_this.reset()
-
+                t_start = time.time()
         print("===== Timing Breakdown ==============================================")
         self.show_timing_information()
         self.show_error_information()
@@ -766,6 +766,7 @@ class SimpleMultigridSolver(object):
             self.run_richardson_test()
         if self.configuration.verbose:
             print('Backend: {}'.format(self.configuration.backend))
+            print("Total time: ", time.time - t_start)
 
     @staticmethod
     @time_this
